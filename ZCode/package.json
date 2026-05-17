@@ -1,0 +1,10 @@
+{
+  "name": "zcode-cli-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-strip-types --test test/all.test.js",
+    "test:watch": "node --experimental-strip-types --test --watch test/all.test.js"
+  }
+}

@@ -3,6 +3,8 @@ import { createModelRegistry, createProviderModelRegistry } from './modelRegistr
 import { createOpenAICompatibleProvider } from './openaiCompatible.js'
 import { normalizeSettings } from '../config/settingsContract.js'
 
+const MODEL_FAMILY_ALIASES = new Set(['sonnet', 'opus', 'haiku'])
+
 function isTruthy(value) {
   if (!value || typeof value !== 'string') {
     return false
@@ -29,6 +31,80 @@ function readJsonObject(value) {
   } catch {
     return {}
   }
+}
+
+function prefixMatchesModel(modelName, prefix) {
+  if (!modelName.startsWith(prefix)) {
+    return false
+  }
+
+  return modelName.length === prefix.length || modelName[prefix.length] === '-'
+}
+
+function matchesAvailableModelEntry(values, entry) {
+  if (values.includes(entry)) {
+    return true
+  }
+
+  if (MODEL_FAMILY_ALIASES.has(entry)) {
+    return values.some(
+      value => value.includes(`claude-${entry}`) || value.includes(entry),
+    )
+  }
+
+  return values.some(value => {
+    if (prefixMatchesModel(value, entry)) {
+      return true
+    }
+
+    if (!entry.startsWith('claude-')) {
+      return prefixMatchesModel(value, `claude-${entry}`)
+    }
+
+    return false
+  })
+}
+
+function applySettingsToProviderModels(provider, normalizedSettings) {
+  const descriptors =
+    typeof provider?.listModels === 'function' ? provider.listModels() : []
+  const modelOverrides = normalizedSettings.modelOverrides || {}
+  const availableModels = normalizedSettings.availableModels?.map(model =>
+    model.toLowerCase(),
+  )
+
+  const remapped = descriptors.map(descriptor => {
+    const canonicalId =
+      typeof descriptor.displayName === 'string' &&
+      descriptor.displayName.trim() !== ''
+        ? descriptor.displayName.trim()
+        : descriptor.id
+
+    const overriddenId = modelOverrides[canonicalId]
+
+    return overriddenId
+      ? {
+          ...descriptor,
+          id: overriddenId,
+        }
+      : descriptor
+  })
+
+  if (!availableModels?.length) {
+    return remapped
+  }
+
+  return remapped.filter(descriptor => {
+    const values = [
+      descriptor.id,
+      descriptor.displayName,
+      descriptor.provider,
+    ]
+      .filter(value => typeof value === 'string' && value.trim() !== '')
+      .map(value => value.trim().toLowerCase())
+
+    return availableModels.some(entry => matchesAvailableModelEntry(values, entry))
+  })
 }
 
 export function resolveProviderMode(env = process.env) {
@@ -112,7 +188,12 @@ export function createModelRegistryFromEnv(env = process.env) {
 }
 
 export function createModelRegistryFromSettings(settings = {}, env = process.env) {
-  return createProviderModelRegistry([createProviderFromSettings(settings, env)])
+  const normalizedSettings = normalizeSettings(settings)
+  const provider = createProviderFromSettings(normalizedSettings, env)
+
+  return createModelRegistry(
+    applySettingsToProviderModels(provider, normalizedSettings),
+  )
 }
 
 export function createFlatModelRegistry(descriptors = []) {

@@ -93,3 +93,37 @@ test('createProviderFromSettings prefers normalized settings over env', async ()
   assert.deepEqual(provider.config.headers, { 'X-Test': '1' })
   assert.equal(registry.has('deepseek-chat'), true)
 })
+
+test('createModelRegistryFromSettings applies availableModels and modelOverrides', async () => {
+  const { createModelRegistryFromSettings } = await loadModule(modulePath)
+
+  const registry = createModelRegistryFromSettings({
+    availableModels: ['opus', 'claude-sonnet-4-6'],
+    modelOverrides: {
+      'claude-sonnet-4-6': 'custom-sonnet-profile',
+    },
+  })
+
+  assert.equal(registry.has('custom-sonnet-profile'), true)
+  assert.equal(registry.has('claude-sonnet-4-6'), false)
+  assert.equal(registry.has('claude-opus-4-6'), true)
+  assert.equal(registry.has('claude-haiku-4-5-20251001'), false)
+})
+
+test('createModelRegistryFromSettings filters openai-compatible models by availableModels', async () => {
+  const { createModelRegistryFromSettings } = await loadModule(modulePath)
+
+  const registry = createModelRegistryFromSettings({
+    provider: 'openai-compatible',
+    openaiCompatible: {
+      provider: 'deepseek',
+      model: 'deepseek-chat',
+      baseUrl: 'https://api.deepseek.com/v1',
+      apiKey: 'test-key',
+    },
+    availableModels: ['qwen-plus'],
+  })
+
+  assert.equal(registry.has('deepseek-chat'), false)
+  assert.deepEqual(registry.list(), [])
+})

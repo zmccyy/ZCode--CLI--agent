@@ -12,6 +12,10 @@ export function getProductName() {
   return getBrand().productName
 }
 
+export function getProductUrl() {
+  return getBrand().productUrl
+}
+
 export function getWelcomeTitle() {
   return getBrand().welcomeTitle
 }

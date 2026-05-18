@@ -1,9 +1,19 @@
-export const PR_TITLE = 'Add Claude Code GitHub Workflow'
+import {
+  getCommandName,
+  getProductName,
+  getProductUrl,
+} from '../config/brandText.js'
+
+const PRODUCT_NAME = getProductName()
+const COMMAND_NAME = getCommandName()
+const PRODUCT_URL = getProductUrl()
+
+export const PR_TITLE = `Add ${PRODUCT_NAME} GitHub Workflow`
 
 export const GITHUB_ACTION_SETUP_DOCS_URL =
   'https://github.com/anthropics/claude-code-action/blob/main/docs/setup.md'
 
-export const WORKFLOW_CONTENT = `name: Claude Code
+export const WORKFLOW_CONTENT = `name: ${PRODUCT_NAME}
 
 on:
   issue_comment:
@@ -18,34 +28,35 @@ on:
 jobs:
   claude:
     if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@${COMMAND_NAME}')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@${COMMAND_NAME}')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@${COMMAND_NAME}')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@${COMMAND_NAME}') || contains(github.event.issue.title, '@${COMMAND_NAME}')))
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: read
       issues: read
       id-token: write
-      actions: read # Required for Claude to read CI results on PRs
+      actions: read # Required for the action to read CI results on PRs
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Run Claude Code
+      - name: Run ${PRODUCT_NAME}
         id: claude
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: \${{ secrets.ANTHROPIC_API_KEY }}
 
-          # This is an optional setting that allows Claude to read CI results on PRs
+          # This is an optional setting that allows the action to read CI results on PRs
           additional_permissions: |
             actions: read
 
-          # Optional: Give a custom prompt to Claude. If this is not specified, Claude will perform the instructions specified in the comment that tagged it.
+          # Optional: Give a custom prompt to ${PRODUCT_NAME}. If this is not specified,
+          # ${PRODUCT_NAME} will perform the instructions from the comment that tagged it.
           # prompt: 'Update the pull request description to include a summary of changes.'
 
           # Optional: Add claude_args to customize behavior and configuration
@@ -55,14 +66,14 @@ jobs:
 
 `
 
-export const PR_BODY = `## 🤖 Installing Claude Code GitHub App
+export const PR_BODY = `## Installing ${PRODUCT_NAME} GitHub App
 
-This PR adds a GitHub Actions workflow that enables Claude Code integration in our repository.
+This PR adds a GitHub Actions workflow that enables ${PRODUCT_NAME} integration in our repository.
 
-### What is Claude Code?
+### What is ${PRODUCT_NAME}?
 
-[Claude Code](https://claude.com/claude-code) is an AI coding agent that can help with:
-- Bug fixes and improvements  
+[${PRODUCT_NAME}](${PRODUCT_URL}) is an AI coding agent that can help with:
+- Bug fixes and improvements
 - Documentation updates
 - Implementing new features
 - Code reviews and suggestions
@@ -71,22 +82,22 @@ This PR adds a GitHub Actions workflow that enables Claude Code integration in o
 
 ### How it works
 
-Once this PR is merged, we'll be able to interact with Claude by mentioning @claude in a pull request or issue comment.
-Once the workflow is triggered, Claude will analyze the comment and surrounding context, and execute on the request in a GitHub action.
+Once this PR is merged, we'll be able to interact with ${PRODUCT_NAME} by mentioning @${COMMAND_NAME} in a pull request or issue comment.
+Once the workflow is triggered, ${PRODUCT_NAME} will analyze the comment and surrounding context, and execute on the request in a GitHub Action.
 
 ### Important Notes
 
-- **This workflow won't take effect until this PR is merged**
-- **@claude mentions won't work until after the merge is complete**
-- The workflow runs automatically whenever Claude is mentioned in PR or issue comments
-- Claude gets access to the entire PR or issue context including files, diffs, and previous comments
+- This workflow won't take effect until this PR is merged.
+- @${COMMAND_NAME} mentions won't work until after the merge is complete.
+- The workflow runs automatically whenever ${PRODUCT_NAME} is mentioned in PR or issue comments.
+- ${PRODUCT_NAME} gets access to the full PR or issue context, including files, diffs, and previous comments.
 
 ### Security
 
-- Our Anthropic API key is securely stored as a GitHub Actions secret
-- Only users with write access to the repository can trigger the workflow
-- All Claude runs are stored in the GitHub Actions run history
-- Claude's default tools are limited to reading/writing files and interacting with our repo by creating comments, branches, and commits.
+- Our Anthropic API key is securely stored as a GitHub Actions secret.
+- Only users with write access to the repository can trigger the workflow.
+- All ${PRODUCT_NAME} runs are stored in the GitHub Actions run history.
+- ${PRODUCT_NAME}'s default tools are limited to reading and writing files plus interacting with the repo by creating comments, branches, and commits.
 - We can add more allowed tools by adding them to the workflow file like:
 
 \`\`\`
@@ -95,9 +106,9 @@ allowed_tools: Bash(npm install),Bash(npm run build),Bash(npm run lint),Bash(npm
 
 There's more information in the [Claude Code action repo](https://github.com/anthropics/claude-code-action).
 
-After merging this PR, let's try mentioning @claude in a comment on any PR to get started!`
+After merging this PR, try mentioning @${COMMAND_NAME} in a comment on any PR to get started.`
 
-export const CODE_REVIEW_PLUGIN_WORKFLOW_CONTENT = `name: Claude Code Review
+export const CODE_REVIEW_PLUGIN_WORKFLOW_CONTENT = `name: ${PRODUCT_NAME} Review
 
 on:
   pull_request:
@@ -130,7 +141,7 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Run Claude Code Review
+      - name: Run ${PRODUCT_NAME} Review
         id: claude-review
         uses: anthropics/claude-code-action@v1
         with:

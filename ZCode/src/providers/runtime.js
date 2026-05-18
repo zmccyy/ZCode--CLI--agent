@@ -4,6 +4,12 @@ import { createOpenAICompatibleProvider } from './openaiCompatible.js'
 import { normalizeSettings } from '../config/settingsContract.js'
 
 const MODEL_FAMILY_ALIASES = new Set(['sonnet', 'opus', 'haiku'])
+const ANTHROPIC_PROVIDER_MODES = new Set([
+  'firstParty',
+  'bedrock',
+  'vertex',
+  'foundry',
+])
 
 function isTruthy(value) {
   if (!value || typeof value !== 'string') {
@@ -31,6 +37,10 @@ function readJsonObject(value) {
   } catch {
     return {}
   }
+}
+
+export function isAnthropicProviderMode(mode) {
+  return typeof mode === 'string' && ANTHROPIC_PROVIDER_MODES.has(mode)
 }
 
 function prefixMatchesModel(modelName, prefix) {
@@ -137,6 +147,19 @@ export function resolveProviderModeFromSettings(settings = {}, env = process.env
   }
 
   return resolveProviderMode(env)
+}
+
+export function getLegacyAnthropicProviderModeFromEnv(env = process.env) {
+  const mode = resolveProviderMode(env)
+  return isAnthropicProviderMode(mode) ? mode : 'firstParty'
+}
+
+export function getLegacyAnthropicProviderModeFromSettings(
+  settings = {},
+  env = process.env,
+) {
+  const mode = resolveProviderModeFromSettings(settings, env)
+  return isAnthropicProviderMode(mode) ? mode : 'firstParty'
 }
 
 function createOpenAICompatibleProviderFromEnv(env) {

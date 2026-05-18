@@ -1,5 +1,6 @@
 import { isRemoteManagedSettingsEligible } from '../services/remoteManagedSettings/syncCache.js'
 import { clearCACertsCache } from './caCerts.js'
+import { applyProviderSettingsToEnv } from '../config/providerEnvironment.js'
 import { getGlobalConfig } from './config.js'
 import { isEnvTruthy } from './envUtils.js'
 import {
@@ -161,6 +162,12 @@ export function applySafeConfigEnvironmentVariables(): void {
     filterSettingsEnv(getSettingsForSource('policySettings')?.env),
   )
 
+  // Bridge phase-1 provider settings into the legacy env-driven runtime
+  // before merged settings.env is applied. This keeps old provider branches
+  // aligned with the unified settings contract without rewriting the full
+  // API stack in one step.
+  applyProviderSettingsToEnv(getSettings_DEPRECATED(), process.env)
+
   // Apply only safe env vars from the fully-merged settings (which includes
   // project-scoped sources). For safe vars that also exist in trusted sources,
   // the merged value (which may come from a higher-priority project source)
@@ -188,6 +195,7 @@ export function applyConfigEnvironmentVariables(): void {
   Object.assign(process.env, filterSettingsEnv(getGlobalConfig().env))
 
   Object.assign(process.env, filterSettingsEnv(getSettings_DEPRECATED()?.env))
+  applyProviderSettingsToEnv(getSettings_DEPRECATED(), process.env)
 
   // Clear caches so agents are rebuilt with the new env vars
   clearCACertsCache()

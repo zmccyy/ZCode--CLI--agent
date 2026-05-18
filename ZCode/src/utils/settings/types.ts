@@ -376,6 +376,59 @@ export const SettingsSchema = lazySchema(() =>
         .string()
         .optional()
         .describe('Override the default model used by Claude Code'),
+      provider: z
+        .enum([
+          'firstParty',
+          'bedrock',
+          'vertex',
+          'foundry',
+          'openai-compatible',
+        ])
+        .optional()
+        .describe(
+          'Override the active inference provider. Supports Anthropic first-party, managed Anthropic variants, and OpenAI-compatible providers.',
+        ),
+      openaiCompatible: z
+        .object({
+          provider: z
+            .string()
+            .optional()
+            .describe(
+              'Display/provider id for the OpenAI-compatible backend (for example "deepseek" or "qwen").',
+            ),
+          model: z
+            .string()
+            .optional()
+            .describe('Default model id for the OpenAI-compatible backend.'),
+          baseUrl: z
+            .string()
+            .optional()
+            .describe('Base URL for the OpenAI-compatible API endpoint.'),
+          apiKey: z
+            .string()
+            .optional()
+            .describe(
+              'API key for the OpenAI-compatible backend. Prefer env/helpers for sensitive deployments when possible.',
+            ),
+          headers: z
+            .record(z.string(), z.string())
+            .optional()
+            .describe(
+              'Additional static headers to send to the OpenAI-compatible backend.',
+            ),
+          timeout: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe(
+              'Request timeout in milliseconds for the OpenAI-compatible backend.',
+            ),
+        })
+        .optional()
+        .describe(
+          'Configuration for an OpenAI-compatible provider when provider is set to "openai-compatible".',
+        ),
       // Enterprise allowlist of models
       availableModels: z
         .array(z.string())

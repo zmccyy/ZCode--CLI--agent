@@ -39,6 +39,16 @@ function readJsonObject(value) {
   }
 }
 
+function readOpenAICompatibleConfigFromEnv(env = process.env) {
+  return {
+    provider: readString(env.ZCODE_OPENAI_PROVIDER) || 'openai-compatible',
+    model: readString(env.ZCODE_OPENAI_MODEL) || undefined,
+    baseUrl: readString(env.ZCODE_OPENAI_BASE_URL) || undefined,
+    apiKey: readString(env.ZCODE_OPENAI_API_KEY) || undefined,
+    headers: readJsonObject(env.ZCODE_OPENAI_HEADERS),
+  }
+}
+
 export function isAnthropicProviderMode(mode) {
   return typeof mode === 'string' && ANTHROPIC_PROVIDER_MODES.has(mode)
 }
@@ -163,26 +173,24 @@ export function getLegacyAnthropicProviderModeFromSettings(
 }
 
 function createOpenAICompatibleProviderFromEnv(env) {
-  return createOpenAICompatibleProvider({
-    provider: readString(env.ZCODE_OPENAI_PROVIDER) || 'openai-compatible',
-    model: readString(env.ZCODE_OPENAI_MODEL),
-    baseUrl: readString(env.ZCODE_OPENAI_BASE_URL),
-    apiKey: readString(env.ZCODE_OPENAI_API_KEY),
-    headers: readJsonObject(env.ZCODE_OPENAI_HEADERS),
-  })
+  return createOpenAICompatibleProvider(readOpenAICompatibleConfigFromEnv(env))
 }
 
-function createOpenAICompatibleProviderFromSettings(settings) {
+function createOpenAICompatibleProviderFromSettings(settings, env = process.env) {
   const normalizedSettings = normalizeSettings(settings)
+  const envConfig =
+    resolveProviderMode(env) === 'openai-compatible'
+      ? readOpenAICompatibleConfigFromEnv(env)
+      : {}
   const config = normalizedSettings.openaiCompatible || {}
 
   return createOpenAICompatibleProvider({
-    provider: readString(config.provider) || 'openai-compatible',
-    model: readString(config.model),
-    baseUrl: readString(config.baseUrl),
-    apiKey: readString(config.apiKey),
-    headers: config.headers,
-    timeout: config.timeout,
+    provider: readString(config.provider) || envConfig.provider || 'openai-compatible',
+    model: readString(config.model) || envConfig.model,
+    baseUrl: readString(config.baseUrl) || envConfig.baseUrl,
+    apiKey: readString(config.apiKey) || envConfig.apiKey,
+    headers: config.headers || envConfig.headers,
+    timeout: config.timeout ?? envConfig.timeout,
   })
 }
 
@@ -200,7 +208,7 @@ export function createProviderFromSettings(settings = {}, env = process.env) {
   const mode = resolveProviderModeFromSettings(settings, env)
 
   if (mode === 'openai-compatible') {
-    return createOpenAICompatibleProviderFromSettings(settings)
+    return createOpenAICompatibleProviderFromSettings(settings, env)
   }
 
   return createAnthropicProvider({ provider: mode })

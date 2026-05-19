@@ -110,6 +110,43 @@ test('createModelRegistryFromSettings applies availableModels and modelOverrides
   assert.equal(registry.has('claude-haiku-4-5-20251001'), false)
 })
 
+test('createModelRegistryFromSettings keeps env-selected provider when settings only filter models', async () => {
+  const { createModelRegistryFromSettings } = await loadModule(modulePath)
+
+  const registry = createModelRegistryFromSettings(
+    {
+      availableModels: ['deepseek-chat'],
+      modelOverrides: {
+        'deepseek-chat': 'deepseek-chat-enterprise',
+      },
+    },
+    {
+      ZCODE_PROVIDER: 'openai-compatible',
+      ZCODE_OPENAI_PROVIDER: 'deepseek',
+      ZCODE_OPENAI_MODEL: 'deepseek-chat',
+      ZCODE_OPENAI_BASE_URL: 'https://api.deepseek.com/v1',
+      ZCODE_OPENAI_API_KEY: 'test-key',
+    },
+  )
+
+  assert.equal(registry.has('deepseek-chat-enterprise'), true)
+  assert.equal(registry.has('deepseek-chat'), false)
+  assert.deepEqual(registry.list(), [
+    {
+      id: 'deepseek-chat-enterprise',
+      displayName: 'deepseek-chat',
+      provider: 'deepseek',
+      contextWindow: null,
+      maxOutputTokens: null,
+      capabilities: {
+        streaming: true,
+        toolCalling: true,
+        supportsJsonSchema: true,
+      },
+    },
+  ])
+})
+
 test('createModelRegistryFromSettings filters openai-compatible models by availableModels', async () => {
   const { createModelRegistryFromSettings } = await loadModule(modulePath)
 

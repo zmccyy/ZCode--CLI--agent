@@ -17,6 +17,7 @@ import {
   isFirstPartyAnthropicBaseUrl,
 } from 'src/utils/model/providers.js'
 import { getProxyFetchOptions } from 'src/utils/proxy.js'
+import { createProviderFromEnv, resolveProviderMode } from 'src/providers/runtime.js'
 import {
   getIsNonInteractiveSession,
   getSessionId,
@@ -131,6 +132,15 @@ export async function getAnthropicClient({
   logForDebugging('[API:auth] OAuth token check starting')
   await checkAndRefreshOAuthTokenIfNeeded()
   logForDebugging('[API:auth] OAuth token check complete')
+
+  if (resolveProviderMode(process.env) === 'openai-compatible') {
+    const { createProviderAdapterClient } = await import('./providerAdapterClient.js')
+    return createProviderAdapterClient({
+      provider: createProviderFromEnv(process.env),
+      defaultHeaders,
+      fetchOverride,
+    }) as unknown as Anthropic
+  }
 
   if (!isClaudeAISubscriber()) {
     await configureApiKeyHeaders(defaultHeaders, getIsNonInteractiveSession())

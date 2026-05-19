@@ -23,6 +23,19 @@ function readString(value) {
   return typeof value === 'string' && value.trim() !== '' ? value.trim() : null
 }
 
+function readFiniteNumber(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value !== 'string' || value.trim() === '') {
+    return undefined
+  }
+
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
 function readJsonObject(value) {
   const raw = readString(value)
   if (!raw) {
@@ -46,6 +59,7 @@ function readOpenAICompatibleConfigFromEnv(env = process.env) {
     baseUrl: readString(env.ZCODE_OPENAI_BASE_URL) || undefined,
     apiKey: readString(env.ZCODE_OPENAI_API_KEY) || undefined,
     headers: readJsonObject(env.ZCODE_OPENAI_HEADERS),
+    timeout: readFiniteNumber(env.ZCODE_OPENAI_TIMEOUT),
   }
 }
 

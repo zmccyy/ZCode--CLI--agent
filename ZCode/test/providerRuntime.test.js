@@ -46,6 +46,7 @@ test('createProviderFromEnv can build an OpenAI-compatible provider from ZCode e
     ZCODE_OPENAI_BASE_URL: 'https://api.deepseek.com/v1///',
     ZCODE_OPENAI_API_KEY: 'test-key',
     ZCODE_OPENAI_HEADERS: '{"X-Test":"1"}',
+    ZCODE_OPENAI_TIMEOUT: '120000',
   }
 
   assert.equal(resolveProviderMode(env), 'openai-compatible')
@@ -56,6 +57,7 @@ test('createProviderFromEnv can build an OpenAI-compatible provider from ZCode e
   assert.equal(provider.id, 'openai-compatible:deepseek')
   assert.equal(provider.config.baseUrl, 'https://api.deepseek.com/v1')
   assert.deepEqual(provider.config.headers, { 'X-Test': '1' })
+  assert.equal(provider.config.timeout, 120000)
   assert.equal(registry.has('deepseek-chat'), true)
 })
 

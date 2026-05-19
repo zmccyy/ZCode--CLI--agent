@@ -126,12 +126,14 @@ export function createProviderAdapter(definition) {
     kind: definition.kind.trim(),
     provider: providerName,
     config: definition.config,
-    async streamChat(input) {
+    streamChat(input) {
       if (typeof definition.streamChat === 'function') {
         return definition.streamChat(input)
       }
 
-      throw new Error(`streamChat is not implemented for ${definition.id}`)
+      return (async function* () {
+        throw new Error(`streamChat is not implemented for ${definition.id}`)
+      })()
     },
     listModels() {
       return rawListModels().map(descriptor =>

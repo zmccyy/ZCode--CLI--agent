@@ -9,7 +9,7 @@
 - 目标产品：`ZCode`
 - 当前代码目录：`ZCode/`
 - 对标范围：本地 CLI agent 核心能力
-- 当前评估日期：`2026-05-16`
+- 当前评估日期：`2026-05-19`
 
 状态定义：
 
@@ -34,18 +34,18 @@
 | Memory | memory 读写 | Present | `ZCode/src/commands/memory/index.ts`, `ZCode/src/utils/memory/*`, `ZCode/src/memdir/*` | 需场景回归 |
 | 权限控制 | permission prompt / deny / allow | Present | `ZCode/src/utils/permissions/*` | 需形成稳定回归集 |
 | 压缩上下文 | compact / context compaction | Present | `ZCode/src/commands/compact/index.ts`, `ZCode/src/services/compact/*` | 需长会话压测 |
-| Provider | Anthropic 主路径 | Present | `ZCode/src/utils/model/*`, `ZCode/src/services/api/*` | 历史主路径仍有耦合 |
-| Provider | OpenAI-compatible provider | Partial | `ZCode/src/providers/openaiCompatible.js` | 本轮已补最小 contract，但未接入主链路 |
-| Provider | 统一 ProviderAdapter contract | Partial | `ZCode/src/contracts/providerAdapter.js` | 本轮新增，尚未推广到 Anthropic 路径 |
-| Model | ModelRegistry / metadata | Partial | `ZCode/src/providers/modelRegistry.js`, `ZCode/src/utils/model/configs.ts` | 仅完成独立 contract，未接主链路 |
+| Provider | Anthropic 主路径 | Present | `ZCode/src/utils/model/*`, `ZCode/src/services/api/*`, `ZCode/src/providers/anthropic.js` | 默认主线仍有历史耦合 |
+| Provider | OpenAI-compatible 独立运行时 | Verified | `ZCode/src/providers/runtime.js`, `ZCode/src/providers/openaiCompatible.js`, `ZCode/src/services/api/client.ts`, `ZCode/src/services/api/providerAdapterClient.ts` | 已能独立跑 runtime / request path，但不等于模型体系已统一 |
+| Provider | 统一 ProviderAdapter contract | Partial | `ZCode/src/contracts/providerAdapter.js` | 公共 contract 已建立，但不再要求 Phase 1 完成全量合并 |
+| Model | ModelRegistry / metadata | Partial | `ZCode/src/providers/modelRegistry.js`, `ZCode/src/utils/model/configs.ts` | 作为后续清理项保留，不再是当前 blocker |
 | Settings | 统一 settings schema | Present | `ZCode/src/utils/settings/types.ts`, `ZCode/src/utils/settings/settings.ts` | 现有 schema 很完整，但仍是 Claude Code 语义 |
-| Settings | settings 优先级 contract | Partial | `ZCode/src/config/settingsContract.js` | 本轮新增，尚未替换现有实现 |
-| Brand | 品牌配置抽离 | Partial | `ZCode/src/config/brandConfig.js`, `ZCode/src/constants/product.ts` | 仅覆盖少量常量 |
+| Settings | settings 优先级 contract | Verified | `ZCode/src/config/settingsContract.js`, `ZCode/src/config/providerEnvironment.js`, `ZCode/src/providers/runtime.js` | 已由测试覆盖优先级、归一化、provider env 桥接与 runtime 读取 |
+| Brand | 品牌配置抽离 | Verified | `ZCode/src/config/brandConfig.js`, `ZCode/src/constants/product.ts`, `ZCode/src/components/LogoV2/WelcomeV2.tsx`, `ZCode/test/publicEntryBranding.test.js` | 公共入口首层品牌文案已完成第一轮收口，剩余项转后续分域清理 |
 | Doctor | 诊断命令 | Present | `ZCode/src/commands/doctor/index.ts` | 需面向 Windows 用户收口 |
 | Update | 更新命令 | Present | `ZCode/src/cli/update.ts` | 需结合 release 流程验证 |
 | 发布 | 安装脚本 / Release 产物 | Missing | 未见 ZCode 独立发布链路 | Phase 3 重点 |
 | 文档 | Windows 安装/升级文档 | Missing | 仅有规划文档 | Phase 3 重点 |
-| 测试 | 根级轻量 contract tests | Present | `ZCode/test/*.test.js` | 本轮扩展到 16 条 |
+| 测试 | 根级轻量 contract tests | Present | `ZCode/test/*.test.js` | 当前已覆盖 51 条自动化测试 |
 | 测试 | 12 条核心场景回归集 | Missing | 尚未建立 | Phase 2 必须项 |
 
 ## Verified This Round
@@ -56,8 +56,12 @@
 - `product.ts` 对品牌 URL 的绑定
 - `ProviderAdapter` 标准化模型描述与工具调用
 - `openaiCompatible` provider 的标准化能力与配置收敛
+- runtime provider mode 选择与 `openai-compatible` timeout 环境变量读取
+- `providerEnvironment` 到 runtime 的统一 provider / env 桥接
+- provider adapter client 到 provider bridge 的 request path
 - `ModelRegistry` 的索引行为
 - `settingsContract` 的优先级顺序与层合并规则
+- 公共入口首层品牌收口（welcome / help / remote / IDE onboarding / update）
 
 对应测试入口：
 
@@ -65,19 +69,23 @@
 - `ZCode/test/productConstants.test.js`
 - `ZCode/test/providerContract.test.js`
 - `ZCode/test/openaiCompatibleProvider.test.js`
+- `ZCode/test/providerRuntime.test.js`
+- `ZCode/test/providerAdapterClient.test.js`
+- `ZCode/test/providerBridge.test.js`
 - `ZCode/test/modelRegistry.test.js`
 - `ZCode/test/settingsContract.test.js`
+- `ZCode/test/providerEnvironment.test.js`
+- `ZCode/test/publicEntryBranding.test.js`
 
 ## Conclusion
 
 当前仓库最大的现实问题不是“核心能力不存在”，而是：
 
-1. 已有能力尚未整理成 ZCode 自己的 contract 与产品边界。
-2. Phase 0 缺的基线文档和回归基线未建立。
+1. Anthropic 主线与 `openai-compatible` 线路都已有可继续推进的入口，但支持边界仍需文档化。
+2. Phase 0 缺的基线文档和回归基线未建立完全。
 3. Provider / Brand / Settings 仍停留在局部替换或历史耦合状态。
 
-因此，后续开发应继续沿用当前路线：
+因此，当前仓库已经可以将 Phase 1 视为完成，并按既定路线继续推进：
 
-- 先完成 Phase 1 的 contract 推广与主链路接入
-- 再建立 Phase 2 的 12 条核心场景回归集
-- 最后再做 Windows 发布收口
+- 进入 Phase 2，建立带线路标记的核心场景回归集
+- 同步准备 Phase 3 的 Windows 发布、doctor 与配置文档收口

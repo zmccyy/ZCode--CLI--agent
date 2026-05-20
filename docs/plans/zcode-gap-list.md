@@ -12,14 +12,14 @@
 
 ## P0
 
-### 1. 缺少统一的 Provider contract 主链路接入
+### 1. 双线路 provider runtime 收口仍未完成
 
-- 现状：已存在多套 provider 相关逻辑，`openaiCompatible.js` 原本只是薄桩。
-- 风险：继续直接加 provider 会扩大历史耦合，影响后续能力对齐。
-- 当前进展：已新增 `ProviderAdapter` contract 和 `ModelRegistry` 最小实现。
+- 现状：`ProviderAdapter` contract、`runtime.js`、`openaiCompatible.js`、`providerAdapterClient.ts` 已具备最小可运行骨架，`openai-compatible` 已能通过运行时切换独立工作。
+- 风险：如果继续按“先完成 provider / model 统一合并”推进，会把 Phase 1 重新拉回高风险的大改造。
+- 当前进展：Anthropic / `openai-compatible` 已出现两条可识别路径，但主链路消费边界、支持矩阵和验收口径还未完全写清。
 - 下一步：
-  - 为 Anthropic 主路径补一层 adapter 包装
-  - 确认主链路如何消费统一的 provider capabilities / model metadata
+  - 固化 Anthropic 主线与 `openai-compatible` 线路各自的 runtime / config 边界
+  - 仅对公共入口做最小 contract 收口，暂不把 `ModelRegistry` / provider enum 全量统一作为 Phase 1 完成条件
 
 ### 2. 缺少 Phase 2 所需的核心场景回归集
 
@@ -32,16 +32,14 @@
 
 ### 3. 品牌抽离仍然局部化
 
-- 现状：`brandConfig.js` 和 `product.ts` 已存在，但大量 `Claude Code` / `Anthropic` 文案残留在系统提示、帮助文案和 GitHub workflow 常量中。
-- 风险：无法达到计划中的“用户可见品牌残留为 0”。
+- 现状：`brandConfig.js`、`product.ts` 与公共入口首层文案已经完成第一轮收口，欢迎区、Help / General、Remote Control 首层提示、IDE onboarding、bridge 状态文案与 update 用户提示已切到 `ZCode` 视角。
+- 剩余风险：仓库内仍有大量非 Phase 1 范围的历史 `Claude Code` / `Anthropic` 文案，主要分布在系统提示、远程 Web 能力、GitHub workflow 常量与兼容层实现中。
 - 证据：
   - `ZCode/src/constants/system.ts`
   - `ZCode/src/constants/prompts.ts`
-  - `ZCode/src/constants/github-app.ts`
-  - `ZCode/src/utils/attribution.ts`
-- 下一步：
-  - 建立品牌残留清单
-  - 优先清理用户可见路径和产品常量
+  - `ZCode/src/commands/review.ts`
+  - `ZCode/src/commands/ultraplan.tsx`
+- 结论：该项不再作为 Phase 1 blocker，后续按“用户直接可见且属于下一阶段功能入口”的优先级继续清理。
 
 ### 4. 缺少 ZCode 视角的 settings contract 收口
 
@@ -54,23 +52,15 @@
 
 ## P1
 
-### 5. OpenAI-compatible provider 尚未真正接入运行时
+### 5. OpenAI-compatible 线路已可运行，但支持边界与验收口径未固化
 
-- 现状：本轮只完成了独立 contract 和标准化测试。
-- 风险：无法证明 provider abstraction 真的可服务主链路。
+- 现状：`openai-compatible` 已接入 runtime / provider adapter client，并通过定向测试验证。
+- 风险：如果不明确它当前是“独立线路”而不是“已完成全系统合并”，Phase 2 / 3 容易出现错误预期。
 - 下一步：
-  - 接入 provider 选择逻辑
-  - 对 model strings / tool call normalization 做运行时验证
+  - 明确支持的配置项、模型选择方式和非目标范围
+  - 为 Phase 2 回归用例补“适用线路”标记
 
-### 6. Model metadata 仍未统一进入现有模型体系
-
-- 现状：`utils/model/configs.ts`、`modelStrings.ts`、`modelCapabilities.ts` 仍是历史分散实现。
-- 风险：后续 provider 扩展时，模型信息会继续分叉。
-- 下一步：
-  - 明确 `ModelRegistry` 与现有 model configs 的边界
-  - 决定 registry 是 facade 还是新的唯一入口
-
-### 7. Windows 安装、更新、诊断尚未形成 ZCode 交付链路
+### 6. Windows 安装、更新、诊断尚未形成 ZCode 交付链路
 
 - 现状：代码里有 `doctor` 和 `update`，但没有 ZCode 级 release 工程。
 - 风险：Phase 3 容易被拖到最后，导致可运行但不可发布。
@@ -78,7 +68,7 @@
   - 提前设计 release 产物
   - 确认安装脚本、更新命令和版本策略
 
-### 8. hooks / MCP / subagent 仍缺行为级验证
+### 7. hooks / MCP / subagent 仍缺行为级验证
 
 - 现状：代码骨架完整，但暂无 ZCode 视角验收。
 - 风险：高复杂度路径在 Windows 环境下容易隐藏 blocker。
@@ -87,6 +77,14 @@
   - 先验证最短主链路，再补失败恢复场景
 
 ## P2
+
+### 8. Model metadata / provider enum 统一仍未完成
+
+- 现状：`utils/model/configs.ts`、`modelStrings.ts`、`modelCapabilities.ts` 仍是历史分散实现。
+- 风险：后续扩展更多 provider 时，模型信息仍可能继续分叉，但当前不阻塞两线并行。
+- 下一步：
+  - 在 Phase 2 / 3 收口后再评估 `ModelRegistry` 与现有 model configs 的归一方案
+  - 决定 registry 是 facade 还是新的唯一入口
 
 ### 9. 计划文档与实现进度尚未形成持续同步机制
 
@@ -106,7 +104,7 @@
 
 按优先级，建议继续这样推进：
 
-1. 将 `ProviderAdapter / ModelRegistry / settingsContract` 接入更靠近主链路的位置。
-2. 清理第一批用户可见品牌残留。
-3. 建立 12 条核心场景回归清单和实现顺序。
-4. 提前设计 Windows release / install / doctor 的收口方案。
+1. 进入 Phase 2，建立带“适用线路”标记的 12 条核心场景回归清单和实现顺序。
+2. 提前设计 Windows release / install / doctor 的收口方案，为 Phase 3 减压。
+3. 将剩余非公共入口的品牌残留按功能域分批处理，而不是继续做全仓字符串清扫。
+4. 将 model system unification 明确记录为后续清理项，而不是当前 blocker。

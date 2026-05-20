@@ -6,7 +6,7 @@ Explanation + design spec
 
 ## 目标
 
-在现有 `upstream/` 骨架基础上，以 Windows 10/11 为唯一目标平台，将 ZCode 的本地 CLI agent 核心能力提升到与 Claude Code `v2.1.11` 同期公开能力面相当的完成度，并形成可发布的 GitHub Release 与终端安装交付链路。
+在现有 `ZCode/` 骨架基础上，以 Windows 10/11 为唯一目标平台，将 ZCode 的本地 CLI agent 核心能力提升到与 Claude Code `v2.1.11` 同期公开能力面相当的完成度，并形成可发布的 GitHub Release 与终端安装交付链路。
 
 ## 版本与资料说明
 
@@ -63,11 +63,11 @@ Explanation + design spec
 
 ### 总体判断
 
-当前目录并不是一个完整的可发布产品仓库，而是一份以 `upstream/` 为主体的代码快照。根目录只有少量测试壳与规划文件，不是 git 工作区。
+当前目录已经是 git 工作区，主体开发目录为 `ZCode/`，根目录同时保留规划文档与少量辅助文件。当前状态不再是“只有代码快照”，而是进入了基于现有骨架持续收口的工程阶段。
 
 这意味着：
 
-- 不能把当前根目录直接视为可发布工程。
+- 可以基于当前仓库直接持续迭代与提交。
 - 不能把对标工作理解为“从零重写 agent”。
 - 更合理的路线是在现有成熟骨架上进行 clean-room 品牌化、接口标准化、Windows 发布收口和能力验收建设。
 
@@ -89,7 +89,7 @@ Explanation + design spec
 围绕 ZCode 产品化和对标目标，当前主要缺口不是“能力不存在”，而是“能力没有收敛成可发布的 ZCode 产品”：
 
 - `BrandConfig` 已出现，但品牌替换仍是局部改造，历史耦合仍多。
-- `providers/openaiCompatible.js` 目前是一个很薄的能力桩，不足以支撑统一 provider 体系。
+- `openai-compatible` 已具备独立 runtime / request path 与定向测试，但更广泛的模型体系仍明显偏向 Anthropic 主路径。
 - 根目录 `package.json` 过薄，当前不具备完整的构建、发布、安装和版本化链路。
 - 缺少 ZCode 视角的 capability matrix、回归矩阵和量化验收标准。
 - 缺少对 Windows-only 目标的明确收口策略。
@@ -114,6 +114,13 @@ Explanation + design spec
 - 交付目标：完成度优先
 - 周期目标：`20-24` 周
 - 平台范围：仅 Windows 10/11
+
+### Phase 1 收口策略（2026-05-19 更新）
+
+- 默认保留 `Anthropic` 与 `openai-compatible` 两条线路并行推进。
+- `openai-compatible` 当前目标是“在显式配置下独立可运行”，而不是立刻替换或合并 Anthropic 主线。
+- `ModelRegistry` / provider enum / default model 统一移出 Phase 1 完成定义，作为后续清理项保留。
+- Phase 2 负责带线路标记的行为回归，Phase 3 负责双线文档、诊断和发布收口。
 
 ## 产品边界
 
@@ -235,9 +242,9 @@ type ProviderAdapter = {
 
 `QueryEngine` 已经是成熟主循环。现阶段应优先包裹与抽象，而不是为了“更干净”而推倒重来。
 
-### 原则 2：先标准化接口，再补 provider
+### 原则 2：优先保证双线路独立可运行，统一模型体系后置
 
-如果先直接接入多个国产或 OpenAI-compatible 模型，很容易把历史耦合扩大。应先冻结 provider contract 和 model registry。
+如果为了抽象整洁强行合并 provider / model 系统，会拖慢当前 Phase 1。更合理的做法是先保证 Anthropic 主线与 `openai-compatible` 线路都能独立工作，再在后续阶段评估统一模型体系。
 
 ### 原则 3：Windows-first
 
@@ -295,10 +302,11 @@ type ProviderAdapter = {
 - [Claude Code v2.1.11 Release](https://github.com/anthropics/claude-code/releases/tag/v2.1.11)
 - `ctx7` 官方文档库：`/anthropics/claude-code`
 - 当前代码库关键位置：
-  - [QueryEngine.ts](D:\桌面\项目\agent壳\upstream\src\QueryEngine.ts)
-  - [brandConfig.js](D:\桌面\项目\agent壳\upstream\src\config\brandConfig.js)
-  - [openaiCompatible.js](D:\桌面\项目\agent壳\upstream\src\providers\openaiCompatible.js)
-  - [commands.ts](D:\桌面\项目\agent壳\upstream\src\commands.ts)
-  - [agents command](D:\桌面\项目\agent壳\upstream\src\commands\agents\index.ts)
-  - [hooks command](D:\桌面\项目\agent壳\upstream\src\commands\hooks\index.ts)
-  - [doctor command](D:\桌面\项目\agent壳\upstream\src\commands\doctor\index.ts)
+  - [QueryEngine.ts](D:\桌面\项目\agent壳\ZCode\src\QueryEngine.ts)
+  - [brandConfig.js](D:\桌面\项目\agent壳\ZCode\src\config\brandConfig.js)
+  - [openaiCompatible.js](D:\桌面\项目\agent壳\ZCode\src\providers\openaiCompatible.js)
+  - [runtime.js](D:\桌面\项目\agent壳\ZCode\src\providers\runtime.js)
+  - [commands.ts](D:\桌面\项目\agent壳\ZCode\src\commands.ts)
+  - [agents command](D:\桌面\项目\agent壳\ZCode\src\commands\agents\index.ts)
+  - [hooks command](D:\桌面\项目\agent壳\ZCode\src\commands\hooks\index.ts)
+  - [doctor command](D:\桌面\项目\agent壳\ZCode\src\commands\doctor\index.ts)

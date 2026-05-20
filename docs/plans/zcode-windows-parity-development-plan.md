@@ -9,7 +9,7 @@
 - 目标平台：Windows 10/11
 - 团队规模：`3-5` 人
 - 目标周期：`22` 周，允许在 `20-24` 周区间内微调
-- 研发策略：路线 B，能力对齐 + 分层收敛
+- 研发策略：路线 B，双线并行 + 分层收口
 
 核心交付目标：
 
@@ -17,6 +17,12 @@
 2. 在不重写主干的前提下，建立 provider、配置、品牌和发布边界。
 3. 让 ZCode 在 Windows 下完成本地 CLI agent 核心任务闭环。
 4. 通过量化验收标准验证“完成度接近 Claude Code 2.1.11”。
+
+Phase 1 的默认前提：
+
+- `Anthropic` 与 `openai-compatible` 两条线路并行推进。
+- 不把 provider / model 全量合并作为当前阶段目标。
+- `ModelRegistry` / provider enum / default model 统一作为后续清理项保留。
 
 ## 阶段划分
 
@@ -47,96 +53,99 @@
 - 架构与范围不再大改
 - 关键命令与主链路盘点完成
 
-### Phase 1 · 核心解耦 · Week 3-6
+### Phase 1 · 双线收口 · Week 3-6
 
 目标：
 
-- 把历史代码中的 provider、品牌、配置相关耦合抽离出来。
+- 在不强推 provider / model 全量合并的前提下，收口 Anthropic 与 `openai-compatible` 两条运行线路，以及品牌、配置边界。
 
 实施步骤：
 
-1. 定义 `ProviderAdapter` 接口。
-2. 定义 `ModelRegistry` 与 model metadata 结构。
-3. 定义统一 settings schema 和优先级规则。
-4. 将品牌相关常量统一改由 `BrandConfig` 提供。
-5. 统一命令命名空间、欢迎页、帮助文案和产品常量。
-6. 为现有 Anthropic 路径补 adapter 包装层。
-7. 将 `openaiCompatible.js` 从测试桩扩展为真正可接入的 provider。
+1. 固化 `ProviderAdapter`、`settingsContract`、`BrandConfig` 的最小公共 contract。
+2. 维持 Anthropic 作为默认主线，补齐其 runtime / adapter 包装边界。
+3. 维持 `openai-compatible` 作为独立线路，确保配置、超时、provider 选择和 request path 可单独运行。
+4. 仅在公共入口统一 provider 选择、配置读取和错误边界，不强推 model metadata / provider enum 合并。
+5. 清理第一批用户可见品牌残留。
+6. 为两条线路建立最小支持矩阵与非目标说明。
+7. 将 model system unification 记录为 Phase 2 之后再评估的清理项。
 
 输出物：
 
-- provider contract
-- settings schema
-- brand contract
-- 兼容现有主链路的 adapter 层
+- 双线路 runtime 边界
+- settings / brand contract
+- provider mode 选择逻辑
+- Phase 2 回归所需 support matrix
 
 完成标准：
 
-- `ZCode` 主命名链路跑通
-- 品牌残留开始可系统清理
-- provider 接口可独立测试
+- Anthropic 主线继续跑通 `ZCode` 主命名链路
+- `openai-compatible` 可在显式配置下独立运行
+- provider mode 切换与关键配置项有自动化验证
+- model system unification 被明确记录为非 Phase 1 blocker
 
 ### Phase 2 · 能力对齐 · Week 7-12
 
 目标：
 
-- 补齐本地 CLI 核心 agent 能力的一致性与稳定性。
+- 在双线并行前提下，补齐本地 CLI 核心 agent 能力的一致性与稳定性。
 
 实施步骤：
 
 1. 检查并收敛 plan mode 行为。
 2. 收敛 memory / session / resume 主链路。
-3. 统一 tools 在不同 provider 下的 tool-calling 归一化逻辑。
+3. 分别验证 Anthropic / `openai-compatible` 下的 tool-calling、streaming 与错误映射；仅在 adapter 层做最小归一化。
 4. 验证并修补 subagent / teammate 路径。
 5. 验证 hooks 生命周期事件和执行边界。
 6. 验证 MCP 发现、连接、调用和失败恢复。
-7. 建立端到端任务集。
+7. 建立带“适用线路”标签的端到端任务集。
 
 输出物：
 
 - 核心能力回归用例
-- provider capability matrix
+- 双线 provider capability / support matrix
 - session / memory / tool 调用一致性修复
 
 完成标准：
 
-- Windows 下可以完成一条端到端编码任务
-- 12 条核心场景中通过率达到 `>= 75%`
+- Windows 下 Anthropic 主线可以完成一条端到端编码任务
+- `12` 条核心场景具备线路标记且整体通过率达到 `>= 75%`
+- `openai-compatible` 完成其范围内的独立 provider / runtime 回归
 - 已识别的 blocker 能被稳定复现和修复
 
 ### Phase 3 · Windows 发布收口 · Week 13-18
 
 目标：
 
-- 把可运行能力收口成可安装、可更新、可诊断、可发布的 Windows 产品。
+- 把双线能力收口成可安装、可更新、可诊断、可发布的 Windows 产品。
 
 实施步骤：
 
 1. 设计安装方式：
    - GitHub Release 下载产物
    - 终端安装脚本
-2. 统一版本号、release notes、更新命令。
+2. 统一版本号、release notes、更新命令，并明确对外支持矩阵。
 3. 完善 `doctor` 诊断项：
    - shell 环境
-   - provider 配置
+   - Anthropic / `openai-compatible` provider 配置
    - 文件权限
    - MCP 健康状态
    - Windows 终端兼容项
 4. 补齐错误提示与自恢复建议。
-5. 产出 Windows 安装、升级、卸载文档。
+5. 产出 Windows 安装、升级、卸载文档，以及双线路配置说明。
 
 输出物：
 
 - 安装脚本
 - GitHub Release 产物
 - update / doctor 收口
-- Windows 用户文档
+- Windows 用户文档与双线路配置说明
 
 完成标准：
 
 - Windows 安装和更新成功率达到 `>= 90%`
-- 新用户可通过 release 或终端安装启动 ZCode
-- doctor 能定位主要配置问题
+- 新用户可通过 release 或终端安装启动 ZCode 的 Anthropic 默认主线
+- `openai-compatible` 可按文档完成配置并通过 doctor / 连通性检查
+- 发布说明能明确呈现支持矩阵与限制
 
 ### Phase 4 · 性能与稳定性 · Week 19-22
 
@@ -183,9 +192,9 @@
 
 关键文件起点：
 
-- [QueryEngine.ts](D:\桌面\项目\agent壳\upstream\src\QueryEngine.ts)
-- [sessionStorage.ts](D:\桌面\项目\agent壳\upstream\src\utils\sessionStorage.ts)
-- [plans.ts](D:\桌面\项目\agent壳\upstream\src\utils\plans.ts)
+- [QueryEngine.ts](D:\桌面\项目\agent壳\ZCode\src\QueryEngine.ts)
+- [sessionStorage.ts](D:\桌面\项目\agent壳\ZCode\src\utils\sessionStorage.ts)
+- [plans.ts](D:\桌面\项目\agent壳\ZCode\src\utils\plans.ts)
 
 ### 模块 B：Provider & Settings
 
@@ -195,15 +204,17 @@
 
 任务：
 
-- 完成 `ProviderAdapter`
-- 扩展 OpenAI-compatible provider
-- 定义 model registry
-- 统一 settings 合并与校验
+- 完成双线路 provider runtime 收口
+- 维持 `openai-compatible` 独立线路可运行
+- 记录 model registry / provider enum 统一的后续清理边界
+- 统一 settings contract 与校验
 
 关键文件起点：
 
-- [openaiCompatible.js](D:\桌面\项目\agent壳\upstream\src\providers\openaiCompatible.js)
-- [brandConfig.js](D:\桌面\项目\agent壳\upstream\src\config\brandConfig.js)
+- [runtime.js](D:\桌面\项目\agent壳\ZCode\src\providers\runtime.js)
+- [openaiCompatible.js](D:\桌面\项目\agent壳\ZCode\src\providers\openaiCompatible.js)
+- [settingsContract.js](D:\桌面\项目\agent壳\ZCode\src\config\settingsContract.js)
+- [brandConfig.js](D:\桌面\项目\agent壳\ZCode\src\config\brandConfig.js)
 
 ### 模块 C：Extension & Security
 
@@ -221,8 +232,8 @@
 
 关键文件起点：
 
-- [hooks command](D:\桌面\项目\agent壳\upstream\src\commands\hooks\index.ts)
-- [agents command](D:\桌面\项目\agent壳\upstream\src\commands\agents\index.ts)
+- [hooks command](D:\桌面\项目\agent壳\ZCode\src\commands\hooks\index.ts)
+- [agents command](D:\桌面\项目\agent壳\ZCode\src\commands\agents\index.ts)
 
 ### 模块 D：Brand & Release
 
@@ -240,8 +251,8 @@
 
 关键文件起点：
 
-- [doctor command](D:\桌面\项目\agent壳\upstream\src\commands\doctor\index.ts)
-- [release-notes command](D:\桌面\项目\agent壳\upstream\src\commands\release-notes\index.ts)
+- [doctor command](D:\桌面\项目\agent壳\ZCode\src\commands\doctor\index.ts)
+- [release-notes command](D:\桌面\项目\agent壳\ZCode\src\commands\release-notes\index.ts)
 
 ## 资源分配建议
 
@@ -267,13 +278,13 @@
 
 ### M2 · Week 6
 
-- Provider / Brand / Settings 三大抽象落地
-- ZCode 命名主线跑通
+- Anthropic / `openai-compatible` 双线路 runtime 与 Brand / Settings 边界收口
+- 明确 model system unification 后置，不阻塞继续推进
 
 ### M3 · Week 12
 
-- Windows 下完成主链路端到端任务
-- 核心 agent 能力达到内部试用标准
+- Windows 下 Anthropic 主线完成端到端任务
+- `openai-compatible` 完成范围内回归并形成 support matrix
 
 ### M4 · Week 18
 
@@ -302,6 +313,11 @@
 10. memory 读写
 11. permission prompt / deny / allow
 12. doctor / update 主链路
+
+补充要求：
+
+- 每条场景都要标注 `common / anthropic / openai-compatible` 适用线路。
+- Anthropic 主线覆盖完整主链路场景，`openai-compatible` 至少覆盖其承诺支持的场景。
 
 要求：
 
@@ -367,11 +383,11 @@ Windows 10/11 下覆盖：
 
 按优先级，下一步应立即做：
 
-1. 输出 capability matrix 与 gap list。
-2. 定义 provider / brand / settings 三个 contract。
+1. 更新 capability matrix、gap list 与 Phase 1 双线支持矩阵。
+2. 固化 provider / brand / settings 的最小公共 contract 与边界说明。
 3. 设计 Windows release 方式与安装脚本方案。
-4. 建立 12 条核心场景回归集。
+4. 建立带线路标记的 12 条核心场景回归集。
 
 ## 备注
 
-当前目录不是 git 工作区，因此本次计划文档已写入本地，但无法按规范完成提交记录与基于 commit 的 review 流程。
+当前目录已是 git 工作区；后续计划更新可直接随实现一起提交并复核。

@@ -3,7 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "zcode": "./src/entrypoints/publicCli.js"
+  },
   "scripts": {
+    "start": "bun run src/entrypoints/publicCli.js",
+    "dev": "bun run src/entrypoints/publicCli.js",
+    "doctor": "bun run src/entrypoints/publicCli.js doctor",
+    "models": "bun run src/entrypoints/publicCli.js models",
     "test": "node --experimental-strip-types --test test/all.test.js",
     "test:watch": "node --experimental-strip-types --test --watch test/all.test.js"
   }

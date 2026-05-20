@@ -31,6 +31,60 @@ test('phase 2 regression matrix defines 12 labeled core scenarios', async () => 
   assert.match(source, /S12/)
 })
 
+test('phase 2 regression matrix aligns its 12 core scenarios with the main plan', async () => {
+  const matrixSource = await readWorkspaceFile(
+    'docs',
+    'plans',
+    'zcode-phase2-regression-matrix.md',
+  )
+  const planSource = await readWorkspaceFile(
+    'docs',
+    'plans',
+    'zcode-windows-parity-development-plan.md',
+  )
+
+  const scenarioLines = matrixSource
+    .split('\n')
+    .filter(line => /^\|\s*S\d{2}\s*\|/.test(line))
+
+  const expectedScenarios = [
+    'Start a new local session from the public entry surface',
+    'Resume the most relevant recent session',
+    'Read and search workspace files',
+    'Edit and persist workspace files',
+    'Execute shell and PowerShell commands',
+    'Enter plan mode and inspect the current plan',
+    'Run subagent or teammate delegation on the main task loop',
+    'Load hooks and process hook-triggered outcomes',
+    'Discover, connect, and call MCP tools with failure recovery',
+    'Read and write memory files',
+    'Surface permission prompt, deny, and allow flows',
+    'Run doctor and update diagnostic flows',
+  ]
+
+  assert.equal(scenarioLines.length, expectedScenarios.length)
+  assert.match(planSource, /10\.\s*memory 读写/)
+  assert.match(planSource, /12\.\s*doctor \/ update 主链路/)
+
+  for (const scenario of expectedScenarios) {
+    assert.ok(
+      scenarioLines.some(line => line.includes(scenario)),
+      `missing core scenario: ${scenario}`,
+    )
+  }
+
+  assert.equal(
+    scenarioLines.some(line => line.includes('Anthropic-backed coding loop')),
+    false,
+  )
+  assert.equal(
+    scenarioLines.some(line =>
+      line.includes('OpenAI-compatible print/runtime loop'),
+    ),
+    false,
+  )
+})
+
 test('public startup notes use product language instead of internal trimmed-repo wording', async () => {
   const source = await readZCodeSource('src', 'cli', 'publicCliCore.js')
 

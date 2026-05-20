@@ -223,7 +223,7 @@ export function renderHelp({ version = '0.0.0' } = {}) {
     '  -p, --print <prompt> Run a minimal non-interactive prompt',
     '',
     'Notes:',
-    '  This trimmed repo does not boot the legacy interactive TUI path.',
+    '  This public build does not boot the full interactive TUI path.',
     '  The public local entrypoint is intentionally limited to stable modules.',
     `  ${getLaunchCommandTip()}`,
   ].join('\n')
@@ -264,7 +264,7 @@ export function createDoctorReport({
     },
     commands: toCommandList(),
     notes: [
-      'Legacy interactive startup is not wired in this trimmed repository.',
+      'Legacy interactive startup is not wired in this public build.',
       'Use doctor, models, or --print to validate the local public entrypoint.',
     ],
     models,

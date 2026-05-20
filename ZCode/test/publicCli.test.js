@@ -107,7 +107,7 @@ test('renderHelp describes the minimal local-startable CLI surface', async () =>
   assert.match(help, /doctor/)
   assert.match(help, /models/)
   assert.match(help, /-p, --print <prompt>/)
-  assert.match(help, /trimmed repo/i)
+  assert.match(help, /public build/i)
 })
 
 test('createDoctorReport reports a startable default Anthropic-backed local CLI', async () => {

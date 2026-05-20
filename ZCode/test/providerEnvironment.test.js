@@ -97,3 +97,22 @@ test('applyProviderSettingsToEnv respects host-managed provider routing', async 
     CLAUDE_CODE_USE_BEDROCK: '1',
   })
 })
+
+test('applyProviderSettingsToEnv clears previously-bridged provider env when unified settings omit provider', async () => {
+  const { applyProviderSettingsToEnv } = await loadModule(modulePath)
+
+  const env = {
+    ZCODE_PROVIDER: 'openai-compatible',
+    ZCODE_OPENAI_PROVIDER: 'deepseek',
+    ZCODE_OPENAI_MODEL: 'deepseek-chat',
+    ZCODE_OPENAI_BASE_URL: 'https://api.deepseek.com/v1',
+    ZCODE_OPENAI_API_KEY: 'test-key',
+    ZCODE_OPENAI_HEADERS: '{"X-Test":"1"}',
+    ZCODE_OPENAI_TIMEOUT: '120000',
+    CLAUDE_CODE_USE_VERTEX: '1',
+  }
+
+  applyProviderSettingsToEnv({}, env)
+
+  assert.deepEqual(env, {})
+})

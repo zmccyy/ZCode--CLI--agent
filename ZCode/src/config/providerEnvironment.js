@@ -15,6 +15,11 @@ const OPENAI_COMPATIBLE_ENV_KEYS = Object.freeze([
   'ZCODE_OPENAI_TIMEOUT',
 ])
 
+const BRIDGED_PROVIDER_ENV_KEYS = Object.freeze([
+  'ZCODE_PROVIDER',
+  ...OPENAI_COMPATIBLE_ENV_KEYS,
+])
+
 function isTruthy(value) {
   if (!value || typeof value !== 'string') {
     return false
@@ -70,6 +75,8 @@ export function applyProviderSettingsToEnv(settings = {}, env = process.env) {
   const provider = normalizedSettings.provider
 
   if (!provider) {
+    clearKeys(env, BRIDGED_PROVIDER_ENV_KEYS)
+    clearKeys(env, Object.values(ANTHROPIC_PROVIDER_ENV_FLAGS))
     return env
   }
 

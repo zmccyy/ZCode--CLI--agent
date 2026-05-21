@@ -49,6 +49,7 @@ import {
   permissionRuleValueFromString,
   permissionRuleValueToString,
 } from './permissionRuleParser.js'
+import { buildToolPermissionSurfaceDecision } from './toolPermissionSurface.js'
 import {
   deletePermissionRuleFromSettings,
   type PermissionRuleFromEditableSettings,
@@ -1269,45 +1270,21 @@ async function hasPermissionsToUseToolInner(
     appState.toolPermissionContext.mode === 'bypassPermissions' ||
     (appState.toolPermissionContext.mode === 'plan' &&
       appState.toolPermissionContext.isBypassPermissionsModeAvailable)
-  if (shouldBypassPermissions) {
-    return {
-      behavior: 'allow',
-      updatedInput: getUpdatedInputOrFallback(toolPermissionResult, input),
-      decisionReason: {
-        type: 'mode',
-        mode: appState.toolPermissionContext.mode,
-      },
-    }
-  }
-
-  // 2b. Entire tool is allowed
   const alwaysAllowedRule = toolAlwaysAllowedRule(
     appState.toolPermissionContext,
     tool,
   )
-  if (alwaysAllowedRule) {
-    return {
-      behavior: 'allow',
-      updatedInput: getUpdatedInputOrFallback(toolPermissionResult, input),
-      decisionReason: {
-        type: 'rule',
-        rule: alwaysAllowedRule,
-      },
-    }
-  }
-
-  // 3. Convert "passthrough" to "ask"
-  const result: PermissionDecision =
-    toolPermissionResult.behavior === 'passthrough'
-      ? {
-          ...toolPermissionResult,
-          behavior: 'ask' as const,
-          message: createPermissionRequestMessage(
-            tool.name,
-            toolPermissionResult.decisionReason,
-          ),
-        }
-      : toolPermissionResult
+  const result = buildToolPermissionSurfaceDecision({
+    toolName: tool.name,
+    input: getUpdatedInputOrFallback(toolPermissionResult, input),
+    askRule,
+    allowRule: alwaysAllowedRule,
+    toolPermissionResult,
+    shouldBypassPermissions,
+    mode: appState.toolPermissionContext.mode,
+    requiresUserInteraction: false,
+    canSkipAskRule: true,
+  }) as PermissionDecision
 
   if (result.behavior === 'ask' && result.suggestions) {
     logForDebugging(

@@ -326,3 +326,107 @@ test('streamChat sends input model in request body', async () => {
   const start = chunks.find(c => c.type === 'response_start')
   assert.equal(start.type, 'response_start')
 })
+
+test('streamChat aborts when signal is already aborted', async () => {
+  const { createAnthropicProvider } = await loadModule(modulePath)
+
+  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const controller = new AbortController()
+  controller.abort()
+
+  const stream = provider.streamChat({
+    messages: [{ role: 'user', content: 'Hello' }],
+    signal: controller.signal,
+    fetch: async (_url, init) => {
+      // Simulate what fetch does when signal is already aborted
+      throw new DOMException('The operation was aborted', 'AbortError')
+    },
+  })
+
+  try {
+    for await (const _ of stream) { /* drain */ }
+    assert.fail('expected stream to throw on aborted signal')
+  } catch (err) {
+    assert.ok(
+      err.name === 'AbortError' || err.message.includes('abort'),
+      `expected AbortError, got ${err.message}`,
+    )
+  }
+})
+
+test('streamChat aborts mid-stream when signal fires during iteration', async () => {
+  const { createAnthropicProvider } = await loadModule(modulePath)
+
+  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const controller = new AbortController()
+
+  let chunkCount = 0
+  const events = [
+    { event: 'message_start', data: { type: 'message_start', message: { id: 'msg_abort', model: 'claude-sonnet-4-6', role: 'assistant', usage: { input_tokens: 5, output_tokens: 0 } } } },
+    { event: 'content_block_start', data: { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } } },
+    { event: 'content_block_delta', data: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Hello' } } },
+    { event: 'content_block_stop', data: { type: 'content_block_stop', index: 0 } },
+    { event: 'message_delta', data: { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { input_tokens: 5, output_tokens: 1 } } },
+    { event: 'message_stop', data: { type: 'message_stop' } },
+  ]
+
+  const stream = provider.streamChat({
+    messages: [{ role: 'user', content: 'Hello' }],
+    signal: controller.signal,
+    fetch: async (_url, _init) => {
+      const encoder = new TextEncoder()
+      let cancelled = false
+      return new Response(
+        new ReadableStream({
+          async start(ctrl) {
+            for (const event of events) {
+              if (cancelled) break
+              const lines = []
+              if (event.event) lines.push(`event: ${event.event}`)
+              lines.push(`data: ${JSON.stringify(event.data)}`)
+              ctrl.enqueue(encoder.encode(lines.join('\n') + '\n\n'))
+              await new Promise(r => setTimeout(r, 5))
+            }
+            if (!cancelled) ctrl.close()
+          },
+          cancel() {
+            cancelled = true
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'text/event-stream' } },
+      )
+    },
+  })
+
+  for await (const chunk of stream) {
+    chunkCount++
+    if (chunkCount >= 2) {
+      controller.abort()
+    }
+  }
+
+  // Should have stopped early, not consumed all 6 events
+  assert.ok(chunkCount < events.length, `expected early abort, consumed ${chunkCount} chunks`)
+})
+
+test('streamChat passes signal through to fetch', async () => {
+  const { createAnthropicProvider } = await loadModule(modulePath)
+
+  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const controller = new AbortController()
+
+  let capturedSignal = null
+  const stream = provider.streamChat({
+    messages: [{ role: 'user', content: 'Hello' }],
+    signal: controller.signal,
+    fetch: async (_url, init) => {
+      capturedSignal = init.signal
+      return createAnthropicSSEResponse(textStream())
+    },
+  })
+
+  for await (const _ of stream) { /* drain */ }
+
+  assert.equal(capturedSignal, controller.signal)
+  assert.equal(capturedSignal.aborted, false)
+})

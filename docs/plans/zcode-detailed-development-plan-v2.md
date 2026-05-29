@@ -19,9 +19,12 @@
 | **Settings Contract** | ✅ 稳定 | `config/settingsContract.js`，优先级合并、OpenAI-compatible 归一化 |
 | **Provider Environment Bridge** | ✅ 稳定 | `config/providerEnvironment.js`，settings → env 双向桥接 |
 | **Brand Config 基础** | ✅ 稳定 | `config/brandConfig.js` + `brandText.js`，产品名/URL/命令空间可配置 |
-| **Anthropic Provider 骨架** | ✅ 稳定 | `providers/anthropic.js`，从 `model/configs.ts` 读取模型列表 |
+| **Anthropic Provider 主线** | ✅ 稳定 | `providers/anthropic.js`，完整 SSE streamChat + tool_use 增量合并 + abort 处理 |
+| **Anthropic 透传适配器** | ✅ 稳定 | `services/api/anthropicAdapterClient.ts`，SDK 兼容 `beta.messages.create` 接口 |
+| **双线路 ModelRegistry** | ✅ 稳定 | `providers/runtime.js`，`createDualLineModelRegistry` 合并 Anthropic + OpenAI-compatible 线路 |
+| **Settings 文件 I/O** | ✅ 稳定 | `settingsContract.js`，`loadSettingsFromDisk`/`saveSettingsForSource` 5 层合并 + 磁盘读写 |
 | **.env 加载** | ✅ 稳定 | `publicCliCore.js` 内 `loadDotEnvFile`，不覆盖已有变量 |
-| **自动化测试框架** | ✅ 稳定 | 75 条测试，74 通过，1 条因 Windows 无 bun 导致失败 |
+| **自动化测试框架** | ✅ 稳定 | 80 条测试，全部通过 |
 | **Phase 2 回归矩阵定义** | ✅ 稳定 | 12 条核心场景 S01-S12 已建立，带线路标记 |
 
 ### 1.2 正在开发中的部分及进度
@@ -33,13 +36,13 @@
 | **Plan Mode 行为抽离** | 80% | `planBehavior.js` 已可测试，但尚未接入完整 TUI 交互路径验证 |
 | **Resume 行为抽离** | 80% | `resumeBehavior.js` 已可测试，validate/lookup 逻辑完整 |
 | **Permission Surface** | 70% | `toolPermissionSurface.js` 可独立测试 allow/deny/ask，但完整链路未验证 |
-| **Anthropic 主线 streamChat** | 30% | Provider adapter 仅有 `listModels`，`streamChat` 尚未实现 |
+| **Anthropic streamChat 边缘场景** | 90% | 基础流式/tool_use/abort 已实现并测试，E2E 真实 API 验证待做 |
 
 ### 1.3 完全未开始的部分
 
 | 模块 | 优先级 | 依赖 |
 |------|--------|------|
-| **Anthropic streamChat 实现** | P0 | 需对接 `@anthropic-ai/sdk` 或手动 SSE |
+| **Anthropic streamChat E2E 验证** | P0 | 需真实 API Key 做端到端验证 |
 | **完整 REPL 交互启动链路** | P0 | 依赖 Anthropic streamChat + TUI 渲染链路 |
 | **S03/S04 文件读写回归** | P0 | 需 harness 适配 FileRead/FileEdit/Glob/Grep 工具 |
 | **S07 Subagent 回归** | P1 | 需验证 AgentTool + swarm 路径 |
@@ -58,7 +61,7 @@
 | 编号 | 问题 | 影响 | 紧迫度 |
 |------|------|------|--------|
 | TD-01 | 530 处品牌残留分布在 250 个文件中 | 用户可见不一致 | 中 |
-| TD-02 | Anthropic provider 无 streamChat，主线 TUI 不可用 | 阻塞主交互链路 | 高 |
+| TD-02 | ~~Anthropic provider 无 streamChat~~ ✅ 已解决 | 主线 TUI 仍需打通 REPL 启动链路 | 中 |
 | TD-03 | `model/configs.ts` 仍用 TS 格式，需 `createRequire` hack | 构建脆弱 | 中 |
 | TD-04 | 测试依赖 `bun` 命令但 Windows 可能未安装 | 1 条测试持续失败 | 低 |
 | TD-05 | QueryEngine 1295 行，与 UI/permissions/session 深度耦合 | 改动风险高 | 中 |

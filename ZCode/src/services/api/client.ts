@@ -142,6 +142,23 @@ export async function getAnthropicClient({
     }) as unknown as Anthropic
   }
 
+  if (
+    resolveProviderMode(process.env) === 'firstParty' &&
+    isEnvTruthy(process.env.ZCODE_USE_NEW_ANTHROPIC_PROVIDER)
+  ) {
+    const { createAnthropicPassthroughClient } = await import('./anthropicAdapterClient.js')
+    const { createAnthropicProvider } = await import('../../providers/anthropic.js')
+    const provider = createAnthropicProvider({
+      provider: 'firstParty',
+      apiKey: apiKey || process.env.ANTHROPIC_API_KEY,
+    })
+    return createAnthropicPassthroughClient({
+      provider,
+      defaultHeaders,
+      fetchOverride,
+    }) as unknown as Anthropic
+  }
+
   if (!isClaudeAISubscriber()) {
     await configureApiKeyHeaders(defaultHeaders, getIsNonInteractiveSession())
   }

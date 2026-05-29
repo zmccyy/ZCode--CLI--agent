@@ -1,0 +1,328 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { loadModule, resolveFromHere } from './helpers/loadModule.js'
+
+const modulePath = resolveFromHere(
+  import.meta.url,
+  '..',
+  'src',
+  'providers',
+  'anthropic.js',
+)
+
+const encoder = new TextEncoder()
+
+function createAnthropicSSEResponse(events, options = {}) {
+  const separator = options.separator || '\n\n'
+  const chunks = []
+
+  for (const event of events) {
+    const lines = []
+    if (event.event) {
+      lines.push(`event: ${event.event}`)
+    }
+    lines.push(`data: ${JSON.stringify(event.data)}`)
+    chunks.push(lines.join('\n'))
+  }
+
+  return new Response(
+    new ReadableStream({
+      start(controller) {
+        for (const chunk of chunks) {
+          controller.enqueue(encoder.encode(chunk + separator))
+        }
+        controller.close()
+      },
+    }),
+    { status: options.status || 200, headers: { 'content-type': 'text/event-stream' } },
+  )
+}
+
+function textStream(overrides = {}) {
+  const id = overrides.id || 'msg_001'
+  const model = overrides.model || 'claude-sonnet-4-6'
+  const text = overrides.text || 'Hello from Claude'
+  return [
+    { event: 'message_start', data: { type: 'message_start', message: { id, model, role: 'assistant', usage: { input_tokens: 10, output_tokens: 0 } } } },
+    { event: 'content_block_start', data: { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } } },
+    { event: 'content_block_delta', data: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } } },
+    { event: 'content_block_stop', data: { type: 'content_block_stop', index: 0 } },
+    { event: 'message_delta', data: { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { input_tokens: 10, output_tokens: 5 } } },
+    { event: 'message_stop', data: { type: 'message_stop' } },
+  ]
+}
+
+function toolUseStream(overrides = {}) {
+  const id = overrides.id || 'msg_002'
+  const model = overrides.model || 'claude-sonnet-4-6'
+  const toolName = overrides.toolName || 'BashTool'
+  const toolInput = overrides.toolInput || { command: 'ls' }
+  const toolId = overrides.toolId || 'tool_001'
+  return [
+    { event: 'message_start', data: { type: 'message_start', message: { id, model, role: 'assistant', usage: { input_tokens: 15, output_tokens: 0 } } } },
+    { event: 'content_block_start', data: { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: toolId, name: toolName, input: {} } } },
+    { event: 'content_block_delta', data: { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: JSON.stringify(toolInput) } } },
+    { event: 'content_block_stop', data: { type: 'content_block_stop', index: 0 } },
+    { event: 'message_delta', data: { type: 'message_delta', delta: { stop_reason: 'tool_use' }, usage: { input_tokens: 15, output_tokens: 30 } } },
+    { event: 'message_stop', data: { type: 'message_stop' } },
+  ]
+}
+
+test('streamChat yields response_start text_delta response_end for basic text', async () => {
+  const { createAnthropicProvider } = await loadModule(modulePath)
+
+  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const stream = provider.streamChat({
+    messages: [{ role: 'user', content: 'Hello' }],
+    fetch: async (_url, _init) => createAnthropicSSEResponse(textStream()),
+  })
+
+  const chunks = []
+  for await (const chunk of stream) {
+    chunks.push(chunk)
+  }
+
+  assert.ok(chunks.length >= 3, `expected at least 3 chunks, got ${chunks.length}`)
+
+  const start = chunks[0]
+  assert.equal(start.type, 'response_start')
+  assert.equal(start.messageId, 'msg_001')
+  assert.equal(start.model, 'claude-sonnet-4-6')
+  assert.equal(start.provider, 'firstParty')
+
+  const textChunks = chunks.filter(c => c.type === 'text_delta')
+  assert.ok(textChunks.length > 0, 'expected at least one text_delta')
+  assert.equal(textChunks.map(c => c.text).join(''), 'Hello from Claude')
+
+  const end = chunks[chunks.length - 1]
+  assert.equal(end.type, 'response_end')
+  assert.equal(end.finishReason, 'end_turn')
+  assert.equal(end.usage.inputTokens, 10)
+  assert.equal(end.usage.outputTokens, 5)
+})
+
+test('streamChat yields tool_call chunks for tool_use blocks', async () => {
+  const { createAnthropicProvider } = await loadModule(modulePath)
+
+  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const stream = provider.streamChat({
+    messages: [{ role: 'user', content: 'List files' }],
+    tools: [{ name: 'BashTool', description: 'Run a shell command', input_schema: { type: 'object', properties: { command: { type: 'string' } }, required: ['command'] } }],
+    fetch: async (_url, _init) => createAnthropicSSEResponse(toolUseStream()),
+  })
+
+  const chunks = []
+  for await (const chunk of stream) {
+    chunks.push(chunk)
+  }
+
+  const toolCalls = chunks.filter(c => c.type === 'tool_call')
+  assert.equal(toolCalls.length, 1, `expected 1 tool_call, got ${toolCalls.length}`)
+
+  const tc = toolCalls[0]
+  assert.equal(tc.toolCall.name, 'BashTool')
+  assert.equal(tc.toolCall.id, 'tool_001')
+  assert.deepEqual(tc.toolCall.input, { command: 'ls' })
+
+  const end = chunks[chunks.length - 1]
+  assert.equal(end.type, 'response_end')
+  assert.equal(end.finishReason, 'tool_use')
+})
+
+test('streamChat yields tool_call per content_block_stop for multiple tool_use blocks', async () => {
+  const { createAnthropicProvider } = await loadModule(modulePath)
+
+  const events = [
+    { event: 'message_start', data: { type: 'message_start', message: { id: 'msg_003', model: 'claude-sonnet-4-6', role: 'assistant', usage: { input_tokens: 20, output_tokens: 0 } } } },
+    { event: 'content_block_start', data: { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } } },
+    { event: 'content_block_delta', data: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Sure, let me do that.' } } },
+    { event: 'content_block_stop', data: { type: 'content_block_stop', index: 0 } },
+    { event: 'content_block_start', data: { type: 'content_block_start', index: 1, content_block: { type: 'tool_use', id: 'tool_a', name: 'FileRead', input: {} } } },
+    { event: 'content_block_delta', data: { type: 'content_block_delta', index: 1, delta: { type: 'input_json_delta', partial_json: '{"filePath":"/tmp/a.txt"}' } } },
+    { event: 'content_block_stop', data: { type: 'content_block_stop', index: 1 } },
+    { event: 'content_block_start', data: { type: 'content_block_start', index: 2, content_block: { type: 'tool_use', id: 'tool_b', name: 'Glob', input: {} } } },
+    { event: 'content_block_delta', data: { type: 'content_block_delta', index: 2, delta: { type: 'input_json_delta', partial_json: '{"pattern":"*.js"}' } } },
+    { event: 'content_block_stop', data: { type: 'content_block_stop', index: 2 } },
+    { event: 'message_delta', data: { type: 'message_delta', delta: { stop_reason: 'tool_use' }, usage: { input_tokens: 20, output_tokens: 60 } } },
+    { event: 'message_stop', data: { type: 'message_stop' } },
+  ]
+
+  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const stream = provider.streamChat({
+    messages: [{ role: 'user', content: 'Read file and search' }],
+    fetch: async (_url, _init) => createAnthropicSSEResponse(events),
+  })
+
+  const chunks = []
+  for await (const chunk of stream) {
+    chunks.push(chunk)
+  }
+
+  const toolCalls = chunks.filter(c => c.type === 'tool_call')
+  assert.equal(toolCalls.length, 2, `expected 2 tool_calls, got ${toolCalls.length}`)
+  assert.equal(toolCalls[0].toolCall.name, 'FileRead')
+  assert.equal(toolCalls[1].toolCall.name, 'Glob')
+  assert.deepEqual(toolCalls[0].toolCall.input, { filePath: '/tmp/a.txt' })
+  assert.deepEqual(toolCalls[1].toolCall.input, { pattern: '*.js' })
+
+  const textChunks = chunks.filter(c => c.type === 'text_delta')
+  assert.equal(textChunks.map(c => c.text).join(''), 'Sure, let me do that.')
+})
+
+test('streamChat accumulates fragmented input_json_delta across multiple deltas', async () => {
+  const { createAnthropicProvider } = await loadModule(modulePath)
+
+  const events = [
+    { event: 'message_start', data: { type: 'message_start', message: { id: 'msg_004', model: 'claude-sonnet-4-6', role: 'assistant', usage: { input_tokens: 5, output_tokens: 0 } } } },
+    { event: 'content_block_start', data: { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'tool_c', name: 'FileEdit', input: {} } } },
+    { event: 'content_block_delta', data: { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '{"filePath":"/tmp/x"' } } },
+    { event: 'content_block_delta', data: { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: ',"oldString":"hello"' } } },
+    { event: 'content_block_delta', data: { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: ',"newString":"world"}' } } },
+    { event: 'content_block_stop', data: { type: 'content_block_stop', index: 0 } },
+    { event: 'message_delta', data: { type: 'message_delta', delta: { stop_reason: 'tool_use' }, usage: { input_tokens: 5, output_tokens: 20 } } },
+    { event: 'message_stop', data: { type: 'message_stop' } },
+  ]
+
+  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const stream = provider.streamChat({
+    messages: [{ role: 'user', content: 'Edit file' }],
+    fetch: async (_url, _init) => createAnthropicSSEResponse(events),
+  })
+
+  const chunks = []
+  for await (const chunk of stream) {
+    chunks.push(chunk)
+  }
+
+  const toolCalls = chunks.filter(c => c.type === 'tool_call')
+  assert.equal(toolCalls.length, 1)
+  assert.deepEqual(toolCalls[0].toolCall.input, {
+    filePath: '/tmp/x',
+    oldString: 'hello',
+    newString: 'world',
+  })
+})
+
+test('streamChat throws on non-2xx responses', async () => {
+  const { createAnthropicProvider } = await loadModule(modulePath)
+
+  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const stream = provider.streamChat({
+    messages: [{ role: 'user', content: 'Hello' }],
+    fetch: async (_url, _init) =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(encoder.encode(JSON.stringify({ error: { message: 'Invalid API key' } })))
+            controller.close()
+          },
+        }),
+        { status: 401, headers: { 'content-type': 'application/json' } },
+      ),
+  })
+
+  try {
+    for await (const _ of stream) { /* drain */ }
+    assert.fail('expected stream to throw')
+  } catch (err) {
+    assert.match(err.message, /401/)
+  }
+})
+
+test('streamChat throws when apiKey is missing', async () => {
+  const { createAnthropicProvider } = await loadModule(modulePath)
+
+  const provider = createAnthropicProvider()
+  try {
+    const _stream = provider.streamChat({
+      messages: [{ role: 'user', content: 'Hello' }],
+    })
+    assert.fail('expected streamChat to throw synchronously')
+  } catch (err) {
+    assert.match(err.message, /ANTHROPIC_API_KEY/i)
+  }
+})
+
+test('streamChat supports CRLF separators in SSE', async () => {
+  const { createAnthropicProvider } = await loadModule(modulePath)
+
+  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const stream = provider.streamChat({
+    messages: [{ role: 'user', content: 'Hello' }],
+    fetch: async (_url, _init) => createAnthropicSSEResponse(textStream({ text: 'CRLF works' }), { separator: '\r\n\r\n' }),
+  })
+
+  const chunks = []
+  for await (const chunk of stream) {
+    chunks.push(chunk)
+  }
+
+  const textChunks = chunks.filter(c => c.type === 'text_delta')
+  assert.equal(textChunks.map(c => c.text).join(''), 'CRLF works')
+})
+
+test('streamChat handles thinking content gracefully', async () => {
+  const { createAnthropicProvider } = await loadModule(modulePath)
+
+  const events = [
+    { event: 'message_start', data: { type: 'message_start', message: { id: 'msg_005', model: 'claude-opus-4-6', role: 'assistant', usage: { input_tokens: 8, output_tokens: 0 } } } },
+    { event: 'content_block_start', data: { type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '' } } },
+    { event: 'content_block_delta', data: { type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'Let me think about this...' } } },
+    { event: 'content_block_delta', data: { type: 'content_block_delta', index: 0, delta: { type: 'signature_delta', signature: 'sig_abc' } } },
+    { event: 'content_block_stop', data: { type: 'content_block_stop', index: 0 } },
+    { event: 'content_block_start', data: { type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } } },
+    { event: 'content_block_delta', data: { type: 'content_block_delta', index: 1, delta: { type: 'text_delta', text: 'The answer is 42.' } } },
+    { event: 'content_block_stop', data: { type: 'content_block_stop', index: 1 } },
+    { event: 'message_delta', data: { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { input_tokens: 8, output_tokens: 25 } } },
+    { event: 'message_stop', data: { type: 'message_stop' } },
+  ]
+
+  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const stream = provider.streamChat({
+    messages: [{ role: 'user', content: 'What is the answer?' }],
+    fetch: async (_url, _init) => createAnthropicSSEResponse(events),
+  })
+
+  const chunks = []
+  for await (const chunk of stream) {
+    chunks.push(chunk)
+  }
+
+  // thinking content should not produce text_delta chunks
+  const textChunks = chunks.filter(c => c.type === 'text_delta')
+  assert.equal(textChunks.length, 1, 'only the text block should yield text_delta, not thinking')
+  assert.equal(textChunks[0].text, 'The answer is 42.')
+
+  assert.ok(chunks.some(c => c.type === 'response_start'))
+  assert.ok(chunks.some(c => c.type === 'response_end'))
+})
+
+test('streamChat sends input model in request body', async () => {
+  const { createAnthropicProvider } = await loadModule(modulePath)
+
+  let capturedBody = null
+  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const stream = provider.streamChat({
+    messages: [{ role: 'user', content: 'Hello' }],
+    model: 'claude-opus-4-6',
+    maxTokens: 8192,
+    temperature: 0.5,
+    fetch: async (_url, init) => {
+      capturedBody = JSON.parse(init.body)
+      return createAnthropicSSEResponse(textStream())
+    },
+  })
+
+  const chunks = []
+  for await (const chunk of stream) {
+    chunks.push(chunk)
+  }
+
+  assert.equal(capturedBody.model, 'claude-opus-4-6')
+  assert.equal(capturedBody.max_tokens, 8192)
+  assert.equal(capturedBody.temperature, 0.5)
+  assert.ok(capturedBody.stream)
+
+  const start = chunks.find(c => c.type === 'response_start')
+  assert.equal(start.type, 'response_start')
+})

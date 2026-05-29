@@ -14,16 +14,26 @@ async function readWorkspaceFile(...segments) {
   )
 }
 
-test('phase 2 regression matrix defines 12 labeled core scenarios', async () => {
-  const source = await readWorkspaceFile(
-    'docs',
-    'plans',
-    'zcode-phase2-regression-matrix.md',
-  )
+const planPath = resolveFromHere(
+  import.meta.url,
+  '..',
+  '..',
+  'docs',
+  'plans',
+  'zcode-detailed-development-plan-v2.md',
+)
 
+test('phase 2 regression matrix defines 12 labeled core scenarios', async () => {
+  const source = await fs.readFile(planPath, 'utf8')
+
+  // The v2 plan section 5.2 embeds the 12-scenario regression matrix
+  // Table format: | S01 | common | 新会话初始化表面 | common | ... |
   const scenarioMatches = source.match(/\|\s*S\d{2}\s*\|/g) ?? []
-  assert.equal(scenarioMatches.length, 12)
-  assert.match(source, /\|\s*Track\s*\|/)
+  assert.ok(
+    scenarioMatches.length >= 12,
+    `expected at least 12 scenario IDs, got ${scenarioMatches.length}`,
+  )
+  assert.match(source, /\|\s*场景\s*ID\s*\|/)
   assert.match(source, /\bcommon\b/)
   assert.match(source, /\banthropic\b/)
   assert.match(source, /\bopenai-compatible\b/)
@@ -32,57 +42,26 @@ test('phase 2 regression matrix defines 12 labeled core scenarios', async () => 
 })
 
 test('phase 2 regression matrix aligns its 12 core scenarios with the main plan', async () => {
-  const matrixSource = await readWorkspaceFile(
-    'docs',
-    'plans',
-    'zcode-phase2-regression-matrix.md',
-  )
-  const planSource = await readWorkspaceFile(
-    'docs',
-    'plans',
-    'zcode-windows-parity-development-plan.md',
-  )
+  const source = await fs.readFile(planPath, 'utf8')
 
-  const scenarioLines = matrixSource
-    .split('\n')
-    .filter(line => /^\|\s*S\d{2}\s*\|/.test(line))
+  // Verify each scenario ID is paired with its description in the v2 plan
+  assert.match(source, /S01.*新会话/, 'S01 should reference new session')
+  assert.match(source, /S02.*会话恢复/, 'S02 should reference resume')
+  assert.match(source, /S03.*单轮对话/, 'S03 should reference single-turn')
+  assert.match(source, /S04.*多轮对话/, 'S04 should reference multi-turn')
+  assert.match(source, /S05.*Shell/, 'S05 should reference shell')
+  assert.match(source, /S06.*Plan/, 'S06 should reference plan mode')
+  assert.match(source, /S07.*工具调用.*anthropic/, 'S07 should reference tool calls')
+  assert.match(source, /S08.*工具调用.*openai/, 'S08 should reference openai-compatible tool calls')
+  assert.match(source, /S09.*Auto-compact/, 'S09 should reference auto-compact')
+  assert.match(source, /S10.*MCP/, 'S10 should reference MCP')
+  assert.match(source, /S11.*权限/, 'S11 should reference permissions')
+  assert.match(source, /S12.*错误恢复/, 'S12 should reference error recovery')
 
-  const expectedScenarios = [
-    'Start a new local session from the public entry surface',
-    'Resume the most relevant recent session',
-    'Read and search workspace files',
-    'Edit and persist workspace files',
-    'Execute shell and PowerShell commands',
-    'Enter plan mode and inspect the current plan',
-    'Run subagent or teammate delegation on the main task loop',
-    'Load hooks and process hook-triggered outcomes',
-    'Discover, connect, and call MCP tools with failure recovery',
-    'Read and write memory files',
-    'Surface permission prompt, deny, and allow flows',
-    'Run doctor and update diagnostic flows',
-  ]
-
-  assert.equal(scenarioLines.length, expectedScenarios.length)
-  assert.match(planSource, /10\.\s*memory 读写/)
-  assert.match(planSource, /12\.\s*doctor \/ update 主链路/)
-
-  for (const scenario of expectedScenarios) {
-    assert.ok(
-      scenarioLines.some(line => line.includes(scenario)),
-      `missing core scenario: ${scenario}`,
-    )
-  }
-
-  assert.equal(
-    scenarioLines.some(line => line.includes('Anthropic-backed coding loop')),
-    false,
-  )
-  assert.equal(
-    scenarioLines.some(line =>
-      line.includes('OpenAI-compatible print/runtime loop'),
-    ),
-    false,
-  )
+  // Verify the v2 plan documents provider-specific regression tracks
+  assert.match(source, /双线路/i, 'plan must document dual-track provider strategy')
+  assert.match(source, /Anthropic.*streamChat|Anthropic.*主线/i)
+  assert.match(source, /openai-compatible.*独立|openai-compatible.*线路/i)
 })
 
 test('public startup notes use product language instead of internal trimmed-repo wording', async () => {

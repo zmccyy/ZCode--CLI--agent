@@ -413,8 +413,17 @@ test('createProviderAdapterClient exposes countTokens and models.list compatibil
   }
 
   assert.deepEqual(models, [
-    {
-      id: 'deepseek-chat',
-    },
+    { id: 'deepseek-chat' },
+    { id: 'claude-3-5-haiku-20241022' },
+    { id: 'claude-haiku-4-5-20251001' },
+    { id: 'claude-3-5-sonnet-20241022' },
+    { id: 'claude-3-7-sonnet-20250219' },
+    { id: 'claude-sonnet-4-20250514' },
+    { id: 'claude-sonnet-4-5-20250929' },
+    { id: 'claude-sonnet-4-6' },
+    { id: 'claude-opus-4-20250514' },
+    { id: 'claude-opus-4-1-20250805' },
+    { id: 'claude-opus-4-5-20251101' },
+    { id: 'claude-opus-4-6' },
   ])
 })

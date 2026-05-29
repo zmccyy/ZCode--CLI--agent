@@ -241,6 +241,35 @@ export function createModelRegistryFromSettings(settings = {}, env = process.env
   )
 }
 
+export function createDualLineModelRegistry(settings = {}, env = process.env) {
+  const normalizedSettings = normalizeSettings(settings)
+  const currentMode = resolveProviderModeFromSettings(normalizedSettings, env)
+  const providers = []
+
+  if (isAnthropicProviderMode(currentMode)) {
+    providers.push(createAnthropicProvider({ provider: currentMode }))
+  } else {
+    providers.push(createAnthropicProvider({ provider: 'firstParty' }))
+  }
+
+  const oaiConfig = normalizedSettings.openaiCompatible
+  if (oaiConfig) {
+    try {
+      providers.push(
+        createOpenAICompatibleProviderFromSettings(normalizedSettings, env),
+      )
+    } catch {
+      // OpenAI-compatible not fully configured — skip
+    }
+  }
+
+  return createModelRegistry(
+    providers.flatMap(provider =>
+      applySettingsToProviderModels(provider, normalizedSettings),
+    ),
+  )
+}
+
 export function createFlatModelRegistry(descriptors = []) {
   return createModelRegistry(descriptors)
 }

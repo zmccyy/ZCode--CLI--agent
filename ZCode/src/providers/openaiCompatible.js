@@ -1,7 +1,14 @@
+import { createRequire } from 'node:module'
 import {
   createProviderAdapter,
   normalizeToolCall,
 } from '../contracts/providerAdapter.js'
+
+const _require = createRequire(import.meta.url)
+
+function loadModelConfigs() {
+  return _require('../utils/model/configs.ts')
+}
 
 function requireString(value, fieldName) {
   if (typeof value !== 'string' || value.trim() === '') {
@@ -246,7 +253,16 @@ function normalizeFinishReason(reason) {
   return readString(reason) || 'stop'
 }
 
-export function createOpenAICompatibleProvider(config) {
+function loadCatalog(useCatalog) {
+  if (!useCatalog) return null
+  try {
+    return loadModelConfigs().ALL_MODEL_CONFIGS
+  } catch {
+    return null
+  }
+}
+
+export function createOpenAICompatibleProvider(config, options = {}) {
   const provider = requireString(config?.provider, 'provider')
   const model = requireString(config?.model, 'model')
   const baseUrl = requireString(config?.baseUrl, 'baseUrl')
@@ -261,12 +277,34 @@ export function createOpenAICompatibleProvider(config) {
     timeout: Number.isFinite(config?.timeout) ? config.timeout : 600000,
   }
 
+  const useCatalog = options.useCatalog !== false
+  const catalog = loadCatalog(useCatalog)
+
   return createProviderAdapter({
     id: `openai-compatible:${provider}`,
     kind: 'openai-compatible',
     provider,
     config: normalizedConfig,
     listModels() {
+      if (catalog) {
+        const catalogModels = Object.values(catalog)
+          .filter(cfg => cfg.openaiCompatible !== model)
+          .map(cfg => ({
+            id: cfg.openaiCompatible,
+            displayName: cfg.firstParty,
+            provider,
+          }))
+
+        return [
+          {
+            id: model,
+            displayName: model,
+            provider,
+          },
+          ...catalogModels,
+        ]
+      }
+
       return [
         {
           id: model,

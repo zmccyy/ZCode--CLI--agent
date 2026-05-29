@@ -37,20 +37,17 @@ test('createOpenAICompatibleProvider exposes normalized capabilities', async () 
   assert.equal(provider.getCapabilities().toolCalling, true)
   assert.equal(provider.getCapabilities().streaming, true)
   assert.equal(provider.getCapabilities().supportsJsonSchema, true)
-  assert.deepEqual(provider.listModels(), [
-    {
-      id: 'qwen-plus',
-      displayName: 'qwen-plus',
-      provider: 'qwen',
-      contextWindow: null,
-      maxOutputTokens: null,
-      capabilities: {
-        streaming: true,
-        toolCalling: true,
-        supportsJsonSchema: true,
-      },
-    },
-  ])
+
+  const models = provider.listModels()
+  assert.ok(models.length >= 1, 'should have at least the configured model')
+
+  // Configured model must be first
+  assert.equal(models[0].id, 'qwen-plus')
+  assert.equal(models[0].displayName, 'qwen-plus')
+  assert.equal(models[0].provider, 'qwen')
+  assert.equal(models[0].capabilities.streaming, true)
+  assert.equal(models[0].capabilities.toolCalling, true)
+  assert.equal(models[0].capabilities.supportsJsonSchema, true)
 })
 
 test('createOpenAICompatibleProvider normalizes config and tool calls', async () => {

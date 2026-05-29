@@ -375,7 +375,7 @@ function normalizeProviderFinishReason(reason: unknown): string | null {
   return normalized
 }
 
-function createEmptyUsage() {
+export function createEmptyUsage() {
   return {
     input_tokens: 0,
     output_tokens: 0,
@@ -416,7 +416,7 @@ function mapUsage(usage: unknown) {
   }
 }
 
-function createMessageStartEvent(messageId: string, model: string) {
+export function createMessageStartEvent(messageId: string, model: string) {
   return {
     type: 'message_start',
     message: {
@@ -432,7 +432,7 @@ function createMessageStartEvent(messageId: string, model: string) {
   }
 }
 
-function convertResponseChunkToEvents(
+export function convertResponseChunkToEvents(
   chunk: Record<string, unknown>,
   state: {
     didStart: boolean

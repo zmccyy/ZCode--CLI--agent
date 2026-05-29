@@ -181,13 +181,6 @@ export function createAnthropicProvider(options = {}) {
         provider,
       }))
     },
-    getCapabilities() {
-      return {
-        streaming: true,
-        toolCalling: true,
-        supportsJsonSchema: true,
-      }
-    },
     streamChat(input = {}) {
       const resolvedApiKey = readString(input.apiKey) || apiKey
       if (!resolvedApiKey) {
@@ -368,12 +361,19 @@ export function createAnthropicProvider(options = {}) {
         }
       })()
     },
-    validateConfig() {
-      return {
-        provider,
-        apiKey,
-        baseUrl,
+    validateConfig(config = {}) {
+      const resolved = {
+        provider: readString(config.provider) || provider,
+        apiKey: readString(config.apiKey) || apiKey,
+        baseUrl: readString(config.baseUrl) || baseUrl,
       }
+      const errors = []
+      if (!resolved.apiKey) errors.push('apiKey is required')
+      if (!resolved.baseUrl) errors.push('baseUrl is required')
+      if (errors.length > 0) {
+        return { valid: false, errors }
+      }
+      return { valid: true, config: resolved }
     },
     normalizeToolCalls(toolCalls = []) {
       return toolCalls.map(normalizeToolCall).filter(Boolean)

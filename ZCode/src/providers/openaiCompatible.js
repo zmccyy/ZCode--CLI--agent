@@ -313,13 +313,6 @@ export function createOpenAICompatibleProvider(config, options = {}) {
         },
       ]
     },
-    getCapabilities() {
-      return {
-        streaming: true,
-        toolCalling: true,
-        supportsJsonSchema: true,
-      }
-    },
     capabilities: {
       streaming: true,
       toolCalling: true,
@@ -420,8 +413,24 @@ export function createOpenAICompatibleProvider(config, options = {}) {
         }
       })()
     },
-    validateConfig() {
-      return normalizedConfig
+    validateConfig(config = {}) {
+      const resolved = {
+        provider: readString(config.provider) || normalizedConfig.provider,
+        model: readString(config.model) || normalizedConfig.model,
+        baseUrl: (readString(config.baseUrl) || normalizedConfig.baseUrl).replace(/\/+$/, ''),
+        apiKey: readString(config.apiKey) || normalizedConfig.apiKey,
+        headers: config?.headers && typeof config.headers === 'object' ? normalizeHeaders(config.headers) : normalizedConfig.headers,
+        timeout: Number.isFinite(config?.timeout) ? config.timeout : normalizedConfig.timeout,
+      }
+      const errors = []
+      if (!resolved.provider) errors.push('provider is required')
+      if (!resolved.model) errors.push('model is required')
+      if (!resolved.baseUrl) errors.push('baseUrl is required')
+      if (!resolved.apiKey) errors.push('apiKey is required')
+      if (errors.length > 0) {
+        return { valid: false, errors }
+      }
+      return { valid: true, config: resolved }
     },
     normalizeToolCalls(toolCalls = []) {
       return toolCalls.map(normalizeToolCall).filter(Boolean)

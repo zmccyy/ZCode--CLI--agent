@@ -32,7 +32,7 @@
 | 模块 | 进度 | 说明 |
 |------|------|------|
 | **Phase 2 第一波回归测试** | 60% | S01/S02/S05/S06/S11 已有 harness 测试，S03/S04/S07-S10/S12 仍为 planned |
-| **公共入口品牌收口** | 70% | Welcome/Help/Remote/Update/IDE onboarding 首层已完成，深层 250 个文件仍有 530 处残留 |
+| **公共入口品牌收口** | 80% | 第 1 批（src/constants/、src/utils/、src/config/）已完成 107 处清理，第 2 批待开始 |
 | **Plan Mode 行为抽离** | 80% | `planBehavior.js` 已可测试，但尚未接入完整 TUI 交互路径验证 |
 | **Resume 行为抽离** | 80% | `resumeBehavior.js` 已可测试，validate/lookup 逻辑完整 |
 | **Permission Surface** | 70% | `toolPermissionSurface.js` 可独立测试 allow/deny/ask，但完整链路未验证 |
@@ -60,7 +60,7 @@
 
 | 编号 | 问题 | 影响 | 紧迫度 |
 |------|------|------|--------|
-| TD-01 | 530 处品牌残留分布在 250 个文件中 | 用户可见不一致 | 中 |
+| TD-01 | ~423 处品牌残留剩余（第 1 批已清理 107 处） | 用户可见不一致 | 中 |
 | TD-02 | ~~Anthropic provider 无 streamChat~~ ✅ 已解决 | 主线 TUI 仍需打通 REPL 启动链路 | 中 |
 | TD-03 | `model/configs.ts` 仍用 TS 格式，需 `createRequire` hack | 构建脆弱 | 中 |
 | TD-04 | 测试依赖 `bun` 命令但 Windows 可能未安装 | 1 条测试持续失败 | 低 |
@@ -229,7 +229,7 @@
 
 | 周 | 任务 | 依赖 | 输出 |
 |----|------|------|------|
-| W1 | T2.7 品牌批量替换（第 1 批：`src/constants/`、`src/utils/`、`src/config/`） | 无 | 已清理 ≥150 处残留 |
+| W1 | T2.7 品牌批量替换（第 1 批：`src/constants/`、`src/utils/`、`src/config/`） | 无 | 已清理 107 处残留（61 个文件），三目录可清理引用已清零 |
 | W1 | T2.8 Phase 2 第一波回归（S01/S06/S02 完善） | 无 | 3 条场景绿色 |
 | W2 | T2.7 品牌批量替换（第 2 批：`src/tools/`、`src/commands/`） | W1-T2.7 | 已清理 ≥350 处残留 |
 | W2 | 冻结基线快照：`git tag v0.1.0-baseline` | W1 全部 | 标签已打 |

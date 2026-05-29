@@ -94,7 +94,7 @@ Once the workflow is triggered, ${PRODUCT_NAME} will analyze the comment and sur
 
 ### Security
 
-- Our Anthropic API key is securely stored as a GitHub Actions secret.
+- The API key is securely stored as a GitHub Actions secret.
 - Only users with write access to the repository can trigger the workflow.
 - All ${PRODUCT_NAME} runs are stored in the GitHub Actions run history.
 - ${PRODUCT_NAME}'s default tools are limited to reading and writing files plus interacting with the repo by creating comments, branches, and commits.
@@ -104,7 +104,7 @@ Once the workflow is triggered, ${PRODUCT_NAME} will analyze the comment and sur
 allowed_tools: Bash(npm install),Bash(npm run build),Bash(npm run lint),Bash(npm run test)
 \`\`\`
 
-There's more information in the [Claude Code action repo](https://github.com/anthropics/claude-code-action).
+There's more information in the [GitHub Action repo](https://github.com/anthropics/claude-code-action).
 
 After merging this PR, try mentioning @${COMMAND_NAME} in a comment on any PR to get started.`
 

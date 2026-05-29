@@ -37,11 +37,11 @@ export function getCliIdentityLine() {
 }
 
 export function getCliIdentityLineWithSdk() {
-  return `You are ${getProductName()}, a CLI coding agent running within the Claude Agent SDK.`
+  return `You are ${getProductName()}, a CLI coding agent running within the Agent SDK.`
 }
 
 export function getAgentSdkIdentityLine() {
-  return `You are a coding agent built on the Claude Agent SDK.`
+  return `You are a coding agent built on the Agent SDK.`
 }
 
 export function getAgentIdentityLine() {

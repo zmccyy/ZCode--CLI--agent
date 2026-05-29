@@ -430,3 +430,91 @@ test('streamChat passes signal through to fetch', async () => {
   assert.equal(capturedSignal, controller.signal)
   assert.equal(capturedSignal.aborted, false)
 })
+
+test('streamChat multi-turn: tool_use parsed then tool_result submitted for final text', async () => {
+  const { createAnthropicProvider } = await loadModule(modulePath)
+
+  let turn = 0
+
+  function mockFetch(_url, init) {
+    turn++
+    const body = JSON.parse(init.body)
+    const messages = body.messages || []
+
+    if (turn === 1) {
+      // Turn 1: return a tool_use for BashTool
+      return createAnthropicSSEResponse(toolUseStream({
+        id: 'msg_turn1',
+        toolName: 'BashTool',
+        toolInput: { command: 'ls' },
+        toolId: 'tool_001',
+      }))
+    }
+
+    // Turn 2: verify tool_result was passed in messages, return text
+    const lastUserMsg = messages[messages.length - 1]
+    assert.ok(lastUserMsg, 'turn 2 should have a user message')
+    assert.equal(lastUserMsg.role, 'user')
+
+    const hasToolResult = lastUserMsg.content.some(
+      block => block.type === 'tool_result' && block.tool_use_id === 'tool_001',
+    )
+    assert.ok(hasToolResult, 'turn 2 should include tool_result for tool_001')
+
+    return createAnthropicSSEResponse(textStream({
+      id: 'msg_turn2',
+      text: 'file1.txt\nfile2.txt',
+    }))
+  }
+
+  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+
+  // Turn 1: request with tools, receive tool_use
+  const stream1 = provider.streamChat({
+    messages: [{ role: 'user', content: 'List files' }],
+    tools: [{ name: 'BashTool', description: 'Run a shell command', input_schema: { type: 'object', properties: { command: { type: 'string' } }, required: ['command'] } }],
+    fetch: mockFetch,
+  })
+
+  const chunks1 = []
+  for await (const chunk of stream1) {
+    chunks1.push(chunk)
+  }
+
+  const toolCalls = chunks1.filter(c => c.type === 'tool_call')
+  assert.equal(toolCalls.length, 1, 'turn 1 should yield one tool_call')
+  assert.equal(toolCalls[0].toolCall.name, 'BashTool')
+  assert.equal(toolCalls[0].toolCall.id, 'tool_001')
+  assert.deepEqual(toolCalls[0].toolCall.input, { command: 'ls' })
+
+  const end1 = chunks1[chunks1.length - 1]
+  assert.equal(end1.type, 'response_end')
+  assert.equal(end1.finishReason, 'tool_use')
+
+  // Turn 2: submit tool_result, receive final text
+  const stream2 = provider.streamChat({
+    messages: [
+      { role: 'user', content: 'List files' },
+      { role: 'assistant', content: [{ type: 'tool_use', id: 'tool_001', name: 'BashTool', input: { command: 'ls' } }] },
+      { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tool_001', content: 'file1.txt\nfile2.txt' }] },
+    ],
+    tools: [{ name: 'BashTool', description: 'Run a shell command', input_schema: { type: 'object', properties: { command: { type: 'string' } }, required: ['command'] } }],
+    fetch: mockFetch,
+  })
+
+  const chunks2 = []
+  for await (const chunk of stream2) {
+    chunks2.push(chunk)
+  }
+
+  const toolCalls2 = chunks2.filter(c => c.type === 'tool_call')
+  assert.equal(toolCalls2.length, 0, 'turn 2 should have no tool_calls')
+
+  const textChunks = chunks2.filter(c => c.type === 'text_delta')
+  assert.ok(textChunks.length > 0, 'turn 2 should have text_delta')
+  assert.equal(textChunks.map(c => c.text).join(''), 'file1.txt\nfile2.txt')
+
+  const end2 = chunks2[chunks2.length - 1]
+  assert.equal(end2.type, 'response_end')
+  assert.equal(end2.finishReason, 'end_turn')
+})

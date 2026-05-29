@@ -319,3 +319,44 @@ test('createProviderModelRegistry returns empty registry for empty providers', a
   const registry = createProviderModelRegistry([])
   assert.equal(registry.list().length, 0)
 })
+
+// ---------------------------------------------------------------------------
+// 6. Foundry mode
+// ---------------------------------------------------------------------------
+
+test('createDualLineModelRegistry with foundry mode uses foundry model IDs', async () => {
+  const { createDualLineModelRegistry } = await loadModule(runtimePath)
+
+  const registry = createDualLineModelRegistry(
+    { provider: 'foundry' },
+    { CLAUDE_CODE_USE_FOUNDRY: '1' },
+  )
+
+  const foundryModels = registry.listByProvider('foundry')
+  assert.ok(foundryModels.length >= 11, `expected >=11 foundry models, got ${foundryModels.length}`)
+
+  const sonnet46 = registry.get('claude-sonnet-4-6')
+  assert.ok(sonnet46, 'should find foundry sonnet 4.6')
+  assert.equal(sonnet46.displayName, 'claude-sonnet-4-6')
+  assert.equal(sonnet46.provider, 'foundry')
+})
+
+// ---------------------------------------------------------------------------
+// 7. Error resilience
+// ---------------------------------------------------------------------------
+
+test('createDualLineModelRegistry degrades gracefully with invalid openai config', async () => {
+  const { createDualLineModelRegistry } = await loadModule(runtimePath)
+
+  // openaiCompatible present but missing required fields — should not crash
+  const registry = createDualLineModelRegistry(
+    { openaiCompatible: {} },
+    {},
+  )
+
+  // Should still have Anthropic firstParty baseline
+  assert.equal(registry.has('claude-sonnet-4-6'), true)
+
+  const firstPartyModels = registry.listByProvider('firstParty')
+  assert.ok(firstPartyModels.length >= 11, `expected >=11 firstParty models, got ${firstPartyModels.length}`)
+})

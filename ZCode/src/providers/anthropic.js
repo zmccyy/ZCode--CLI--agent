@@ -71,6 +71,41 @@ function resolveFetch(fetchOverride) {
   throw new Error('fetch is required for anthropic providers')
 }
 
+function mergeAbortSignals(signals = []) {
+  const activeSignals = signals.filter(Boolean)
+  if (activeSignals.length === 0) {
+    return undefined
+  }
+  if (activeSignals.length === 1) {
+    return activeSignals[0]
+  }
+
+  const controller = new AbortController()
+  const abort = signal => {
+    if (!controller.signal.aborted) {
+      controller.abort(signal?.reason)
+    }
+  }
+
+  for (const signal of activeSignals) {
+    if (signal.aborted) {
+      abort(signal)
+      break
+    }
+    signal.addEventListener('abort', () => abort(signal), { once: true })
+  }
+
+  return controller.signal
+}
+
+function backoffDelay(attempt) {
+  return Math.min(1000 * Math.pow(2, attempt), 30000)
+}
+
+function isRetryableStatus(status) {
+  return status >= 500 || status === 429
+}
+
 async function* parseAnthropicSSE(response) {
   const reader = response.body?.getReader?.()
 
@@ -158,6 +193,8 @@ export function createAnthropicProvider(options = {}) {
   const provider = requireProvider(options.provider)
   const apiKey = readString(options.apiKey) || readString(process.env.ANTHROPIC_API_KEY) || ''
   const baseUrl = readString(options.baseUrl) || 'https://api.anthropic.com'
+  const timeout = Number.isFinite(options.timeout) && options.timeout > 0 ? options.timeout : 600000
+  const maxRetries = Number.isFinite(options.maxRetries) && options.maxRetries >= 0 ? options.maxRetries : 2
   const { ALL_MODEL_CONFIGS } = loadModelConfigs()
 
   return createProviderAdapter({
@@ -168,6 +205,8 @@ export function createAnthropicProvider(options = {}) {
       provider,
       apiKey,
       baseUrl,
+      timeout,
+      maxRetries,
     },
     capabilities: {
       streaming: true,
@@ -191,6 +230,9 @@ export function createAnthropicProvider(options = {}) {
         readString(input.model) ||
         (Object.values(ALL_MODEL_CONFIGS)[0]?.[provider]) ||
         'claude-sonnet-4-6'
+
+      const resolvedTimeout = Number.isFinite(input.timeout) && input.timeout > 0 ? input.timeout : timeout
+      const resolvedMaxRetries = Number.isFinite(input.maxRetries) && input.maxRetries >= 0 ? input.maxRetries : maxRetries
 
       const fetchImpl = resolveFetch(input.fetch)
 
@@ -224,24 +266,64 @@ export function createAnthropicProvider(options = {}) {
       }
 
       return (async function* () {
-        const response = await fetchImpl(`${baseUrl}/v1/messages`, {
-          method: 'POST',
-          headers: {
-            Accept: 'text/event-stream',
-            'x-api-key': resolvedApiKey,
-            'anthropic-version': '2023-06-01',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(body),
-          signal: input.signal,
-        })
+        const timeoutSignal =
+          typeof AbortSignal !== 'undefined' &&
+          typeof AbortSignal.timeout === 'function'
+            ? AbortSignal.timeout(resolvedTimeout)
+            : undefined
 
-        if (!response.ok) {
-          const details = await readErrorDetails(response)
-          const summary = [response.status, response.statusText]
-            .filter(Boolean)
-            .join(' ')
-          throw new Error(details ? `${summary}: ${details}` : summary)
+        const effectiveSignal = mergeAbortSignals([input.signal, timeoutSignal])
+
+        let response
+        let lastAttempt = 0
+        let lastError
+
+        for (let attempt = 0; attempt <= resolvedMaxRetries; attempt++) {
+          lastAttempt = attempt
+          try {
+            response = await fetchImpl(`${baseUrl}/v1/messages`, {
+              method: 'POST',
+              headers: {
+                Accept: 'text/event-stream',
+                'x-api-key': resolvedApiKey,
+                'anthropic-version': '2023-06-01',
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(body),
+              signal: effectiveSignal,
+            })
+
+            if (response.ok) {
+              break
+            }
+
+            if (isRetryableStatus(response.status) && attempt < resolvedMaxRetries) {
+              const retryAfter = response.headers.get('retry-after')
+              const delay = retryAfter
+                ? parseInt(retryAfter, 10) * 1000
+                : backoffDelay(attempt)
+              await new Promise(r => setTimeout(r, delay))
+              continue
+            }
+
+            const details = await readErrorDetails(response)
+            const summary = [response.status, response.statusText]
+              .filter(Boolean)
+              .join(' ')
+            lastError = new Error(details ? `${summary}: ${details}` : summary)
+            break
+          } catch (err) {
+            if (attempt >= resolvedMaxRetries || effectiveSignal?.aborted) {
+              lastError = err
+              break
+            }
+            const delay = backoffDelay(attempt)
+            await new Promise(r => setTimeout(r, delay))
+          }
+        }
+
+        if (!response || !response.ok) {
+          throw lastError || new Error(`Anthropic request failed after ${lastAttempt + 1} attempt(s)`)
         }
 
         let didStart = false
@@ -366,6 +448,8 @@ export function createAnthropicProvider(options = {}) {
         provider: readString(config.provider) || provider,
         apiKey: readString(config.apiKey) || apiKey,
         baseUrl: readString(config.baseUrl) || baseUrl,
+        timeout: Number.isFinite(config.timeout) && config.timeout > 0 ? config.timeout : timeout,
+        maxRetries: Number.isFinite(config.maxRetries) && config.maxRetries >= 0 ? config.maxRetries : maxRetries,
       }
       const errors = []
       if (!resolved.apiKey) errors.push('apiKey is required')

@@ -409,7 +409,7 @@ test('streamChat aborts mid-stream when signal fires during iteration', async ()
   assert.ok(chunkCount < events.length, `expected early abort, consumed ${chunkCount} chunks`)
 })
 
-test('streamChat passes signal through to fetch', async () => {
+test('streamChat passes signal through to fetch (merged with timeout)', async () => {
   const { createAnthropicProvider } = await loadModule(modulePath)
 
   const provider = createAnthropicProvider({ apiKey: 'sk-test' })
@@ -427,8 +427,8 @@ test('streamChat passes signal through to fetch', async () => {
 
   for await (const _ of stream) { /* drain */ }
 
-  assert.equal(capturedSignal, controller.signal)
-  assert.equal(capturedSignal.aborted, false)
+  assert.ok(capturedSignal instanceof AbortSignal, 'should pass an AbortSignal')
+  assert.equal(capturedSignal.aborted, false, 'signal should not be aborted initially')
 })
 
 test('streamChat multi-turn: tool_use parsed then tool_result submitted for final text', async () => {
@@ -517,4 +517,289 @@ test('streamChat multi-turn: tool_use parsed then tool_result submitted for fina
   const end2 = chunks2[chunks2.length - 1]
   assert.equal(end2.type, 'response_end')
   assert.equal(end2.finishReason, 'end_turn')
+})
+
+// --- Timeout ---
+
+test('streamChat throws on timeout before response', async () => {
+  const { createAnthropicProvider } = await loadModule(modulePath)
+
+  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const stream = provider.streamChat({
+    messages: [{ role: 'user', content: 'Hello' }],
+    timeout: 50,
+    fetch: async (_url, init) => {
+      await new Promise((resolve, reject) => {
+        const id = setTimeout(resolve, 99999)
+        if (init.signal?.aborted) {
+          clearTimeout(id)
+          reject(new DOMException('The operation was aborted', 'AbortError'))
+          return
+        }
+        init.signal?.addEventListener('abort', () => {
+          clearTimeout(id)
+          reject(new DOMException('The operation was aborted', 'AbortError'))
+        }, { once: true })
+      })
+      return createAnthropicSSEResponse(textStream())
+    },
+  })
+
+  try {
+    for await (const _ of stream) { /* drain */ }
+    assert.fail('expected stream to throw on timeout')
+  } catch (err) {
+    assert.ok(
+      err.name === 'AbortError' || err.message.includes('abort') || err.name === 'TimeoutError',
+      `expected AbortError or TimeoutError, got ${err.name}: ${err.message}`,
+    )
+  }
+})
+
+test('streamChat timeout mid-stream aborts early', async () => {
+  const { createAnthropicProvider } = await loadModule(modulePath)
+
+  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+
+  function makeSignalAwareDelay(ms, signal) {
+    return new Promise((resolve, reject) => {
+      const id = setTimeout(resolve, ms)
+      if (signal?.aborted) {
+        clearTimeout(id)
+        reject(new DOMException('aborted', 'AbortError'))
+        return
+      }
+      signal?.addEventListener('abort', () => {
+        clearTimeout(id)
+        reject(new DOMException('aborted', 'AbortError'))
+      }, { once: true })
+    })
+  }
+
+  let chunkCount = 0
+  const stream = provider.streamChat({
+    messages: [{ role: 'user', content: 'Hello' }],
+    timeout: 120,
+    fetch: async (_url, init) => {
+      const signal = init.signal
+      return new Response(
+        new ReadableStream({
+          async start(ctrl) {
+            ctrl.enqueue(encoder.encode('event: message_start\ndata: {"type":"message_start","message":{"id":"msg_tmo","model":"claude-sonnet-4-6","role":"assistant","usage":{"input_tokens":5,"output_tokens":0}}}\n\n'))
+            try {
+              await makeSignalAwareDelay(40, signal)
+              ctrl.enqueue(encoder.encode('event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}\n\n'))
+              await makeSignalAwareDelay(40, signal)
+              ctrl.enqueue(encoder.encode('event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"AB"}}\n\n'))
+              // Timeout at 80ms should fire before this 99999ms delay completes
+              await makeSignalAwareDelay(99999, signal)
+            } catch {
+              ctrl.error(new DOMException('aborted', 'AbortError'))
+              return
+            }
+            ctrl.close()
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'text/event-stream' } },
+      )
+    },
+  })
+
+  try {
+    for await (const chunk of stream) {
+      chunkCount++
+    }
+  } catch {
+    // Expected: timeout aborts the stream
+  }
+
+  assert.ok(chunkCount < 6, `expected early timeout, consumed ${chunkCount} chunks`)
+})
+
+test('streamChat timeout and user abort signals can both trigger', async () => {
+  const { createAnthropicProvider } = await loadModule(modulePath)
+
+  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const controller = new AbortController()
+
+  const stream = provider.streamChat({
+    messages: [{ role: 'user', content: 'Hello' }],
+    timeout: 99999,
+    signal: controller.signal,
+    fetch: async (_url, init) => {
+      await new Promise((resolve, reject) => {
+        const id = setTimeout(resolve, 99999)
+        if (init.signal?.aborted) {
+          clearTimeout(id)
+          reject(new DOMException('The operation was aborted', 'AbortError'))
+          return
+        }
+        init.signal?.addEventListener('abort', () => {
+          clearTimeout(id)
+          reject(new DOMException('The operation was aborted', 'AbortError'))
+        }, { once: true })
+      })
+      return createAnthropicSSEResponse(textStream())
+    },
+  })
+
+  // User abort should win over long timeout
+  setTimeout(() => controller.abort(), 30)
+
+  try {
+    for await (const _ of stream) { /* drain */ }
+    assert.fail('expected stream to throw on user abort')
+  } catch (err) {
+    assert.ok(
+      err.name === 'AbortError' || err.message.includes('abort'),
+      `expected AbortError, got ${err.name}: ${err.message}`,
+    )
+  }
+})
+
+// --- Retry ---
+
+test('streamChat retries on 5xx then succeeds', async () => {
+  const { createAnthropicProvider } = await loadModule(modulePath)
+
+  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+
+  let callCount = 0
+  const stream = provider.streamChat({
+    messages: [{ role: 'user', content: 'Hello' }],
+    maxRetries: 2,
+    fetch: async (_url, _init) => {
+      callCount++
+      if (callCount === 1) {
+        return new Response('Service Unavailable', { status: 503 })
+      }
+      return createAnthropicSSEResponse(textStream({ text: 'Recovered' }))
+    },
+  })
+
+  const chunks = []
+  for await (const chunk of stream) {
+    chunks.push(chunk)
+  }
+
+  assert.equal(callCount, 2, 'should have retried once')
+  const textChunks = chunks.filter(c => c.type === 'text_delta')
+  assert.equal(textChunks.map(c => c.text).join(''), 'Recovered')
+})
+
+test('streamChat retries on network error then succeeds', async () => {
+  const { createAnthropicProvider } = await loadModule(modulePath)
+
+  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+
+  let callCount = 0
+  const stream = provider.streamChat({
+    messages: [{ role: 'user', content: 'Hello' }],
+    maxRetries: 2,
+    fetch: async (_url, _init) => {
+      callCount++
+      if (callCount === 1) {
+        throw new TypeError('fetch failed')
+      }
+      return createAnthropicSSEResponse(textStream({ text: 'After network fix' }))
+    },
+  })
+
+  const chunks = []
+  for await (const chunk of stream) {
+    chunks.push(chunk)
+  }
+
+  assert.equal(callCount, 2, 'should have retried once')
+  const textChunks = chunks.filter(c => c.type === 'text_delta')
+  assert.equal(textChunks.map(c => c.text).join(''), 'After network fix')
+})
+
+test('streamChat does NOT retry on 4xx client errors', async () => {
+  const { createAnthropicProvider } = await loadModule(modulePath)
+
+  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+
+  let callCount = 0
+  const stream = provider.streamChat({
+    messages: [{ role: 'user', content: 'Hello' }],
+    maxRetries: 2,
+    fetch: async (_url, _init) => {
+      callCount++
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(encoder.encode(JSON.stringify({ error: { message: 'Bad request' } })))
+            controller.close()
+          },
+        }),
+        { status: 400, headers: { 'content-type': 'application/json' } },
+      )
+    },
+  })
+
+  try {
+    for await (const _ of stream) { /* drain */ }
+    assert.fail('expected stream to throw')
+  } catch (err) {
+    assert.match(err.message, /400/)
+  }
+
+  assert.equal(callCount, 1, 'should NOT retry on 4xx')
+})
+
+test('streamChat respects maxRetries and gives up after exhausting retries', async () => {
+  const { createAnthropicProvider } = await loadModule(modulePath)
+
+  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+
+  let callCount = 0
+  const stream = provider.streamChat({
+    messages: [{ role: 'user', content: 'Hello' }],
+    maxRetries: 2,
+    fetch: async (_url, _init) => {
+      callCount++
+      return new Response('Server Error', { status: 500 })
+    },
+  })
+
+  try {
+    for await (const _ of stream) { /* drain */ }
+    assert.fail('expected stream to throw')
+  } catch (err) {
+    assert.match(err.message, /500/)
+  }
+
+  assert.equal(callCount, 3, 'should have tried 3 times (1 initial + 2 retries)')
+})
+
+test('streamChat retries on 429 with retry-after header', async () => {
+  const { createAnthropicProvider } = await loadModule(modulePath)
+
+  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+
+  let callCount = 0
+  const stream = provider.streamChat({
+    messages: [{ role: 'user', content: 'Hello' }],
+    maxRetries: 2,
+    fetch: async (_url, _init) => {
+      callCount++
+      if (callCount === 1) {
+        return new Response('Rate Limited', {
+          status: 429,
+          headers: { 'retry-after': '0.01' },
+        })
+      }
+      return createAnthropicSSEResponse(textStream({ text: 'After rate limit' }))
+    },
+  })
+
+  const chunks = []
+  for await (const chunk of stream) {
+    chunks.push(chunk)
+  }
+
+  assert.equal(callCount, 2, 'should have retried once after 429')
+  const textChunks = chunks.filter(c => c.type === 'text_delta')
+  assert.equal(textChunks.map(c => c.text).join(''), 'After rate limit')
 })

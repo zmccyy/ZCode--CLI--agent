@@ -91,3 +91,119 @@ test('createProviderAdapter returns stable provider contract methods', async () 
   ])
   assert.deepEqual(provider.normalizeToolCalls(undefined), [])
 })
+
+test('getCapabilities returns defaults when no capabilities in definition', async () => {
+  const { createProviderAdapter } = await loadModule(modulePath)
+
+  const provider = createProviderAdapter({
+    id: 'minimal:provider',
+    kind: 'minimal',
+  })
+
+  assert.deepEqual(provider.getCapabilities(), {
+    streaming: false,
+    toolCalling: false,
+    supportsJsonSchema: false,
+  })
+})
+
+test('getCapabilities normalizes partial capabilities', async () => {
+  const { createProviderAdapter } = await loadModule(modulePath)
+
+  const provider = createProviderAdapter({
+    id: 'partial:provider',
+    kind: 'partial',
+    capabilities: {
+      streaming: true,
+    },
+  })
+
+  assert.deepEqual(provider.getCapabilities(), {
+    streaming: true,
+    toolCalling: false,
+    supportsJsonSchema: false,
+  })
+})
+
+test('validateConfig returns config as-is by default', async () => {
+  const { createProviderAdapter } = await loadModule(modulePath)
+
+  const config = { apiKey: 'sk-abc', baseUrl: 'https://api.example.com' }
+  const provider = createProviderAdapter({
+    id: 'test:provider',
+    kind: 'test',
+    config,
+  })
+
+  const result = provider.validateConfig()
+  assert.equal(result, config, 'default validateConfig should return config as-is')
+  assert.deepEqual(result, config)
+})
+
+test('validateConfig passes explicit config to custom function', async () => {
+  const { createProviderAdapter } = await loadModule(modulePath)
+
+  const provider = createProviderAdapter({
+    id: 'custom:provider',
+    kind: 'custom',
+    config: { apiKey: '', baseUrl: 'https://default.example.com' },
+    validateConfig(config) {
+      const errors = []
+      if (!config.apiKey) errors.push('apiKey is required')
+      if (!config.baseUrl) errors.push('baseUrl is required')
+      if (errors.length > 0) {
+        return { valid: false, errors }
+      }
+      return { valid: true, config }
+    },
+  })
+
+  const validResult = provider.validateConfig({
+    apiKey: 'sk-xyz',
+    baseUrl: 'https://custom.example.com',
+  })
+  assert.deepEqual(validResult, {
+    valid: true,
+    config: { apiKey: 'sk-xyz', baseUrl: 'https://custom.example.com' },
+  })
+
+  const invalidResult = provider.validateConfig({ apiKey: '' })
+  assert.equal(invalidResult.valid, false)
+  assert.ok(invalidResult.errors.includes('apiKey is required'))
+})
+
+test('validateConfig with custom function uses default config when called without args', async () => {
+  const { createProviderAdapter } = await loadModule(modulePath)
+
+  let capturedConfig = null
+  const provider = createProviderAdapter({
+    id: 'capture:provider',
+    kind: 'capture',
+    config: { apiKey: 'default-key', baseUrl: 'https://api.example.com' },
+    validateConfig(config) {
+      capturedConfig = config
+      return { ...config, validated: true }
+    },
+  })
+
+  provider.validateConfig()
+  assert.equal(capturedConfig.apiKey, 'default-key')
+  assert.equal(capturedConfig.baseUrl, 'https://api.example.com')
+})
+
+test('streamChat throws when not implemented by provider definition', async () => {
+  const { createProviderAdapter } = await loadModule(modulePath)
+
+  const provider = createProviderAdapter({
+    id: 'no-stream:provider',
+    kind: 'no-stream',
+  })
+
+  try {
+    const stream = provider.streamChat({ messages: [] })
+    for await (const _ of stream) { /* drain */ }
+    assert.fail('expected streamChat to throw')
+  } catch (err) {
+    assert.match(err.message, /streamChat is not implemented/i)
+  }
+})

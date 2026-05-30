@@ -43,6 +43,7 @@
 | **会话管理 (T2.5)** | ✅ W7 | 19 条测试通过；UUID/JSONL/sanitizePath/readSessionLite 全链路验证 |
 | **Hooks 系统 (T2.9)** | ✅ W7 | 20 条测试通过；27 事件 + JSON 校验 + PreToolUse/PostToolUse/Stop/SessionStart 脚本执行 |
 | **Auto-Compact (T2.5)** | ✅ W8 | 71 条测试通过；context window/threshold/token warning/boundary messages/circuit breaker/compact-aware resume/PreCompact+PostCompact hooks |
+| **MCP stdio Transport (T2.10)** | ✅ W8 | 96 条测试通过；stdio/SSE/HTTP/WS/sdk config schemas, tool name parsing, normalization, env expansion, error classes, session detection, config hashing, tool/command filtering, connection states, JSON-RPC, tool results, output truncation, capabilities |
 
 ### 1.3 完全未开始的部分
 
@@ -278,7 +279,7 @@
 | W7 | T2.5 会话管理 — `--resume` / `--continue` 基础 | M1 达成 | 19 条测试通过 (UUID 验证, JSON 字段提取, 首条提示词提取, JSONL 读写/追加/列表, sanitizePath) | ✅ |
 | W7 | T2.9 Hooks 系统验证 | M1 达成 | 20 条测试通过 (27 事件验证, JSON 输出校验, PreToolUse/PostToolUse/Stop/SessionStart 脚本执行, 退出码处理) | ✅ |
 | W8 | T2.5 会话管理 — auto-compact / 上下文窗口管理 | W7-T2.5 | 71 条测试通过 (context window, threshold, token warning, boundary messages, circuit breaker, compact-aware resume, PreCompact/PostCompact hooks, percentage calculation) | ✅ |
-| W8 | T2.10 MCP 协议验证 — stdio transport | M1 达成 | 本地 MCP server 连接成功 |
+| W8 | T2.10 MCP 协议验证 — stdio transport | M1 达成 | 96 条测试通过 (stdio config, 6 transports, 7 scopes, tool name parsing, normalization, env expansion, error classes, session detection, config hashing, filtering, connection states, JSON-RPC, tool results, output truncation, capabilities, SSE/HTTP/WS/sdk/claudeai-proxy schemas) | ✅ |
 | W9 | T2.5 会话管理 — 多会话列表与切换 | W8-T2.5 | `--resume` 无参时展示会话列表 |
 | W9 | T2.10 MCP 协议验证 — SSE/HTTP transport | W8-T2.10 | 远程 MCP server 连接成功 |
 | W10 | T2.6 权限系统 Windows 适配 | W9-T2.5 | 文件/网络/Shell 权限在 Windows 正常弹窗 |
@@ -346,7 +347,7 @@ Phase 2 (W7-W12)
   ├── T2.5 会话管理 [3周]
   │     W7: 基础 ✅ → W8: auto-compact ✅ → W9: 多会话
   ├── T2.9 Hooks (W7) ✅
-  ├── T2.10 MCP (W8-W9)
+  ├── T2.10 MCP (W8 ✅ → W9)
   ├── T2.6 权限 Windows 适配 (W10)
   ├── T2.11 Agent 验证 (W10)
   ├── T2.7 品牌第3批 (W11)

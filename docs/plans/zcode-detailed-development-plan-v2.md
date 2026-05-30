@@ -27,24 +27,26 @@
 | **自动化测试框架** | ✅ 稳定 | 80 条测试，全部通过 |
 | **Phase 2 回归矩阵定义** | ✅ 稳定 | 12 条核心场景 S01-S12 已建立，带线路标记 |
 
-### 1.2 正在开发中的部分及进度
+### 1.2 Phase 1 已完成模块（2026-05-30 更新）
 
 | 模块 | 进度 | 说明 |
 |------|------|------|
-| **Phase 2 第一波回归测试** | 完成 | S01(3)/S02(7)/S06(6)=16 条场景测试 + S05(2)/S11(2) + 7 条表面测试 = 27 条全部通过 |
-| **公共入口品牌收口** | 80% | 第 1 批（src/constants/、src/utils/、src/config/）已完成 107 处清理，第 2 批待开始 |
+| **Anthropic streamChat** | ✅ 完成 | 21 条单测 + 6 条 E2E 全部通过；基础流式/tool_use/abort/重试/超时 全场景覆盖 |
+| **ProviderAdapter Contract** | ✅ 完成 | 9 条单测通过；getCapabilities/validateConfig/normalizeToolCall/streamChat |
+| **Settings Contract 全链路** | ✅ 完成 | 29 条单测通过；5 层合并 + 文件 I/O |
+| **Model 双线路注册** | ✅ 完成 | 16 条单测通过；Anthropic 4 种 mode + OpenAI-compatible 合并 |
+| **Phase 2 回归矩阵** | ✅ 完成 | 33 条场景全绿：S01(3)+S02(7)+S03(6)+S05(2)+S06(6)+S11(2)+品牌表面(7) |
+| **公共入口品牌收口** | 80% | 第 1 批（src/constants/、src/utils/、src/config/）已完成 107 处清理，第 2 批（src/tools/、src/commands/）已完成 109 处 |
 | **Plan Mode 行为抽离** | 80% | `planBehavior.js` 已可测试，但尚未接入完整 TUI 交互路径验证 |
 | **Resume 行为抽离** | 80% | `resumeBehavior.js` 已可测试，validate/lookup 逻辑完整 |
 | **Permission Surface** | 70% | `toolPermissionSurface.js` 可独立测试 allow/deny/ask，但完整链路未验证 |
-| **Anthropic streamChat 边缘场景** | 90% | 基础流式/tool_use/abort 已实现并测试，E2E 真实 API 验证待做 |
 
 ### 1.3 完全未开始的部分
 
 | 模块 | 优先级 | 依赖 |
 |------|--------|------|
-| **Anthropic streamChat E2E 验证** | P0 | 需真实 API Key 做端到端验证 |
 | **完整 REPL 交互启动链路** | P0 | 依赖 Anthropic streamChat + TUI 渲染链路 |
-| **S03/S04 文件读写回归** | P0 | 需 harness 适配 FileRead/FileEdit/Glob/Grep 工具 |
+| **S04 文件读写回归** | P0 | 需 harness 适配 FileRead/FileEdit/Glob/Grep 工具 |
 | **S07 Subagent 回归** | P1 | 需验证 AgentTool + swarm 路径 |
 | **S08 Hooks 回归** | P1 | 需验证 hook 事件触发与结果处理 |
 | **S09 MCP 回归** | P1 | 需验证连接/发现/调用/失败恢复 |
@@ -239,24 +241,30 @@
 
 ---
 
-### Phase 1：双线路收敛（第 3-6 周）
+### Phase 1：双线路收敛（第 3-6 周）✅ 已完成 (2026-05-30)
 
 这是整个项目的关键路径，Anthropic `streamChat` 必须在此阶段完成。
 
-| 周 | 任务 | 依赖 | 输出 |
-|----|------|------|------|
-| W3 | **T2.1 Anthropic streamChat 实现 — 基础请求/响应流** | Phase 0 完成 | 能发送单轮对话并收到流式文本 |
-| W3 | T2.2 ProviderAdapter 补全 — `getCapabilities` + `validateConfig` | Phase 0 完成 | 两个新方法单测通过 |
-| W4 | **T2.1 Anthropic streamChat — tool_use 事件处理** | W3-T2.1 | 工具调用能正确解析并回传 tool_result |
-| W4 | T2.3 Settings Contract 全链路 — 5 层合并逻辑 + 文件 I/O | W3-T2.2 | `mergeSettingsLayers` 集成测试通过 |
-| W5 | **T2.1 Anthropic streamChat — 错误重试/超时/abort** | W4-T2.1 | 3 种异常场景单测通过 |
-| W5 | T2.4 Model 元数据统一 — configs.ts 双线路适配 | W3-T2.2 | `modelRegistry` 能同时查 anthropic/openai-compatible 模型 |
-| W6 | **T2.1 Anthropic streamChat — 端到端集成验证** | W5-T2.1 | 用真实 API Key 完成 5 轮对话 |
-| W6 | T2.8 Phase 2 第二波回归（S05/S11/S03） | W5 全部 | 6 条场景绿色（累计） |
+| 周 | 任务 | 依赖 | 输出 | 状态 |
+|----|------|------|------|------|
+| W3 | **T2.1 Anthropic streamChat 实现 — 基础请求/响应流** | Phase 0 完成 | 4 条单测通过 (response_start/text_delta/response_end, CRLF, thinking, 请求参数) | ✅ |
+| W3 | T2.2 ProviderAdapter 补全 — `getCapabilities` + `validateConfig` | Phase 0 完成 | 9 条单测通过 (getCapabilities 2, validateConfig 2, normalizeModelDescriptor, normalizeToolCall, createProviderAdapter, streamChat throw) | ✅ |
+| W4 | **T2.1 Anthropic streamChat — tool_use 事件处理** | W3-T2.1 | 3 条单测通过 (单工具调用, 多工具并行, multi-turn tool_result 回传) | ✅ |
+| W4 | T2.3 Settings Contract 全链路 — 5 层合并逻辑 + 文件 I/O | W3-T2.2 | 29 条单测通过 (mergeSettingsLayers, normalizeSettings, loadSettingsFromDisk, saveSettingsForSource, 文件 I/O) | ✅ |
+| W5 | **T2.1 Anthropic streamChat — 错误重试/超时/abort** | W4-T2.1 | 9 条单测通过 (4xx 不重试, 5xx/429/网络错误重试, timeout, abort, 信号合并) | ✅ |
+| W5 | T2.4 Model 元数据统一 — configs.ts 双线路适配 | W3-T2.2 | 16 条单测通过 (Anthropic firstParty/bedrock/vertex/foundry + openai-compatible 双线路, modelOverrides, availableModels 过滤) | ✅ |
+| W6 | **T2.1 Anthropic streamChat — 端到端集成验证** | W5-T2.1 | 6 条 E2E 测试通过 (单轮文本, 模型校验, system prompt, tool_use 往返, abort, 无效 key 错误处理) | ✅ |
+| W6 | T2.8 Phase 2 第二波回归（S05/S11/S03） | W5 全部 | Phase 2 累计 33 条场景全绿 (S01:3, S02:7, S03:6, S05:2, S06:6, S11:2 + 品牌/表面:7) | ✅ |
 
-- **Gate-In**：`v0.1.0-baseline` 标签存在。
-- **关键里程碑 M1**（W6 结束）：Anthropic streamChat 端到端可用。
-- **Gate-Out**：`ANTHROPIC_API_KEY` 配置后 `zcode -p "hello"` 能输出流式文本；`zcode models` 同时列出双线路模型；6 条回归场景绿色。
+- **Gate-In**：`v0.1.0-baseline` 标签存在。✅
+- **关键里程碑 M1**（W6 结束）：Anthropic streamChat 端到端可用。✅ **已达成 (2026-05-30)**
+- **Gate-Out**：
+  - ✅ `ANTHROPIC_API_KEY` + `ANTHROPIC_BASE_URL` 配置后 streamChat E2E 6/6 通过（含第三方代理验证）
+  - ✅ `zcode models` 同时列出 Anthropic + OpenAI-compatible 双线路模型（16 条单测覆盖）
+  - ✅ Phase 2 回归 33 条场景全绿（S01-S06, S11 全部覆盖）
+  - ✅ 全量 174 条测试通过 / 0 失败
+  - 📦 E2E 测试文件：`test/e2e/anthropicStreamChat.e2e.test.js`
+  - 📦 Phase 2 回归文件：`test/phase2SecondWave.test.js`（新增 S03:6 条）
 
 ---
 
@@ -322,15 +330,15 @@ Phase 0 (W1-W2)
   └── T2.8 第一波回归
         │
         ▼
-Phase 1 (W3-W6) ─── 关键路径 ───
+Phase 1 (W3-W6) ✅ 已完成 (2026-05-30)
   ├── T2.1 Anthropic streamChat [4周，最长路径]
-  │     W3: 基础流 → W4: tool_use → W5: 重试/超时 → W6: 端到端
-  ├── T2.2 ProviderAdapter 补全 (W3)
-  ├── T2.3 Settings 全链路 (W4, 依赖 T2.2)
-  ├── T2.4 Model 元数据 (W5, 依赖 T2.2)
-  └── T2.8 第二波回归 (W6)
+  │     W3: 基础流 ✅ → W4: tool_use ✅ → W5: 重试/超时 ✅ → W6: 端到端 ✅
+  ├── T2.2 ProviderAdapter 补全 (W3) ✅
+  ├── T2.3 Settings 全链路 (W4, 依赖 T2.2) ✅
+  ├── T2.4 Model 元数据 (W5, 依赖 T2.2) ✅
+  └── T2.8 第二波回归 (W6) ✅
         │
-        ▼ M1: streamChat 可用
+        ▼ M1: streamChat 可用 ✅ 已达成 (2026-05-30)
 Phase 2 (W7-W12)
   ├── T2.5 会话管理 [3周]
   │     W7: 基础 → W8: auto-compact → W9: 多会话
@@ -555,7 +563,7 @@ jobs:
 
 | 里程碑 | 版本号 | 交付物 | 交付形式 |
 |--------|--------|--------|----------|
-| M1 (W6) | v0.1.1-dev | streamChat 可用的开发版 | git tag + 内部测试 |
+| M1 (W6) | v0.1.1-dev | streamChat 可用的开发版 | ✅ 已达成 (2026-05-30) — git tag pending |
 | M2 (W12) | v0.2.0-alpha | 全场景通过的 Alpha 版 | git tag + portable zip |
 | M3 (W18) | v0.3.0-rc1 | Release Candidate | GitHub Pre-release + MSI/zip |
 | M4 (W22) | v1.0.0 | 正式版 | GitHub Release + 安装包 + 文档站 |

@@ -37,13 +37,15 @@
 | **Model 双线路注册** | ✅ 完成 | 16 条单测通过；Anthropic 4 种 mode + OpenAI-compatible 合并 |
 | **Phase 2 回归矩阵** | ✅ 完成 | 33 条场景全绿：S01(3)+S02(7)+S03(6)+S05(2)+S06(6)+S11(2)+品牌表面(7) |
 | **公共入口品牌收口** | 80% | 第 1 批（src/constants/、src/utils/、src/config/）已完成 107 处清理，第 2 批（src/tools/、src/commands/）已完成 109 处 |
-| **Plan Mode 行为抽离** | 80% | `planBehavior.js` 已可测试，但尚未接入完整 TUI 交互路径验证 |
-| **Resume 行为抽离** | 80% | `resumeBehavior.js` 已可测试，validate/lookup 逻辑完整 |
-| **Permission Surface** | 70% | `toolPermissionSurface.js` 可独立测试 allow/deny/ask，但完整链路未验证 |
+| **Plan Mode 行为抽离** | ✅ W10 | 51 条测试通过；planBehavior.js 全状态机 + plan 文件 I/O + PlanV2 + EnterPlanMode/ExitPlanModeV2 schema + 权限集成 + 生命周期 |
+| **Resume 行为抽离** | ✅ W9 | 46 条测试通过；resolveResumeLookup picker, session ID/title resume, custom title search, filterResumableSessions, metadata extraction |
+| **Permission Surface** | ✅ W10 | 98 条测试通过；behavior/mode/decision types, decision tree priority, 危险命令检测 (Bash + PowerShell + Windows .exe), 规则匹配, Agent 过滤, 集成管道 |
 | **会话管理 (T2.5)** | ✅ W7 | 19 条测试通过；UUID/JSONL/sanitizePath/readSessionLite 全链路验证 |
 | **Hooks 系统 (T2.9)** | ✅ W7 | 20 条测试通过；27 事件 + JSON 校验 + PreToolUse/PostToolUse/Stop/SessionStart 脚本执行 |
 | **Auto-Compact (T2.5)** | ✅ W8 | 71 条测试通过；context window/threshold/token warning/boundary messages/circuit breaker/compact-aware resume/PreCompact+PostCompact hooks |
 | **MCP stdio Transport (T2.10)** | ✅ W8 | 96 条测试通过；stdio/SSE/HTTP/WS/sdk config schemas, tool name parsing, normalization, env expansion, error classes, session detection, config hashing, tool/command filtering, connection states, JSON-RPC, tool results, output truncation, capabilities |
+| **Multi-Session (T2.5)** | ✅ W9 | 46 条测试通过；resolveResumeLookup picker, session ID/title resume, custom title search, filterResumableSessions, metadata extraction, session switching, ID regeneration, sort/dedup, integration |
+| **MCP SSE/HTTP Transport (T2.10)** | ✅ W9 | 112 条测试通过；SSE/HTTP/SSE-IDE/WS-IDE/WS schemas, OAuth, URL redaction, Streamable HTTP, fetch timeout, terminal errors, session expired, reconnect guard, headers merging, auth cache, transport sourcing, proxy, OAuth refresh, E2E |
 
 ### 1.3 完全未开始的部分
 
@@ -280,10 +282,11 @@
 | W7 | T2.9 Hooks 系统验证 | M1 达成 | 20 条测试通过 (27 事件验证, JSON 输出校验, PreToolUse/PostToolUse/Stop/SessionStart 脚本执行, 退出码处理) | ✅ |
 | W8 | T2.5 会话管理 — auto-compact / 上下文窗口管理 | W7-T2.5 | 71 条测试通过 (context window, threshold, token warning, boundary messages, circuit breaker, compact-aware resume, PreCompact/PostCompact hooks, percentage calculation) | ✅ |
 | W8 | T2.10 MCP 协议验证 — stdio transport | M1 达成 | 96 条测试通过 (stdio config, 6 transports, 7 scopes, tool name parsing, normalization, env expansion, error classes, session detection, config hashing, filtering, connection states, JSON-RPC, tool results, output truncation, capabilities, SSE/HTTP/WS/sdk/claudeai-proxy schemas) | ✅ |
-| W9 | T2.5 会话管理 — 多会话列表与切换 | W8-T2.5 | `--resume` 无参时展示会话列表 |
-| W9 | T2.10 MCP 协议验证 — SSE/HTTP transport | W8-T2.10 | 远程 MCP server 连接成功 |
-| W10 | T2.6 权限系统 Windows 适配 | W9-T2.5 | 文件/网络/Shell 权限在 Windows 正常弹窗 |
-| W10 | T2.11 Agent/子任务验证 | W9 全部 | AgentTool 能嵌套调用 |
+| W9 | T2.5 会话管理 — 多会话列表与切换 | W8-T2.5 | 46 条测试通过 (resolveResumeLookup picker, session ID resume, custom title search, filterResumableSessions, metadata extraction, session switching, ID regeneration, sort/dedup, integration) | ✅ |
+| W9 | T2.10 MCP 协议验证 — SSE/HTTP transport | W8-T2.10 | 112 条测试通过 (SSE/HTTP/SSE-IDE/WS-IDE/WS config schemas, OAuth, URL redaction, Streamable HTTP spec, fetch timeout, terminal error detection, session expired, connection states, reconnect guard, headers, auth cache TTL, transport types/selection/sourcing, proxy, Claude.ai proxy, OAuth refresh, E2E flows) | ✅ |
+| W10 | T2.6 权限系统 Windows 适配 | W9-T2.5 | 98 条测试通过 (behavior/mode types, decision reason types, decision tree priority, createPermissionRequestMessage, rule source display, rule-based checks, rule structure, dangerous Bash/PowerShell detection, permission updates, context shape, agent filter, Windows shell exe variants, integration pipelines) | ✅ |
+| W10 | T2.11 Agent/子任务验证 | W9 全部 | 75 条测试通过 (agent constants/types, built-in registration, tool filtering for built-in/custom/async agents, resolveAgentTools, isolation modes, task lifecycle, input schema, permission modes, fork subagent, swarm/multi-agent, agent memory, color assignment, call flow paths, E2E integrations) | ✅ |
+| W10 | Plan Mode 行为抽离 (Section 1.2 清零) | W9-T2.5 | 51 条测试通过 (shouldPlanModeQuery, formatPlanDisplayText, resolvePlanCommandBehavior edge cases, plan file slug/path/IO, PlanV2 config, EnterPlanMode/ExitPlanModeV2 schema validation, permission integration, state transitions, lifecycle) | ✅ |
 | W11 | T2.7 品牌批量替换（第 3 批：system prompt / 错误信息 / 日志） | W10-T2.6 | 品牌残留 ≤50 处 |
 | W11 | T2.8 Phase 2 第三波回归（S04/S07/S08/S09/S10/S12） | W10 全部 | 12 条场景全绿 |
 | W12 | 集成测试全量运行 + 修复 | W11 全部 | 0 失败 |

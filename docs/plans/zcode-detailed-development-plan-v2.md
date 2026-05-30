@@ -40,6 +40,8 @@
 | **Plan Mode 行为抽离** | 80% | `planBehavior.js` 已可测试，但尚未接入完整 TUI 交互路径验证 |
 | **Resume 行为抽离** | 80% | `resumeBehavior.js` 已可测试，validate/lookup 逻辑完整 |
 | **Permission Surface** | 70% | `toolPermissionSurface.js` 可独立测试 allow/deny/ask，但完整链路未验证 |
+| **会话管理 (T2.5)** | ✅ W7 | 19 条测试通过；UUID/JSONL/sanitizePath/readSessionLite 全链路验证 |
+| **Hooks 系统 (T2.9)** | ✅ W7 | 20 条测试通过；27 事件 + JSON 校验 + PreToolUse/PostToolUse/Stop/SessionStart 脚本执行 |
 
 ### 1.3 完全未开始的部分
 
@@ -272,8 +274,8 @@
 
 | 周 | 任务 | 依赖 | 输出 |
 |----|------|------|------|
-| W7 | T2.5 会话管理 — `--resume` / `--continue` 基础 | M1 达成 | 会话能写入/读取 `.zcode/` 目录 |
-| W7 | T2.9 Hooks 系统验证 | M1 达成 | 默认 hooks pipeline 跑通 |
+| W7 | T2.5 会话管理 — `--resume` / `--continue` 基础 | M1 达成 | 19 条测试通过 (UUID 验证, JSON 字段提取, 首条提示词提取, JSONL 读写/追加/列表, sanitizePath) | ✅ |
+| W7 | T2.9 Hooks 系统验证 | M1 达成 | 20 条测试通过 (27 事件验证, JSON 输出校验, PreToolUse/PostToolUse/Stop/SessionStart 脚本执行, 退出码处理) | ✅ |
 | W8 | T2.5 会话管理 — auto-compact / 上下文窗口管理 | W7-T2.5 | 超过 80% 窗口自动压缩，无数据丢失 |
 | W8 | T2.10 MCP 协议验证 — stdio transport | M1 达成 | 本地 MCP server 连接成功 |
 | W9 | T2.5 会话管理 — 多会话列表与切换 | W8-T2.5 | `--resume` 无参时展示会话列表 |
@@ -341,8 +343,8 @@ Phase 1 (W3-W6) ✅ 已完成 (2026-05-30)
         ▼ M1: streamChat 可用 ✅ 已达成 (2026-05-30)
 Phase 2 (W7-W12)
   ├── T2.5 会话管理 [3周]
-  │     W7: 基础 → W8: auto-compact → W9: 多会话
-  ├── T2.9 Hooks (W7)
+  │     W7: 基础 ✅ → W8: auto-compact → W9: 多会话
+  ├── T2.9 Hooks (W7) ✅
   ├── T2.10 MCP (W8-W9)
   ├── T2.6 权限 Windows 适配 (W10)
   ├── T2.11 Agent 验证 (W10)

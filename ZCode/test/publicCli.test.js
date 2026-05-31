@@ -5,6 +5,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { loadModule, resolveFromHere } from './helpers/loadModule.js'
 
 const repoDir = resolveFromHere(import.meta.url, '..')
@@ -394,6 +395,109 @@ test('bun cli.tsx --help reaches the full Bun entrypoint without missing-package
   assert.equal(result.status, 0, result.stderr)
   assert.doesNotMatch(result.stderr, /Cannot find module/i)
   assert.doesNotMatch(result.stdout, /Cannot find module/i)
+})
+
+test('bun can import the colorDiff adapter without requiring color-diff-napi at module evaluation time', {
+  skip: !hasBun() ? 'bun not available' : undefined,
+}, () => {
+  const tempDir = createTempDir('zcode-bun-color-diff-')
+  const scriptPath = path.join(tempDir, 'import-color-diff.mjs')
+  const moduleUrl = pathToFileURL(
+    resolveFromHere(
+      import.meta.url,
+      '..',
+      'src',
+      'components',
+      'StructuredDiff',
+      'colorDiff.ts',
+    ),
+  ).href
+
+  try {
+    writeFileSync(
+      scriptPath,
+      `await import(${JSON.stringify(moduleUrl)});\nconsole.log('color-diff-import-ok');\n`,
+      'utf8',
+    )
+
+    const result = runBun([scriptPath], {
+      cwd: repoDir,
+      timeout: 30000,
+    })
+
+    assert.equal(result.error, undefined, result.error?.message)
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.stdout, /color-diff-import-ok/)
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('bun cli.tsx --bare -p can complete a real headless request through the full REPL startup chain', {
+  skip: !hasBun() ? 'bun not available' : undefined,
+}, async () => {
+  let server
+
+  try {
+    server = http.createServer(async (req, res) => {
+      assert.equal(req.method, 'POST')
+      assert.equal(req.url, '/v1/chat/completions')
+      assert.equal(req.headers.authorization, 'Bearer test-key')
+
+      res.writeHead(200, {
+        'content-type': 'text/event-stream',
+      })
+      res.end(
+        [
+          'data: {"id":"chatcmpl_bun_1","model":"deepseek-chat","choices":[{"delta":{"content":"hello "}}]}',
+          '',
+          'data: {"choices":[{"delta":{"content":"world"},"finish_reason":"stop"}],"usage":{"prompt_tokens":7,"completion_tokens":2,"total_tokens":9}}',
+          '',
+          'data: [DONE]',
+          '',
+        ].join('\n'),
+      )
+    })
+
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+    const address = server.address()
+    const port = typeof address === 'object' && address ? address.port : null
+    assert.equal(typeof port, 'number')
+
+    const result = runBun(
+      [
+        'src/entrypoints/cli.tsx',
+        '--bare',
+        '-p',
+        'hello-bun-cli',
+        '--output-format',
+        'json',
+      ],
+      {
+        cwd: repoDir,
+        timeout: 30000,
+        env: {
+          ...process.env,
+          ZCODE_PROVIDER: 'openai-compatible',
+          ZCODE_OPENAI_PROVIDER: 'deepseek',
+          ZCODE_OPENAI_MODEL: 'deepseek-chat',
+          ZCODE_OPENAI_BASE_URL: `http://127.0.0.1:${port}/v1`,
+          ZCODE_OPENAI_API_KEY: 'test-key',
+        },
+      },
+    )
+
+    assert.equal(result.error, undefined, result.error?.message)
+    assert.equal(result.status, 0, result.stderr)
+
+    const payload = JSON.parse(result.stdout)
+    assert.equal(payload.subtype, 'success')
+    assert.match(payload.result, /hello world/)
+  } finally {
+    if (server) {
+      await new Promise(resolve => server.close(resolve))
+    }
+  }
 })
 
 test('README documents local startup, .env usage, and print mode', () => {

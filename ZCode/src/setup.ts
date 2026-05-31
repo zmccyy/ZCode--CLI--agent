@@ -18,7 +18,6 @@ import {
   setProjectRoot,
   switchSession,
 } from './bootstrap/state.js'
-import { getCommands } from './commands.js'
 import { initSessionMemory } from './services/SessionMemory/sessionMemory.js'
 import { asSessionId } from './types/ids.js'
 import { isAgentSwarmsEnabled } from './utils/agentSwarmsEnabled.js'
@@ -64,6 +63,10 @@ export async function setup(
   worktreePRNumber?: number,
   messagingSocketPath?: string,
 ): Promise<void> {
+  process.stderr.write('[DIAG] setup.ts:setup() entered\n')
+  process.stderr.write(
+    `[DIAG] setup.ts:flags bare=${String(isBareMode())} nonInteractive=${String(getIsNonInteractiveSession())} permissionMode=${permissionMode} skipPermissions=${String(allowDangerouslySkipPermissions)} worktree=${String(worktreeEnabled)}\n`,
+  )
   logForDiagnosticsNoPII('info', 'setup_started')
 
   // Check for Node.js version < 18
@@ -82,6 +85,7 @@ export async function setup(
   if (customSessionId) {
     switchSession(asSessionId(customSessionId))
   }
+  process.stderr.write('[DIAG] setup.ts:after customSessionId\n')
 
   // --bare / SIMPLE: skip UDS messaging server and teammate snapshot.
   // Scripted calls don't receive injected messages and don't use swarm teammates.
@@ -100,6 +104,7 @@ export async function setup(
       )
     }
   }
+  process.stderr.write('[DIAG] setup.ts:after uds block\n')
 
   // Teammate snapshot — SIMPLE-only gate (no escape hatch, swarm not used in bare)
   if (!isBareMode() && isAgentSwarmsEnabled()) {
@@ -108,6 +113,7 @@ export async function setup(
     )
     captureTeammateModeSnapshot()
   }
+  process.stderr.write('[DIAG] setup.ts:after teammate snapshot block\n')
 
   // Terminal backup restoration — interactive only. Print mode doesn't
   // interact with terminal settings; the next interactive session will
@@ -156,24 +162,32 @@ export async function setup(
       logError(error)
     }
   }
+  process.stderr.write('[DIAG] setup.ts:after terminal restore block\n')
 
   // IMPORTANT: setCwd() must be called before any other code that depends on the cwd
+  process.stderr.write('[DIAG] setup.ts:before setCwd\n')
   setCwd(cwd)
+  process.stderr.write('[DIAG] setup.ts:after setCwd\n')
 
   // Capture hooks configuration snapshot to avoid hidden hook modifications.
   // IMPORTANT: Must be called AFTER setCwd() so hooks are loaded from the correct directory
   const hooksStart = Date.now()
+  process.stderr.write('[DIAG] setup.ts:before captureHooksConfigSnapshot\n')
   captureHooksConfigSnapshot()
+  process.stderr.write('[DIAG] setup.ts:after captureHooksConfigSnapshot\n')
   logForDiagnosticsNoPII('info', 'setup_hooks_captured', {
     duration_ms: Date.now() - hooksStart,
   })
 
   // Initialize FileChanged hook watcher — sync, reads hook config snapshot
+  process.stderr.write('[DIAG] setup.ts:before initializeFileChangedWatcher\n')
   initializeFileChangedWatcher(cwd)
+  process.stderr.write('[DIAG] setup.ts:after initializeFileChangedWatcher\n')
 
   // Handle worktree creation if requested
   // IMPORTANT: this must be called befiore getCommands(), otherwise /eject won't be available.
   if (worktreeEnabled) {
+    process.stderr.write('[DIAG] setup.ts:entering worktree block\n')
     // Mirrors bridgeMain.ts: hook-configured sessions can proceed without git
     // so createWorktreeForSession() can delegate to the hook (non-git VCS).
     const hasHook = hasWorktreeCreateHook()
@@ -283,6 +297,7 @@ export async function setup(
     // .claude/settings.json. Re-read from the worktree and re-capture hooks.
     updateHooksConfigSnapshot()
   }
+  process.stderr.write('[DIAG] setup.ts:after worktree block\n')
 
   // Background jobs - only critical registrations that must happen before first query
   logForDiagnosticsNoPII('info', 'setup_background_jobs_starting')
@@ -301,6 +316,7 @@ export async function setup(
     }
   }
   void lockCurrentVersion() // Lock current version to prevent deletion by other processes
+  process.stderr.write('[DIAG] setup.ts:after background jobs launch\n')
   logForDiagnosticsNoPII('info', 'setup_background_jobs_launched')
 
   profileCheckpoint('setup_before_prefetch')
@@ -318,8 +334,13 @@ export async function setup(
     // --bare: loadPluginHooks → loadAllPlugins is filesystem work that's
     // wasted when executeHooks early-returns under --bare anyway.
     isBareMode()
+  process.stderr.write(
+    `[DIAG] setup.ts:prefetch skipPluginPrefetch=${String(skipPluginPrefetch)}\n`,
+  )
   if (!skipPluginPrefetch) {
-    void getCommands(getProjectRoot())
+    void import('./commands.js').then(m => {
+      void m.getCommands(getProjectRoot())
+    })
   }
   void import('./utils/plugins/loadPluginHooks.js').then(m => {
     if (!skipPluginPrefetch) {
@@ -369,6 +390,7 @@ export async function setup(
     }
   }
   initSinks() // Attach error log + analytics sinks and drain queued events
+  process.stderr.write('[DIAG] setup.ts:after initSinks\n')
 
   // Session-success-rate denominator. Emit immediately after the analytics
   // sink is attached — before any parsing, fetching, or I/O that could throw.
@@ -376,9 +398,11 @@ export async function setup(
   // event after this point was dead. This beacon is the earliest reliable
   // "process started" signal for release health monitoring.
   logEvent('tengu_started', {})
+  process.stderr.write('[DIAG] setup.ts:after tengu_started\n')
 
   void prefetchApiKeyFromApiKeyHelperIfSafe(getIsNonInteractiveSession()) // Prefetch safely - only executes if trust already confirmed
   profileCheckpoint('setup_after_prefetch')
+  process.stderr.write('[DIAG] setup.ts:after api key prefetch scheduling\n')
 
   // Pre-fetch data for Logo v2 - await to ensure it's ready before logo renders.
   // --bare / SIMPLE: skip — release notes are interactive-UI display data,
@@ -391,8 +415,10 @@ export async function setup(
       await getRecentActivity()
     }
   }
+  process.stderr.write('[DIAG] setup.ts:after release notes block\n')
 
   // If permission mode is set to bypass, verify we're in a safe environment
+  process.stderr.write('[DIAG] setup.ts:before bypass safety block\n')
   if (
     permissionMode === 'bypassPermissions' ||
     allowDangerouslySkipPermissions
@@ -440,13 +466,17 @@ export async function setup(
       }
     }
   }
+  process.stderr.write('[DIAG] setup.ts:after bypass safety block\n')
 
   if (process.env.NODE_ENV === 'test') {
+    process.stderr.write('[DIAG] setup.ts:returning early for NODE_ENV=test\n')
     return
   }
 
   // Log tengu_exit event from the last session?
+  process.stderr.write('[DIAG] setup.ts:before getCurrentProjectConfig\n')
   const projectConfig = getCurrentProjectConfig()
+  process.stderr.write('[DIAG] setup.ts:after getCurrentProjectConfig\n')
   if (
     projectConfig.lastCost !== undefined &&
     projectConfig.lastDuration !== undefined
@@ -474,4 +504,5 @@ export async function setup(
     // They're needed for cost restoration when resuming sessions.
     // The values will be overwritten when the next session exits.
   }
+  process.stderr.write('[DIAG] setup.ts:setup() completed\n')
 }

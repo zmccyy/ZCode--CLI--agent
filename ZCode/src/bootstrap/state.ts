@@ -1756,3 +1756,11 @@ export function setPromptId(id: string | null): void {
   STATE.promptId = id
 }
 
+// ReplBridge stubs (polyfilled for Node.js dev mode)
+export function isReplBridgeActive(): boolean {
+  return false
+}
+
+export function getReplBridgeHandle(): null {
+  return null
+}

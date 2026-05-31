@@ -45,18 +45,19 @@ test('phase 2 regression matrix aligns its 12 core scenarios with the main plan'
   const source = await fs.readFile(planPath, 'utf8')
 
   // Verify each scenario ID is paired with its description in the v2 plan
+  // (plan section 5.2 table — kept in sync with zcode-detailed-development-plan-v2.md)
   assert.match(source, /S01.*新会话/, 'S01 should reference new session')
   assert.match(source, /S02.*会话恢复/, 'S02 should reference resume')
   assert.match(source, /S03.*单轮对话/, 'S03 should reference single-turn')
-  assert.match(source, /S04.*多轮对话/, 'S04 should reference multi-turn')
+  assert.match(source, /S04.*文件工具/, 'S04 should reference file tools')
   assert.match(source, /S05.*Shell/, 'S05 should reference shell')
   assert.match(source, /S06.*Plan/, 'S06 should reference plan mode')
-  assert.match(source, /S07.*工具调用.*anthropic/, 'S07 should reference tool calls')
-  assert.match(source, /S08.*工具调用.*openai/, 'S08 should reference openai-compatible tool calls')
-  assert.match(source, /S09.*Auto-compact/, 'S09 should reference auto-compact')
-  assert.match(source, /S10.*MCP/, 'S10 should reference MCP')
+  assert.match(source, /S07.*Subagent/, 'S07 should reference subagent')
+  assert.match(source, /S08.*Hooks/, 'S08 should reference hooks')
+  assert.match(source, /S09.*MCP/, 'S09 should reference MCP')
+  assert.match(source, /S10.*Memory/, 'S10 should reference memory')
   assert.match(source, /S11.*权限/, 'S11 should reference permissions')
-  assert.match(source, /S12.*错误恢复/, 'S12 should reference error recovery')
+  assert.match(source, /S12.*Doctor/, 'S12 should reference doctor')
 
   // Verify the v2 plan documents provider-specific regression tracks
   assert.match(source, /双线路/i, 'plan must document dual-track provider strategy')

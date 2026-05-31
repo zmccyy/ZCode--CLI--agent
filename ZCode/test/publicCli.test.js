@@ -22,6 +22,17 @@ function getBunCommand() {
   return process.platform === 'win32' ? 'bun.cmd' : 'bun'
 }
 
+function hasBun() {
+  // Check if bun is available; if not, tests that require bun will be skipped
+  if (process.env.BUN_TEST_SKIP === '1') return false
+  try {
+    const result = runBun(['--version'], { timeout: 10000 })
+    return result.status === 0
+  } catch {
+    return false
+  }
+}
+
 function runBun(args, options = {}) {
   if (process.platform === 'win32') {
     const commandLine = ['bun', ...args].join(' ')
@@ -32,6 +43,13 @@ function runBun(args, options = {}) {
   }
 
   return spawnSync(getBunCommand(), args, {
+    encoding: 'utf8',
+    ...options,
+  })
+}
+
+function runNode(args, options = {}) {
+  return spawnSync('node', args, {
     encoding: 'utf8',
     ...options,
   })
@@ -299,7 +317,18 @@ test('package scripts expose a public start command for Bun', () => {
   assert.equal(typeof packageJson.scripts?.models, 'string')
 })
 
-test('bun run start --help launches the public CLI entrypoint', () => {
+test('npm start -- --help launches the public CLI entrypoint via Node.js', () => {
+  const result = runNode(['src/entrypoints/publicCli.js', '--help'], {
+    cwd: repoDir,
+  })
+
+  assert.equal(result.error, undefined, result.error?.message)
+  assert.equal(result.status, 0, result.stderr)
+  assert.match(result.stdout, /ZCode CLI Agent/)
+  assert.match(result.stdout, /doctor/)
+})
+
+test('bun run start --help launches the public CLI entrypoint via Bun', { skip: !hasBun() ? 'bun not available' : undefined }, () => {
   const result = runBun(['run', 'start', '--help'], {
     cwd: repoDir,
   })
@@ -314,7 +343,8 @@ test('README documents local startup, .env usage, and print mode', () => {
   const readme = readFileSync(readmePath, 'utf8')
 
   assert.match(readme, /bun run start --help/)
+  assert.match(readme, /npm start.*--help/)
   assert.match(readme, /ZCODE_PROVIDER=openai-compatible/)
-  assert.match(readme, /zcode -p ".*" --json|bun run start -p ".*" --json/)
+  assert.match(readme, /zcode -p ".*" --json|npm start -- -p ".*" --json/)
   assert.match(readme, /\.env/)
 })

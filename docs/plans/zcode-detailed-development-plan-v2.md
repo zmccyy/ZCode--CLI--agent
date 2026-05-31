@@ -68,8 +68,8 @@
 
 | 模块 | 优先级 | 依赖 | 备注 |
 |------|--------|------|------|
-| **完整 REPL 交互启动链路** | P0 | 依赖 Anthropic streamChat + TUI 渲染链路 | Phase 3 启动 |
-| **Windows 安装脚本** | P1 | GitHub Release 产物设计 | Phase 3 |
+| **完整 REPL 交互启动链路** | P0 | 依赖 Anthropic streamChat + TUI 渲染链路 | Phase 3 W15-16（已列入计划） |
+| **Windows 安装脚本** | P1 | GitHub Release 产物设计 | Phase 3 W15-16 |
 | **Windows 更新命令** | P1 | 版本检查 + 下载 + 替换流程 | Phase 3 |
 | **GitHub Release 流程** | P2 | CI/CD pipeline 设计 | Phase 3 |
 | **用户文档体系** | P2 | 安装/配置/命令参考/FAQ | Phase 4 |
@@ -316,6 +316,7 @@
 |----|------|------|------|
 | W13-14 | TD-01 构建工具链统一（Bun → Node.js 完全兼容或双运行时方案） | M2 达成 | `npm start` 和 `bun start` 均可启动 |
 | W13-14 | TD-04 测试运行器适配（消除 bun-only 测试依赖） | M2 达成 | 75+ 测试全部在 Node.js 下通过 |
+| W15-16 | **T2.2 完整 REPL 启动链路打通**（cli.tsx → init.ts → main.tsx → REPL.tsx） | W14 完成 | 终端输入自然语言获得流式 LLM 响应，Ctrl+C 正常退出 |
 | W15-16 | Windows 安装包制作（MSI 或 portable zip） | W14 完成 | 安装后 `zcode --help` 可用 |
 | W15-16 | TD-02/TD-03 TypeScript 类型安全/导入路径修正 | W14 完成 | `tsc --noEmit` 0 错误 |
 | W17 | T2.12 性能压测 | W16 完成 | 冷启动 ≤3s，200 轮稳定 |
@@ -373,12 +374,13 @@ Phase 2 (W7-W12) ✅ 已完成 (2026-05-30)
         ▼ M2: 12 场景全绿 ✅ 已达成 (2026-05-30)
 Phase 3 (W13-W18)
   ├── TD-01/TD-04 构建/测试统一 (W13-14)
+  ├── T2.2 REPL 启动链路打通 (W15-16, 依赖 W14)
   ├── Windows 安装包 (W15-16)
   ├── TD-02/TD-03 类型修正 (W15-16)
-  ├── T2.12 性能压测 (W17)
+  ├── T2.12 性能压测 (W17, 依赖 T2.2)
   └── RC 签发 (W18)
         │
-        ▼ M3: RC 发布
+        ▼ M3: RC 发布（REPL 可交互, 可安装运行）
 Phase 4 (W19-W22)
   ├── 文档 + 品牌终扫 (W19)
   ├── UAT + 安全审计 (W20)
@@ -398,7 +400,8 @@ Phase 4 (W19-W22)
 - **不可并行的严格串行链**：
   - T2.1 各阶段（W3→W4→W5→W6）必须顺序执行
   - T2.5 各阶段（W7→W8→W9）必须顺序执行
-  - 性能压测（T2.12）必须等构建统一完成后才有意义
+  - T2.2 REPL 启动链路 依赖构建统一（W14）完成后才能开始
+  - 性能压测（T2.12）依赖 T2.2 REPL 启动链路完成
 
 ---
 
@@ -586,7 +589,7 @@ jobs:
 |--------|--------|--------|----------|
 | M1 (W6) | v0.1.1-dev | streamChat 可用的开发版 | ✅ 已达成 (2026-05-30) — git tag pending |
 | M2 (W12) | v0.2.0-alpha | 全场景通过的 Alpha 版 | ✅ 已签发 (2026-05-30) — git tag v0.2.0-alpha |
-| M3 (W18) | v0.3.0-rc1 | Release Candidate | GitHub Pre-release + MSI/zip |
+| M3 (W18) | v0.3.0-rc1 | Release Candidate（REPL 交互可用 + 安装包） | GitHub Pre-release + MSI/zip |
 | M4 (W22) | v1.0.0 | 正式版 | GitHub Release + 安装包 + 文档站 |
 
 ### 5.5 发布检查清单（v1.0.0 Gate）

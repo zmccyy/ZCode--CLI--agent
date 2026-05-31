@@ -1,16 +1,24 @@
 # ZCode Local Startup
 
-这个仓库当前提供的是一条“最小可本地启动”的公共 CLI 入口。
+这个仓库当前提供的是一条"最小可本地启动"的公共 CLI 入口。
 它不会启动原始的大型交互式 TUI 链路，因为那条链路在这个裁剪仓库里仍然依赖缺失模块。
 
 ## 前置条件
 
-- 已安装 `bun`
-- 已安装 `node`
+- 已安装 Node.js (>=22)
+- （可选）已安装 `bun` 以获得更快的启动速度
 
 ## 本地启动
 
-进入 [ZCode](/D:/桌面/项目/agent壳/ZCode) 后执行：
+进入 ZCode 目录后执行：
+
+```bash
+npm start -- --help
+npm run doctor -- --json
+npm run models
+```
+
+或使用 Bun：
 
 ```bash
 bun run start --help
@@ -20,10 +28,11 @@ bun run models
 
 当前可用命令：
 
-- `bun run start --help`
-- `bun run doctor --json`
-- `bun run models`
-- `bun run start -p "Explain this repo" --json`
+- `npm start -- --help` 或 `bun run start --help`
+- `npm run doctor -- --json`
+- `npm run models`
+- `npm start -- -p "Explain this repo" --json`
+- `zcode -p "Explain this repo" --json`（全局安装后）
 
 ## .env 支持
 
@@ -55,7 +64,7 @@ ZCODE_OPENAI_API_KEY=your-api-key
 当 `.env` 或环境变量里配置好 OpenAI-compatible provider 后，可以真正发起请求：
 
 ```bash
-bun run start -p "Summarize this repository" --json
+npm start -- -p "Summarize this repository" --json
 ```
 
 如果你把包链接成了全局命令，也可以这样用：
@@ -74,6 +83,12 @@ zcode -p "Summarize this repository" --json
 - `finishReason`
 
 ## 测试验证
+
+```bash
+npm test
+```
+
+或直接：
 
 ```bash
 node --experimental-strip-types --test test/all.test.js

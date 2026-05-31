@@ -213,7 +213,7 @@ export function renderHelp({ version = '0.0.0' } = {}) {
     `Version: ${getVersionBanner(version)}`,
     '',
     'Usage:',
-    `  bun run start [command] [options]`,
+    `  npm start -- [command] [options]`,
     `  ${commandName} [command] [options]`,
     '',
     'Commands:',

@@ -7,7 +7,7 @@ import {
 const _require = createRequire(import.meta.url)
 
 function loadModelConfigs() {
-  return _require('../utils/model/configs.ts')
+  return _require('../utils/model/configs.js')
 }
 
 function requireString(value, fieldName) {

@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",
+    "@anthropic-ai/sandbox-runtime": "^0.0.52",
     "@aws-sdk/client-bedrock-runtime": "^3.1057.0",
     "@commander-js/extra-typings": "^15.0.0",
     "@growthbook/growthbook": "^1.6.5",

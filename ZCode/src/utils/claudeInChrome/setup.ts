@@ -1,4 +1,3 @@
-import { BROWSER_TOOLS } from '@ant/claude-for-chrome-mcp'
 import { chmod, mkdir, readFile, writeFile } from 'fs/promises'
 import { homedir } from 'os'
 import { join } from 'path'
@@ -28,6 +27,7 @@ import {
   getAllWindowsRegistryKeys,
   openInChrome,
 } from './common.js'
+import { getClaudeInChromeBrowserToolNames } from './browserTools.js'
 import { getChromeSystemPrompt } from './prompt.js'
 import { isChromeExtensionInstalledPortable } from './setupPortable.js'
 
@@ -35,6 +35,15 @@ const CHROME_EXTENSION_RECONNECT_URL = 'https://clau.de/chrome/reconnect'
 
 const NATIVE_HOST_IDENTIFIER = 'com.anthropic.claude_code_browser_extension'
 const NATIVE_HOST_MANIFEST_NAME = `${NATIVE_HOST_IDENTIFIER}.json`
+
+export function isClaudeInChromeDependencyAvailable(): boolean {
+  try {
+    require.resolve('@ant/claude-for-chrome-mcp')
+    return true
+  } catch {
+    return false
+  }
+}
 
 export function shouldEnableClaudeInChrome(chromeFlag?: boolean): boolean {
   // Disable by default in non-interactive sessions (e.g., SDK, CI)
@@ -70,6 +79,10 @@ export function shouldEnableClaudeInChrome(chromeFlag?: boolean): boolean {
 let shouldAutoEnable: boolean | undefined = undefined
 
 export function shouldAutoEnableClaudeInChrome(): boolean {
+  if (!isClaudeInChromeDependencyAvailable()) {
+    return false
+  }
+
   if (shouldAutoEnable !== undefined) {
     return shouldAutoEnable
   }
@@ -94,8 +107,8 @@ export function setupClaudeInChrome(): {
   systemPrompt: string
 } {
   const isNativeBuild = isInBundledMode()
-  const allowedTools = BROWSER_TOOLS.map(
-    tool => `mcp__claude-in-chrome__${tool.name}`,
+  const allowedTools = getClaudeInChromeBrowserToolNames().map(
+    toolName => `mcp__claude-in-chrome__${toolName}`,
   )
 
   const env: Record<string, string> = {}

@@ -12,10 +12,17 @@
 
 ```bash
 cd ZCode
+npm start -- --help
 bun run start --help
 bun run doctor --json
 bun run models
 ```
+
+说明：
+
+- `npm start -- --help` 走 Node.js 公共 CLI 入口
+- `bun run start --help` 走 Bun 版公共 CLI 入口
+- 完整交互主链路使用 `bun src/entrypoints/cli.tsx`
 
 ## 环境配置
 

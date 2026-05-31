@@ -328,6 +328,37 @@ test('npm start -- --help launches the public CLI entrypoint via Node.js', () =>
   assert.match(result.stdout, /doctor/)
 })
 
+test('node public CLI doctor --json works on the stable public surface', () => {
+  const result = runNode(['src/entrypoints/publicCli.js', 'doctor', '--json'], {
+    cwd: repoDir,
+  })
+
+  assert.equal(result.error, undefined, result.error?.message)
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(result.stderr, '')
+
+  const payload = JSON.parse(result.stdout)
+  assert.equal(payload.startable, true)
+  assert.equal(payload.provider.id, 'anthropic:firstParty')
+  assert.equal(Array.isArray(payload.models), true)
+  assert.ok(payload.models.length > 0)
+})
+
+test('node public CLI models --json lists provider models without a TS loader', () => {
+  const result = runNode(['src/entrypoints/publicCli.js', 'models', '--json'], {
+    cwd: repoDir,
+  })
+
+  assert.equal(result.error, undefined, result.error?.message)
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(result.stderr, '')
+
+  const payload = JSON.parse(result.stdout)
+  assert.equal(Array.isArray(payload), true)
+  assert.ok(payload.length > 0)
+  assert.ok(payload.some(model => model.provider === 'firstParty'))
+})
+
 test('bun run start --help launches the public CLI entrypoint via Bun', { skip: !hasBun() ? 'bun not available' : undefined }, () => {
   const result = runBun(['run', 'start', '--help'], {
     cwd: repoDir,
@@ -337,6 +368,32 @@ test('bun run start --help launches the public CLI entrypoint via Bun', { skip: 
   assert.equal(result.status, 0, result.stderr)
   assert.match(result.stdout, /ZCode CLI Agent/)
   assert.match(result.stdout, /doctor/)
+})
+
+test('public help documents that Node.js targets the public CLI surface only', async () => {
+  const { renderHelp } = await loadModule(
+    `${publicCliCorePath}?node-scope=${Date.now()}`,
+  )
+
+  const help = renderHelp({ version: '0.1.0' })
+
+  assert.match(help, /public build/i)
+  assert.match(help, /does not boot the full interactive TUI path/i)
+  assert.doesNotMatch(help, /cli\.tsx/i)
+})
+
+test('bun cli.tsx --help reaches the full Bun entrypoint without missing-package failures', {
+  skip: !hasBun() ? 'bun not available' : undefined,
+}, () => {
+  const result = runBun(['src/entrypoints/cli.tsx', '--help'], {
+    cwd: repoDir,
+    timeout: 30000,
+  })
+
+  assert.equal(result.error, undefined, result.error?.message)
+  assert.equal(result.status, 0, result.stderr)
+  assert.doesNotMatch(result.stderr, /Cannot find module/i)
+  assert.doesNotMatch(result.stdout, /Cannot find module/i)
 })
 
 test('README documents local startup, .env usage, and print mode', () => {

@@ -2,7 +2,7 @@
 
 ## 系统要求
 
-- Node.js >= 18.x
+- Node.js >= 22.x
 - Bun >= 1.0.x
 
 ## 安装步骤
@@ -43,7 +43,18 @@ ZCODE_OPENAI_TIMEOUT=30000
 
 ### 4. 验证安装
 
+先验证 Node 公共 CLI：
+
 ```bash
+cd ZCode
+npm start -- --help
+npm run doctor -- --json
+```
+
+再验证 Bun 主链路和 Bun 版公共入口：
+
+```bash
+bun run start --help
 bun run doctor --json
 ```
 
@@ -51,16 +62,24 @@ bun run doctor --json
 
 | 命令 | 描述 |
 |------|------|
-| `bun run start --help` | 显示帮助信息 |
-| `bun run doctor --json` | 诊断系统状态 |
+| `npm start -- --help` | 通过 Node.js 运行公共 CLI 帮助 |
+| `npm run doctor -- --json` | 通过 Node.js 运行公共 CLI 诊断 |
+| `bun run start --help` | 通过 Bun 运行公共 CLI 帮助 |
+| `bun run doctor --json` | 通过 Bun 运行公共 CLI 诊断 |
 | `bun run models` | 列出可用模型 |
 | `bun run start -p "prompt" --json` | 执行非交互式请求 |
+| `bun src/entrypoints/cli.tsx` | 启动完整 Bun REPL 主链路 |
 
 ## 常见问题
 
 ### Q: 环境变量不生效？
 
 确保 `.env` 文件位于当前工作目录，且变量名正确。环境变量优先级：系统环境 > `.env` 文件。
+
+### Q: Node.js 和 Bun 分别负责什么？
+
+- Node.js：稳定公共 CLI 入口，适合 `--help` / `doctor` / `models` / `-p --json`
+- Bun：完整 `cli.tsx -> main.tsx -> REPL.tsx` 主链路运行时
 
 ### Q: 如何使用其他模型提供商？
 

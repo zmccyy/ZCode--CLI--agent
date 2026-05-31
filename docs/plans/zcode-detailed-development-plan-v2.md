@@ -11,7 +11,8 @@
 
 | 模块 | 状态 | 证据 |
 |------|------|------|
-| **公共 CLI 入口** | ✅ 稳定 | `ZCode/src/entrypoints/publicCli.js` + `publicCliCore.js`，支持 `--help`/`doctor`/`models`/`-p --json` |
+| **公共 CLI 入口（Node.js）** | ✅ 稳定 | `ZCode/src/entrypoints/publicCli.js` + `publicCliCore.js`，支持 `--help`/`doctor`/`models`/`-p --json` |
+| **完整 REPL 入口（Bun）** | 🚧 推进中 | `ZCode/src/entrypoints/cli.tsx`，作为完整交互链路运行时，不再要求 Node.js 承载 |
 | **OpenAI-compatible Provider** | ✅ 稳定 | `providers/openaiCompatible.js`，完整 SSE 解析、tool_call 增量合并、超时控制 |
 | **Provider Runtime 选择** | ✅ 稳定 | `providers/runtime.js`，env → provider mode 解析、settings 合并、双线路切换 |
 | **ProviderAdapter Contract** | ✅ 稳定 | `contracts/providerAdapter.js`，统一 `streamChat`/`listModels`/`normalizeToolCalls` |
@@ -68,7 +69,7 @@
 
 | 模块 | 优先级 | 依赖 | 备注 |
 |------|--------|------|------|
-| **完整 REPL 交互启动链路** | P0 | 依赖 Anthropic streamChat + TUI 渲染链路 | Phase 3 W15-16（已列入计划） |
+| **完整 REPL 交互启动链路（Bun）** | P0 | 依赖 Anthropic streamChat + TUI 渲染链路 | Phase 3 W15-16（已列入计划） |
 | **Windows 安装脚本** | P1 | GitHub Release 产物设计 | Phase 3 W15-16 |
 | **Windows 更新命令** | P1 | 版本检查 + 下载 + 替换流程 | Phase 3 |
 | **GitHub Release 流程** | P2 | CI/CD pipeline 设计 | Phase 3 |
@@ -89,7 +90,7 @@
 | TD-06 | main.tsx 4685 行，职责过重 | 可维护性差 | 低 |
 | TD-07 | MCP client 依赖 `@modelcontextprotocol/sdk` 未在 package.json 声明 | 运行时缺失 | 高 |
 | TD-08 | 无 `package-lock.json` 或 `bun.lockb` 在 ZCode/ 目录 | 依赖不确定性 | 中 |
-| TD-09 | 历史代码大量 `.ts`/`.tsx` 但 publicCli 链路用纯 `.js` | 两套体系并存 | 低 |
+| TD-09 | 历史代码大量 `.ts`/`.tsx` 但 publicCli 链路用纯 `.js` | Node 公共入口 / Bun 主链路双体系并存 | 低 |
 | TD-10 | settings/types.ts 仍是 Claude Code 完整 schema | 语义混乱 | 低 |
 
 ---
@@ -107,17 +108,18 @@
   3. 新增 `test/anthropicStreamChat.test.js` 通过（mock HTTP）
 - **预估工时**：3 天
 
-### 2.2 完整 REPL 启动链路打通（P0）
+### 2.2 完整 REPL 启动链路打通（P0，Bun）
 
-- **目标**：从 `cli.tsx` → `init.ts` → `main.tsx` → `REPL.tsx` 完整启动不报错
+- **目标**：在 Bun 运行时下，从 `cli.tsx` → `init.ts` → `main.tsx` → `REPL.tsx` 完整启动不报错
 - **输入**：有效的 Anthropic API Key 或 OpenAI-compatible 配置
 - **输出**：用户可在终端中输入自然语言并获得 LLM 响应
 - **DoD**：
-  1. `bun run src/entrypoints/cli.tsx` 在 Windows Terminal 中启动成功
+  1. `bun src/entrypoints/cli.tsx` 或等价 Bun 命令在 Windows Terminal 中启动成功
   2. 输入一句话后获得流式文本输出
   3. Ctrl+C 可正常退出
 - **预估工时**：5 天
 - **依赖**：T2.1 完成
+- **非目标**：不要求 Node.js 运行完整 `cli.tsx` 主链路；Node.js 继续只承载 `publicCli.js`
 
 ### 2.3 文件工具回归 S03+S04（P0）
 

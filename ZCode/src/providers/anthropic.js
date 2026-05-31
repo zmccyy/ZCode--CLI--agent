@@ -7,7 +7,7 @@ import {
 const requireFromHere = createRequire(import.meta.url)
 
 function loadModelConfigs() {
-  return requireFromHere('../utils/model/configs.ts')
+  return requireFromHere('../utils/model/configs.js')
 }
 
 function requireString(value, fieldName) {

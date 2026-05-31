@@ -1,5 +1,21 @@
 import { feature } from 'bun:bundle';
+import { renderCliEntrypointHelp } from './cliHelp.js';
+import { readFileSync } from 'node:fs';
 import { getVersionBanner } from '../config/brandText.js';
+
+function getCliVersion(): string {
+  if (typeof MACRO !== 'undefined' && typeof MACRO.VERSION === 'string') {
+    return MACRO.VERSION;
+  }
+
+  try {
+    const packageJsonUrl = new URL('../../package.json', import.meta.url);
+    const packageJson = JSON.parse(readFileSync(packageJsonUrl, 'utf8'));
+    return typeof packageJson.version === 'string' ? packageJson.version : '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
 
 // Bugfix for corepack auto-pinning, which adds yarnpkg to peoples' package.jsons
 // eslint-disable-next-line custom-rules/no-top-level-side-effects
@@ -38,7 +54,14 @@ async function main(): Promise<void> {
   if (args.length === 1 && (args[0] === '--version' || args[0] === '-v' || args[0] === '-V')) {
     // MACRO.VERSION is inlined at build time
     // biome-ignore lint/suspicious/noConsole:: intentional console output
-    console.log(getVersionBanner(MACRO.VERSION));
+    console.log(getVersionBanner(getCliVersion()));
+    return;
+  }
+
+  // Fast-path for --help/-h: avoid loading the full REPL module graph
+  if (args.length === 1 && (args[0] === '--help' || args[0] === '-h')) {
+    // biome-ignore lint/suspicious/noConsole:: intentional console output
+    console.log(renderCliEntrypointHelp(getCliVersion()));
     return;
   }
 

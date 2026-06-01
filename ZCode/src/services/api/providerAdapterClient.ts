@@ -268,7 +268,7 @@ function convertTools(tools: unknown): Array<Record<string, unknown>> | undefine
         },
       }
     })
-    .filter((tool): tool is Record<string, unknown> => Boolean(tool))
+    .filter((tool): tool is NonNullable<typeof tool> => Boolean(tool))
 
   return converted.length > 0 ? converted : undefined
 }
@@ -477,19 +477,25 @@ export function convertResponseChunkToEvents(
   }
 
   if (chunk.type === 'text_delta' && typeof chunk.text === 'string') {
-    let index = state.activeTextIndex
-    if (index === null) {
-      index = state.nextContentIndex++
-      state.activeTextIndex = index
+    // Close previous text block before starting a new one
+    if (state.activeTextIndex !== null) {
       events.push({
-        type: 'content_block_start',
-        index,
-        content_block: {
-          type: 'text',
-          text: '',
-        },
+        type: 'content_block_stop',
+        index: state.activeTextIndex,
       })
+      state.activeTextIndex = null
     }
+
+    const index = state.nextContentIndex++
+    state.activeTextIndex = index
+    events.push({
+      type: 'content_block_start',
+      index,
+      content_block: {
+        type: 'text',
+        text: '',
+      },
+    })
     events.push({
       type: 'content_block_delta',
       index,
@@ -498,6 +504,11 @@ export function convertResponseChunkToEvents(
         text: chunk.text,
       },
     })
+    events.push({
+      type: 'content_block_stop',
+      index,
+    })
+    state.activeTextIndex = null
     return events
   }
 
@@ -726,7 +737,7 @@ function toHeadersObject(headers: unknown): Record<string, string> {
       Object.entries(headers).filter(
         ([key, value]) => typeof key === 'string' && typeof value === 'string',
       ),
-    )
+    ) as Record<string, string>
   }
 
   return {}

@@ -1,2 +1,13 @@
 .superpowers/
 node_modules
+
+# IDE
+.idea/
+*.iml
+
+# session exports
+interaction/
+
+# env
+.env
+.env.local

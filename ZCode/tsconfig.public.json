@@ -7,6 +7,8 @@
     "checkJs": false,
     "strict": false,
     "skipLibCheck": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
     "types": ["node"],
     "lib": ["ES2023"],
     "baseUrl": ".",
@@ -20,6 +22,10 @@
     "src/config/brandConfig.js",
     "src/config/brandText.js",
     "src/config/settingsContract.js",
+    "src/config/providerEnvironment.js",
+    "src/providers/runtime.js",
+    "src/services/api/providerAdapterClient.ts",
+    "src/services/api/anthropicAdapterClient.ts",
     "src/types/message.ts",
     "src/types/messageQueueTypes.ts",
     "src/types/tools.ts",
@@ -28,6 +34,8 @@
     "test/publicCli.test.js",
     "test/phase2McpStdio.test.js",
     "test/phase2McpSseHttp.test.js",
-    "test/providerContract.test.js"
+    "test/providerContract.test.js",
+    "test/providerAdapterClient.test.js",
+    "test/anthropicAdapterClient.test.js"
   ]
 }

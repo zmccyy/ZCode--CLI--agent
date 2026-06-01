@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import http from 'node:http'
 import os from 'node:os'
@@ -46,6 +46,83 @@ function runBun(args, options = {}) {
   return spawnSync(getBunCommand(), args, {
     encoding: 'utf8',
     ...options,
+  })
+}
+
+function runBunAsync(args, options = {}) {
+  return new Promise(resolve => {
+    let child
+
+    if (process.platform === 'win32') {
+      const commandLine = ['bun', ...args].join(' ')
+      child = spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', commandLine], {
+        ...options,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+    } else {
+      child = spawn(getBunCommand(), args, {
+        ...options,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+    }
+
+    let stdout = ''
+    let stderr = ''
+    let settled = false
+    const timeout = options.timeout ?? 0
+
+    const finish = result => {
+      if (settled) return
+      settled = true
+      if (timer) {
+        clearTimeout(timer)
+      }
+      resolve(result)
+    }
+
+    child.stdout?.setEncoding('utf8')
+    child.stderr?.setEncoding('utf8')
+    child.stdout?.on('data', chunk => {
+      stdout += chunk
+    })
+    child.stderr?.on('data', chunk => {
+      stderr += chunk
+    })
+
+    child.on('error', error => {
+      finish({
+        status: null,
+        signal: null,
+        stdout,
+        stderr,
+        error,
+      })
+    })
+
+    child.on('close', (code, signal) => {
+      finish({
+        status: code,
+        signal,
+        stdout,
+        stderr,
+        error: undefined,
+      })
+    })
+
+    const timer = timeout > 0
+      ? setTimeout(() => {
+          const error = new Error(`spawn ${process.platform === 'win32' ? process.env.ComSpec || 'cmd.exe' : getBunCommand()} ETIMEDOUT`)
+          error.code = 'ETIMEDOUT'
+          child.kill('SIGTERM')
+          finish({
+            status: null,
+            signal: 'SIGTERM',
+            stdout,
+            stderr,
+            error,
+          })
+        }, timeout)
+      : null
   })
 }
 
@@ -433,16 +510,92 @@ test('bun can import the colorDiff adapter without requiring color-diff-napi at 
   }
 })
 
+test('bun can import print.ts without missing filePersistence dependencies', {
+  skip: !hasBun() ? 'bun not available' : undefined,
+}, () => {
+  const tempDir = createTempDir('zcode-bun-print-import-')
+  const scriptPath = path.join(tempDir, 'import-print.mjs')
+  const moduleUrl = pathToFileURL(
+    resolveFromHere(import.meta.url, '..', 'src', 'cli', 'print.ts'),
+  ).href
+
+  try {
+    writeFileSync(
+      scriptPath,
+      `await import(${JSON.stringify(moduleUrl)});\nconsole.log('print-import-ok');\n`,
+      'utf8',
+    )
+
+    const result = runBun([scriptPath], {
+      cwd: repoDir,
+      timeout: 30000,
+      env: {
+        ...process.env,
+        CLAUDE_CODE_SIMPLE: '1',
+      },
+    })
+
+    assert.equal(result.error, undefined, result.error?.message)
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.stdout, /print-import-ok/)
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('bun can resolve openai-compatible as the active API provider', {
+  skip: !hasBun() ? 'bun not available' : undefined,
+}, () => {
+  const tempDir = createTempDir('zcode-bun-provider-')
+  const scriptPath = path.join(tempDir, 'provider-check.mjs')
+  const moduleUrl = pathToFileURL(
+    resolveFromHere(import.meta.url, '..', 'src', 'utils', 'model', 'providers.ts'),
+  ).href
+
+  try {
+    writeFileSync(
+      scriptPath,
+      [
+        `const mod = await import(${JSON.stringify(moduleUrl)});`,
+        "console.log(mod.getAPIProvider());",
+      ].join('\n'),
+      'utf8',
+    )
+
+    const result = runBun([scriptPath], {
+      cwd: repoDir,
+      timeout: 30000,
+      env: {
+        ...process.env,
+        ZCODE_PROVIDER: 'openai-compatible',
+      },
+    })
+
+    assert.equal(result.error, undefined, result.error?.message)
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.stdout, /openaiCompatible/)
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true })
+  }
+})
+
 test('bun cli.tsx --bare -p can complete a real headless request through the full REPL startup chain', {
   skip: !hasBun() ? 'bun not available' : undefined,
 }, async () => {
   let server
+  let capturedBody = null
 
   try {
     server = http.createServer(async (req, res) => {
       assert.equal(req.method, 'POST')
       assert.equal(req.url, '/v1/chat/completions')
       assert.equal(req.headers.authorization, 'Bearer test-key')
+
+      let body = ''
+      for await (const chunk of req) {
+        body += String(chunk)
+      }
+      capturedBody = JSON.parse(body)
 
       res.writeHead(200, {
         'content-type': 'text/event-stream',
@@ -464,7 +617,7 @@ test('bun cli.tsx --bare -p can complete a real headless request through the ful
     const port = typeof address === 'object' && address ? address.port : null
     assert.equal(typeof port, 'number')
 
-    const result = runBun(
+    const result = await runBunAsync(
       [
         'src/entrypoints/cli.tsx',
         '--bare',
@@ -489,6 +642,7 @@ test('bun cli.tsx --bare -p can complete a real headless request through the ful
 
     assert.equal(result.error, undefined, result.error?.message)
     assert.equal(result.status, 0, result.stderr)
+    assert.equal(capturedBody?.model, 'deepseek-chat')
 
     const payload = JSON.parse(result.stdout)
     assert.equal(payload.subtype, 'success')

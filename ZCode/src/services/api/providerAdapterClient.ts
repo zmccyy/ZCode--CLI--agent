@@ -439,6 +439,7 @@ export function convertResponseChunkToEvents(
     messageId: string | null
     model: string | null
     nextContentIndex: number
+    activeTextIndex: number | null
   },
 ) {
   const events: Array<Record<string, unknown>> = []
@@ -476,15 +477,19 @@ export function convertResponseChunkToEvents(
   }
 
   if (chunk.type === 'text_delta' && typeof chunk.text === 'string') {
-    const index = state.nextContentIndex++
-    events.push({
-      type: 'content_block_start',
-      index,
-      content_block: {
-        type: 'text',
-        text: '',
-      },
-    })
+    let index = state.activeTextIndex
+    if (index === null) {
+      index = state.nextContentIndex++
+      state.activeTextIndex = index
+      events.push({
+        type: 'content_block_start',
+        index,
+        content_block: {
+          type: 'text',
+          text: '',
+        },
+      })
+    }
     events.push({
       type: 'content_block_delta',
       index,
@@ -492,10 +497,6 @@ export function convertResponseChunkToEvents(
         type: 'text_delta',
         text: chunk.text,
       },
-    })
-    events.push({
-      type: 'content_block_stop',
-      index,
     })
     return events
   }
@@ -537,6 +538,13 @@ export function convertResponseChunkToEvents(
   }
 
   if (chunk.type === 'response_end') {
+    if (state.activeTextIndex !== null) {
+      events.push({
+        type: 'content_block_stop',
+        index: state.activeTextIndex,
+      })
+      state.activeTextIndex = null
+    }
     events.push({
       type: 'message_delta',
       delta: {
@@ -816,6 +824,7 @@ export function createProviderAdapterClient({
             messageId: null as string | null,
             model: null as string | null,
             nextContentIndex: 0,
+            activeTextIndex: null as number | null,
           }
           const initialEvents: Array<Record<string, unknown>> = []
 

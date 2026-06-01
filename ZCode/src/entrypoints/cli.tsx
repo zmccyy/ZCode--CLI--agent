@@ -55,7 +55,6 @@ if (feature('ABLATION_BASELINE') && process.env.CLAUDE_CODE_ABLATION_BASELINE) {
  * Fast-path for --version has zero imports beyond this file.
  */
 async function main(): Promise<void> {
-  process.stderr.write('[DIAG] cli.tsx:main() entered\n');
   const args = process.argv.slice(2);
 
   // Fast-path for --version/-v: zero module loading needed
@@ -74,11 +73,9 @@ async function main(): Promise<void> {
   }
 
   // For all other paths, load the startup profiler
-  process.stderr.write('[DIAG] cli.tsx: importing startupProfiler.js...\n');
   const {
     profileCheckpoint
   } = await import('../utils/startupProfiler.js');
-  process.stderr.write('[DIAG] cli.tsx: startupProfiler.js loaded\n');
   profileCheckpoint('cli_entry');
 
   // Fast-path for --dump-system-prompt: output the rendered system prompt and exit.
@@ -319,21 +316,16 @@ async function main(): Promise<void> {
   }
 
   // No special flags detected, load and run the full CLI
-  process.stderr.write('[DIAG] cli.tsx: loading earlyInput.js...\n');
   const {
     startCapturingEarlyInput
   } = await import('../utils/earlyInput.js');
-  process.stderr.write('[DIAG] cli.tsx: earlyInput.js loaded, starting capture...\n');
   startCapturingEarlyInput();
   profileCheckpoint('cli_before_main_import');
-  process.stderr.write('[DIAG] cli.tsx: importing main.js...\n');
   const {
     main: cliMain
   } = await import('../main.js');
-  process.stderr.write('[DIAG] cli.tsx: main.js imported, calling cliMain()...\n');
   profileCheckpoint('cli_after_main_import');
   await cliMain();
-  process.stderr.write('[DIAG] cli.tsx: cliMain() returned\n');
   profileCheckpoint('cli_after_main_complete');
 }
 

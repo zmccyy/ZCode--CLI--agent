@@ -513,7 +513,6 @@ const _pendingSSH: PendingSSH | undefined = feature('SSH_REMOTE') ? {
   extraCliArgs: []
 } : undefined;
 export async function main() {
-  process.stderr.write('[DIAG] main.tsx:main() entered\n');
   profileCheckpoint('main_function_start');
 
   // SECURITY: Prevent Windows from executing commands from current directory
@@ -780,12 +779,9 @@ export async function main() {
   profileCheckpoint('main_client_type_determined');
 
   // Parse and load settings flags early, before init()
-  process.stderr.write('[DIAG] main.tsx: calling eagerLoadSettings()...\n');
   eagerLoadSettings();
-  process.stderr.write('[DIAG] main.tsx: eagerLoadSettings() done, calling run()...\n');
   profileCheckpoint('main_before_run');
   await run();
-  process.stderr.write('[DIAG] main.tsx: run() returned\n');
   profileCheckpoint('main_after_run');
 }
 async function getInputPrompt(prompt: string, inputFormat: 'text' | 'stream-json'): Promise<string | AsyncIterable<string>> {
@@ -816,7 +812,6 @@ async function getInputPrompt(prompt: string, inputFormat: 'text' | 'stream-json
   return prompt;
 }
 async function run(): Promise<CommanderCommand> {
-  process.stderr.write('[DIAG] main.tsx:run() entered\n');
   profileCheckpoint('run_function_start');
 
   // Create help config that sorts options by long option name.
@@ -840,42 +835,33 @@ async function run(): Promise<CommanderCommand> {
   // Use preAction hook to run initialization only when executing a command,
   // not when displaying help. This avoids the need for env variable signaling.
   program.hook('preAction', async thisCommand => {
-    process.stderr.write('[DIAG] main.tsx:preAction hook entered\n');
     profileCheckpoint('preAction_start');
     // Await async subprocess loads started at module evaluation (lines 12-20).
     // Nearly free 鈥?subprocesses complete during the ~135ms of imports above.
     // Must resolve before init() which triggers the first settings read
     // (applySafeConfigEnvironmentVariables 鈫?getSettingsForSource('policySettings')
     // 鈫?isRemoteManagedSettingsEligible 鈫?sync keychain reads otherwise ~65ms).
-    process.stderr.write('[DIAG] main.tsx:preAction awaiting mdm/keychain...\n');
     await Promise.all([ensureMdmSettingsLoaded(), ensureKeychainPrefetchCompleted()]);
-    process.stderr.write('[DIAG] main.tsx:preAction mdm/keychain done, calling init()...\n');
     profileCheckpoint('preAction_after_mdm');
     await init();
-    process.stderr.write('[DIAG] main.tsx:preAction init() returned\n');
     profileCheckpoint('preAction_after_init');
 
     // process.title on Windows sets the console title directly; on POSIX,
     // terminal shell integration may mirror the process name to the tab.
     // After init() so settings.json env can also gate this (gh-4765).
-    process.stderr.write('[DIAG] main.tsx:preAction setting terminal title...\n');
     if (!isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_TERMINAL_TITLE)) {
       process.title = getCommandName();
     }
-    process.stderr.write('[DIAG] main.tsx:preAction terminal title done\n');
 
     // Attach logging sinks so subcommand handlers can use logEvent/logError.
     // Before PR #11106 logEvent dispatched directly; after, events queue until
     // a sink attaches. setup() attaches sinks for the default command, but
     // subcommands (doctor, mcp, plugin, auth) never call setup() and would
     // silently drop events on process.exit(). Both inits are idempotent.
-    process.stderr.write('[DIAG] main.tsx:preAction importing sinks.js...\n');
     const {
       initSinks
     } = await import('./utils/sinks.js');
-    process.stderr.write('[DIAG] main.tsx:preAction sinks.js loaded, calling initSinks()...\n');
     initSinks();
-    process.stderr.write('[DIAG] main.tsx:preAction initSinks() done\n');
     profileCheckpoint('preAction_after_sinks');
 
     // gh-33508: --plugin-dir is a top-level program option. The default
@@ -886,25 +872,20 @@ async function run(): Promise<CommanderCommand> {
     // before .option('--plugin-dir', ...) in the chain 鈥?extra-typings
     // builds the type as options are added. Narrow with a runtime guard;
     // the collect accumulator + [] default guarantee string[] in practice.
-    process.stderr.write('[DIAG] main.tsx:preAction handling pluginDir...\n');
     const pluginDir = thisCommand.getOptionValue('pluginDir');
     if (Array.isArray(pluginDir) && pluginDir.length > 0 && pluginDir.every(p => typeof p === 'string')) {
       setInlinePlugins(pluginDir);
       clearPluginCache('preAction: --plugin-dir inline plugins');
     }
-    process.stderr.write('[DIAG] main.tsx:preAction calling runMigrations()...\n');
     runMigrations();
-    process.stderr.write('[DIAG] main.tsx:preAction runMigrations() done\n');
     profileCheckpoint('preAction_after_migrations');
 
     // Load remote managed settings for enterprise customers (non-blocking)
     // Fails open - if fetch fails, continues without remote settings
     // Settings are applied via hot-reload when they arrive
     // Must happen after init() to ensure config reading is allowed
-    process.stderr.write('[DIAG] main.tsx:preAction loading remote settings...\n');
     void loadRemoteManagedSettings();
     void loadPolicyLimits();
-    process.stderr.write('[DIAG] main.tsx:preAction remote settings loaded (async)\n');
     profileCheckpoint('preAction_after_remote_settings');
 
     // Load settings sync (non-blocking, fail-open)
@@ -953,7 +934,6 @@ async function run(): Promise<CommanderCommand> {
   // top-level option. Single-value + collect accumulator means each
   // --plugin-dir takes exactly one arg; repeat the flag for multiple dirs.
   .option('--plugin-dir <path>', 'Load plugins from a directory for this session only (repeatable: --plugin-dir A --plugin-dir B)', (val: string, prev: string[]) => [...prev, val], [] as string[]).option('--disable-slash-commands', 'Disable all skills', () => true).option('--chrome', 'Enable Claude in Chrome integration').option('--no-chrome', 'Disable Claude in Chrome integration').option('--file <specs...>', 'File resources to download at startup. Format: file_id:relative_path (e.g., --file file_abc:doc.txt file_def:img.png)').action(async (prompt, options) => {
-    process.stderr.write('[DIAG] main.tsx:action handler entered\n');
     profileCheckpoint('action_handler_start');
 
     // --bare = one-switch minimal mode. Sets SIMPLE so all the existing
@@ -979,7 +959,6 @@ async function run(): Promise<CommanderCommand> {
         length: prompt.length
       });
     }
-    process.stderr.write('[DIAG] main.tsx:action after initial prompt checks\n');
 
     // Assistant mode: when .claude/settings.json has assistant: true AND
     // the tengu_kairos GrowthBook gate is on, force brief on. Permission
@@ -1038,7 +1017,6 @@ async function run(): Promise<CommanderCommand> {
         }
       }
     }
-    process.stderr.write('[DIAG] main.tsx:action after kairos/assistant checks\n');
     const {
       debug = false,
       debugToStderr = false,
@@ -1060,7 +1038,6 @@ async function run(): Promise<CommanderCommand> {
     if (options.prefill) {
       seedEarlyInput(options.prefill);
     }
-    process.stderr.write('[DIAG] main.tsx:action after options destructure\n');
 
     // Promise for file downloads - started early, awaited before REPL renders
     let fileDownloadPromise: Promise<DownloadResult[]> | undefined;
@@ -1080,7 +1057,6 @@ async function run(): Promise<CommanderCommand> {
     let verbose = options.verbose ?? getGlobalConfig().verbose;
     let print = options.print;
     const init = options.init ?? false;
-    process.stderr.write('[DIAG] main.tsx:action after verbose/print/init\n');
     const initOnly = options.initOnly ?? false;
     const maintenance = options.maintenance ?? false;
 
@@ -1206,7 +1182,6 @@ async function run(): Promise<CommanderCommand> {
     }
 
     // Extract teleport option
-    process.stderr.write('[DIAG] main.tsx:action after teammate/sdk/teleport section\n');
     const teleport = (options as {
       teleport?: string | true;
     }).teleport ?? null;
@@ -1286,7 +1261,6 @@ async function run(): Promise<CommanderCommand> {
     }
 
     // Get isNonInteractiveSession from state (was set before init())
-    process.stderr.write('[DIAG] main.tsx:action after session/file-download section\n');
     const isNonInteractiveSession = getIsNonInteractiveSession();
 
     // Validate that fallback model is different from main model
@@ -1700,7 +1674,6 @@ async function run(): Promise<CommanderCommand> {
     // This await replaces blocking existsSync/statSync calls that were already in
     // the startup path. Wall-clock time is unchanged; we just yield to the event
     // loop during the fs I/O instead of blocking it. See #19661.
-    process.stderr.write('[DIAG] main.tsx:action before initializeToolPermissionContext...\n');
     const initResult = await initializeToolPermissionContext({
       allowedToolsCli: allowedTools,
       disallowedToolsCli: disallowedTools,
@@ -1858,14 +1831,12 @@ async function run(): Promise<CommanderCommand> {
     }
 
     // IMPORTANT: setup() must be called before any other code that depends on the cwd or worktree setup
-    process.stderr.write('[DIAG] main.tsx:action before setup import...\n');
     profileCheckpoint('action_before_setup');
     logForDebugging('[STARTUP] Running setup()...');
     const setupStart = Date.now();
     const {
       setup
     } = await import('./setup.js');
-    process.stderr.write('[DIAG] main.tsx:action after setup import...\n');
     const messagingSocketPath = feature('UDS_INBOX') ? (options as {
       messagingSocketPath?: string;
     }).messagingSocketPath : undefined;
@@ -1880,18 +1851,13 @@ async function run(): Promise<CommanderCommand> {
     // reads synchronously. Previously ran inside setup() after ~20ms of
     // await points, so the parallel getCommands() memoized an empty list.
     if (process.env.CLAUDE_CODE_ENTRYPOINT !== 'local-agent') {
-      process.stderr.write('[DIAG] main.tsx:action before initBuiltinPlugins...\n');
       initBuiltinPlugins();
-      process.stderr.write('[DIAG] main.tsx:action after initBuiltinPlugins...\n');
-      process.stderr.write('[DIAG] main.tsx:action before initBundledSkills...\n');
       initBundledSkills();
-      process.stderr.write('[DIAG] main.tsx:action after initBundledSkills...\n');
     }
-    process.stderr.write('[DIAG] main.tsx:action before setup() call...\n');
     const setupPromise = setup(preSetupCwd, permissionMode, allowDangerouslySkipPermissions, worktreeEnabled, worktreeName, tmuxEnabled, sessionId ? validateUuid(sessionId) : undefined, worktreePRNumber, messagingSocketPath);
-    process.stderr.write('[DIAG] main.tsx:action after setup() call...\n');
-    const commandsPromise = worktreeEnabled ? null : getCommands(preSetupCwd);
-    const agentDefsPromise = worktreeEnabled ? null : getAgentDefinitionsWithOverrides(preSetupCwd);
+    const canParallelizeStartupLoads = !isRunningWithBun();
+    const commandsPromise = worktreeEnabled || !canParallelizeStartupLoads ? null : getCommands(preSetupCwd);
+    const agentDefsPromise = worktreeEnabled || !canParallelizeStartupLoads ? null : getAgentDefinitionsWithOverrides(preSetupCwd);
     // Suppress transient unhandledRejection if these reject during the
     // ~28ms setupPromise await before Promise.all joins them below.
     commandsPromise?.catch(() => {});
@@ -2072,6 +2038,12 @@ async function run(): Promise<CommanderCommand> {
     let effectiveModel = userSpecifiedModel;
     if (!effectiveModel && mainThreadAgentDefinition?.model && mainThreadAgentDefinition.model !== 'inherit') {
       effectiveModel = parseUserSpecifiedModel(mainThreadAgentDefinition.model);
+    }
+    if (!effectiveModel && process.env.ZCODE_PROVIDER?.trim() === 'openai-compatible') {
+      const openAiCompatibleModel = process.env.ZCODE_OPENAI_MODEL?.trim();
+      if (openAiCompatibleModel) {
+        effectiveModel = openAiCompatibleModel;
+      }
     }
     setMainLoopModelOverride(effectiveModel);
 

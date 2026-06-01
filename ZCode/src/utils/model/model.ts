@@ -66,7 +66,13 @@ export function getUserSpecifiedModelSetting(): ModelSetting | undefined {
     specifiedModel = modelOverride
   } else {
     const settings = getSettings_DEPRECATED() || {}
-    specifiedModel = process.env.ANTHROPIC_MODEL || settings.model || undefined
+    specifiedModel =
+      process.env.ANTHROPIC_MODEL ||
+      (getAPIProvider() === 'openaiCompatible'
+        ? process.env.ZCODE_OPENAI_MODEL
+        : undefined) ||
+      settings.model ||
+      undefined
   }
 
   // Ignore the user-specified model if it's not in the availableModels allowlist.
@@ -176,6 +182,10 @@ export function getRuntimeMainLoopModel(params: {
  * @returns The default model setting to use
  */
 export function getDefaultMainLoopModelSetting(): ModelName | ModelAlias {
+  if (getAPIProvider() === 'openaiCompatible') {
+    return process.env.ZCODE_OPENAI_MODEL || getDefaultSonnetModel()
+  }
+
   // Ants default to defaultModel from flag config, or Opus 1M if not configured
   if (process.env.USER_TYPE === 'ant') {
     return (

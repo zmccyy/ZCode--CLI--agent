@@ -55,7 +55,6 @@ import { setShellIfWindows } from '../utils/windowsPaths.js'
 let telemetryInitialized = false
 
 export const init = memoize(async (): Promise<void> => {
-  process.stderr.write('[DIAG] init.ts:init() entered\n');
   const initStartTime = Date.now()
   logForDiagnosticsNoPII('info', 'init_started')
   profileCheckpoint('init_function_start')
@@ -63,18 +62,15 @@ export const init = memoize(async (): Promise<void> => {
   // Validate configs are valid and enable configuration system
   try {
     const configsStart = Date.now()
-    process.stderr.write('[DIAG] init.ts: calling enableConfigs()...\n');
     enableConfigs()
     logForDiagnosticsNoPII('info', 'init_configs_enabled', {
       duration_ms: Date.now() - configsStart,
     })
     profileCheckpoint('init_configs_enabled')
-    process.stderr.write('[DIAG] init.ts: enableConfigs() done\n');
 
     // Apply only safe environment variables before trust dialog
     // Full environment variables are applied after trust is established
     const envVarsStart = Date.now()
-    process.stderr.write('[DIAG] init.ts: calling applySafeConfigEnvironmentVariables()...\n');
     applySafeConfigEnvironmentVariables()
 
     // Apply NODE_EXTRA_CA_CERTS from settings.json to process.env early,
@@ -86,10 +82,8 @@ export const init = memoize(async (): Promise<void> => {
       duration_ms: Date.now() - envVarsStart,
     })
     profileCheckpoint('init_safe_env_vars_applied')
-    process.stderr.write('[DIAG] init.ts: safe env vars applied\n');
 
     // Make sure things get flushed on exit
-    process.stderr.write('[DIAG] init.ts: calling setupGracefulShutdown()...\n');
     setupGracefulShutdown()
     profileCheckpoint('init_after_graceful_shutdown')
 
@@ -139,10 +133,8 @@ export const init = memoize(async (): Promise<void> => {
 
     // Configure global mTLS settings
     const mtlsStart = Date.now()
-    process.stderr.write('[DIAG] init.ts: calling configureGlobalMTLS()...\n');
     logForDebugging('[init] configureGlobalMTLS starting')
     configureGlobalMTLS()
-    process.stderr.write('[DIAG] init.ts: configureGlobalMTLS() done\n');
     logForDiagnosticsNoPII('info', 'init_mtls_configured', {
       duration_ms: Date.now() - mtlsStart,
     })
@@ -150,10 +142,8 @@ export const init = memoize(async (): Promise<void> => {
 
     // Configure global HTTP agents (proxy and/or mTLS)
     const proxyStart = Date.now()
-    process.stderr.write('[DIAG] init.ts: calling configureGlobalAgents()...\n');
     logForDebugging('[init] configureGlobalAgents starting')
     configureGlobalAgents()
-    process.stderr.write('[DIAG] init.ts: configureGlobalAgents() done\n');
     logForDiagnosticsNoPII('info', 'init_proxy_configured', {
       duration_ms: Date.now() - proxyStart,
     })
@@ -193,9 +183,7 @@ export const init = memoize(async (): Promise<void> => {
     }
 
     // Set up git-bash if relevant
-    process.stderr.write('[DIAG] init.ts: calling setShellIfWindows()...\n');
     setShellIfWindows()
-    process.stderr.write('[DIAG] init.ts: setShellIfWindows() done\n');
 
     // Register LSP manager cleanup (initialization happens in main.tsx after --plugin-dir is processed)
     registerCleanup(shutdownLspServerManager)
@@ -220,7 +208,6 @@ export const init = memoize(async (): Promise<void> => {
       })
     }
 
-    process.stderr.write('[DIAG] init.ts: init() try block complete\n');
     logForDiagnosticsNoPII('info', 'init_completed', {
       duration_ms: Date.now() - initStartTime,
     })

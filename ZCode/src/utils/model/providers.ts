@@ -4,6 +4,10 @@ import { isEnvTruthy } from '../envUtils.js'
 export type APIProvider = 'firstParty' | 'bedrock' | 'vertex' | 'foundry' | 'openaiCompatible'
 
 export function getAPIProvider(): APIProvider {
+  if (process.env.ZCODE_PROVIDER?.trim() === 'openai-compatible') {
+    return 'openaiCompatible'
+  }
+
   return isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK)
     ? 'bedrock'
     : isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX)

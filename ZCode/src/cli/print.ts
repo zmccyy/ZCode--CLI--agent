@@ -346,6 +346,7 @@ import { removeTeammateFromTeamFile } from '../utils/swarm/teamHelpers.js'
 import { unassignTeammateTasks } from '../utils/tasks.js'
 import { getRunningTasks } from '../utils/task/framework.js'
 import { isBackgroundTask } from '../tasks/types.js'
+import { isMainSessionTask } from '../tasks/LocalMainSessionTask.js'
 import { stopTask } from '../tasks/stopTask.js'
 import { drainSdkEvents } from '../utils/sdkEventQueue.js'
 import { initializeGrowthBook } from '../services/analytics/growthbook.js'
@@ -418,6 +419,22 @@ type PromptValue = string | ContentBlockParam[]
 
 function toBlocks(v: PromptValue): ContentBlockParam[] {
   return typeof v === 'string' ? [{ type: 'text', text: v }] : v
+}
+
+function shouldBlockHeadlessCompletion(task: Parameters<typeof isBackgroundTask>[0]) {
+  if (!isBackgroundTask(task)) {
+    return false
+  }
+
+  if (task.type === 'in_process_teammate') {
+    return false
+  }
+
+  if (isMainSessionTask(task)) {
+    return false
+  }
+
+  return true
 }
 
 /**
@@ -2226,7 +2243,7 @@ function runHeadlessStreaming(
                     t =>
                       (t.type === 'local_agent' ||
                         t.type === 'local_workflow') &&
-                      isBackgroundTask(t),
+                      shouldBlockHeadlessCompletion(t),
                   )
                 ) {
                   heldBackResult = message
@@ -2390,7 +2407,7 @@ function runHeadlessStreaming(
         {
           const state = getAppState()
           const hasRunningBg = getRunningTasks(state).some(
-            t => isBackgroundTask(t) && t.type !== 'in_process_teammate',
+            t => shouldBlockHeadlessCompletion(t),
           )
           const hasMainThreadQueued = peek(isMainThread) !== undefined
           if (hasRunningBg || hasMainThreadQueued) {

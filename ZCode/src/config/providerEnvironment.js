@@ -72,11 +72,12 @@ export function applyProviderSettingsToEnv(settings = {}, env = process.env) {
   }
 
   const normalizedSettings = normalizeSettings(settings)
-  const provider = normalizedSettings.provider
+  const hasExplicitProvider =
+    typeof normalizedSettings.provider === 'string' &&
+    normalizedSettings.provider.trim() !== ''
+  const provider = hasExplicitProvider ? normalizedSettings.provider : undefined
 
   if (!provider) {
-    clearKeys(env, BRIDGED_PROVIDER_ENV_KEYS)
-    clearKeys(env, Object.values(ANTHROPIC_PROVIDER_ENV_FLAGS))
     return env
   }
 

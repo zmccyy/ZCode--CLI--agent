@@ -397,9 +397,20 @@ test('W10 plan I/O: plan file metadata tracks mtime', async () => {
   const startTime = Date.now()
   const planPath = path.join(plansDir, 'test-plan.md')
   await fs.writeFile(planPath, 'content', 'utf8')
+  const endTime = Date.now()
 
   const stat = await fs.stat(planPath)
-  assert.ok(stat.mtime.getTime() >= startTime)
+  const mtime = stat.mtime.getTime()
+  const timestampToleranceMs = 2000
+  assert.ok(Number.isFinite(mtime), 'mtime should be a valid timestamp')
+  assert.ok(
+    mtime >= startTime - timestampToleranceMs,
+    'mtime should be close to the write window start',
+  )
+  assert.ok(
+    mtime <= endTime + timestampToleranceMs,
+    'mtime should not be ahead of the write window end',
+  )
   assert.ok(stat.size > 0)
 
   await fs.rm(tmpDir, { recursive: true, force: true })

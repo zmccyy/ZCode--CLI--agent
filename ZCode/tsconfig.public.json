@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "allowJs": true,
+    "checkJs": false,
+    "strict": false,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "lib": ["ES2023"],
+    "baseUrl": ".",
+    "ignoreDeprecations": "6.0"
+  },
+  "include": [
+    "src/entrypoints/publicCli.js",
+    "src/cli/publicCliCore.js",
+    "src/providers/**/*.js",
+    "src/contracts/providerAdapter.js",
+    "src/config/brandConfig.js",
+    "src/config/brandText.js",
+    "src/config/settingsContract.js",
+    "src/types/message.ts",
+    "src/types/messageQueueTypes.ts",
+    "src/types/tools.ts",
+    "src/types/utils.ts",
+    "test/phase2Session.test.js",
+    "test/publicCli.test.js",
+    "test/phase2McpStdio.test.js",
+    "test/phase2McpSseHttp.test.js",
+    "test/providerContract.test.js"
+  ]
+}

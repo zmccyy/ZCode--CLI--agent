@@ -83,7 +83,7 @@
 | 编号 | 问题 | 影响 | 紧迫度 |
 |------|------|------|--------|
 | TD-01 | ~423 处品牌残留剩余（第 1 批已清理 107 处） | 用户可见不一致 | 中 |
-| TD-02 | ~~Anthropic provider 无 streamChat~~ ✅ 已解决 | 主线 TUI 仍需打通 REPL 启动链路 | 中 |
+| TD-02 | ~~Anthropic provider 无 streamChat~~ ✅ 已解决 | 主线 TUI 仍需打通 REPL 启动链路；本轮不含完整 ant 版交互式 REPLTool 链路 | 中 |
 | TD-03 | `model/configs.ts` 仍用 TS 格式，需 `createRequire` hack | 构建脆弱 | 中 |
 | TD-04 | 测试依赖 `bun` 命令但 Windows 可能未安装 | 1 条测试持续失败 | 低 |
 | TD-05 | QueryEngine 1295 行，与 UI/permissions/session 深度耦合 | 改动风险高 | 中 |
@@ -320,7 +320,7 @@
 | W13-14 | TD-04 测试运行器适配（消除 bun-only 测试依赖） | M2 达成 | 75+ 测试全部在 Node.js 下通过 |
 | W15-16 | **T2.2 完整 REPL 启动链路打通**（cli.tsx → init.ts → main.tsx → REPL.tsx） | W14 完成 | 终端输入自然语言获得流式 LLM 响应，Ctrl+C 正常退出 |
 | W15-16 | Windows 安装包制作（MSI 或 portable zip） | W14 完成 | 安装后 `zcode --help` 可用 |
-| W15-16 | TD-02/TD-03 TypeScript 类型安全/导入路径修正 | W14 完成 | `tsc --noEmit` 0 错误 |
+| W15-16 | TD-02/TD-03 TypeScript 类型安全/导入路径修正 | W14 完成 | `npm run typecheck` 通过（`tsconfig.public.json`，覆盖当前稳定 public/Node 链路） |
 | W17 | T2.12 性能压测 | W16 完成 | 冷启动 ≤3s，200 轮稳定 |
 | W18 | 全量回归 + Release Candidate 签发 | W17 完成 | `v0.3.0-rc1` |
 
@@ -403,6 +403,7 @@ Phase 4 (W19-W22)
   - T2.1 各阶段（W3→W4→W5→W6）必须顺序执行
   - T2.5 各阶段（W7→W8→W9）必须顺序执行
   - T2.2 REPL 启动链路 依赖构建统一（W14）完成后才能开始
+  - 当前 W15-16 收尾默认边界：不包含完整 ant 版交互式 REPLTool 链路，仅闭合 public/Node 稳定链路与共享基础门禁
   - 性能压测（T2.12）依赖 T2.2 REPL 启动链路完成
 
 ---

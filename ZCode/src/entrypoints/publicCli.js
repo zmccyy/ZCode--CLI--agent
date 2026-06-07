@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { readFileSync } from 'node:fs'
 import { runCli } from '../cli/publicCliCore.js'
 

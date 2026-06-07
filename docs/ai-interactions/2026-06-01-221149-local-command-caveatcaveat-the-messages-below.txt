@@ -1,0 +1,17 @@
+╭─── Claude Code v2.1.150 ─────────────────────────────────────────────────────╮
+│                                           │ Tips for getting started         │
+│               Welcome back!               │ Run /init to create a CLAUDE.md… │
+│                                           │ ──────────────────────────────── │
+│                  ▐▛███▜▌                  │ What's new                       │
+│                 ▝▜█████▛▘                 │ Internal infrastructure improve… │
+│                   ▘▘ ▝▝                   │ `/usage` now shows a per-catego… │
+│                                           │ `/diff` detail view can now be … │
+│   DeepSeek-V3.2[1m] · API Usage Billing   │ /release-notes for more          │
+│         E:\项目\ZCode--CLI--agent         │                                  │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+  ↑ Install the PyCharm plugin from the JetBrains Marketplace: https://docs.claude.com/s/claude-code-jetbrains
+
+❯ /exit                                                                         
+  ⎿  Bye!
+  ⎿  SessionStart:resume hook error  ⎿  Failed with non-blocking status code: node:internal/modules/cjs/loader:1459

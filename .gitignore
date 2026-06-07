@@ -11,3 +11,6 @@ interaction/
 # env
 .env
 .env.local
+
+# release artifacts
+dist/

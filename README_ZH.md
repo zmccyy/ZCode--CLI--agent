@@ -84,6 +84,17 @@ bun install
 4. **发起请求** — `bun run start -p "解释这个仓库" --json`
 5. **可选全局安装** — `npm link` 后任意目录使用 `zcode`
 
+### Windows 安装包
+
+从 [GitHub Releases](https://github.com/zmccyy/ZCode--CLI--agent/releases) 下载便携 ZIP，或本地构建：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File packaging\windows\build-portable.ps1
+powershell -ExecutionPolicy Bypass -File packaging\windows\install.ps1 -ZipPath .\dist\zcode-0.1.0-win-x64-portable.zip
+```
+
+安装后在新终端执行 `zcode --help`。详见 [Windows 安装指南](docs/guides/windows-install.md)。
+
 <details>
 <summary>最小 <code>.env</code> 示例（OpenAI 兼容 / DeepSeek）</summary>
 
@@ -174,6 +185,7 @@ bun src/entrypoints/cli.tsx
 | 文档中心 | [docs/README.md](docs/README.md) |
 | 快速开始 | [docs/getting-started/quick-start.md](docs/getting-started/quick-start.md) |
 | 本地开发 | [docs/guides/local-development.md](docs/guides/local-development.md) |
+| Windows 安装 | [docs/guides/windows-install.md](docs/guides/windows-install.md) |
 | API / 环境变量 | [docs/references/api-reference.md](docs/references/api-reference.md) |
 | 系统设计 | [docs/系统设计说明书.md](docs/系统设计说明书.md) |
 
@@ -230,4 +242,4 @@ bun test          # 或: npm test
 
 受 Claude Code 终端 Agent 范式启发。基于 [Ink](https://github.com/vadimdemedes/ink)、[Commander](https://github.com/tj/commander.js) 与 [MCP SDK](https://github.com/modelcontextprotocol/typescript-sdk) 构建。
 
-*最后更新：2026-05-31*
+*最后更新：2026-06-01*

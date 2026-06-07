@@ -392,6 +392,13 @@ export function createOpenAICompatibleProvider(config, options = {}) {
             }
           }
 
+          if (readString(delta?.reasoning_content)) {
+            yield {
+              type: 'reasoning_delta',
+              text: delta.reasoning_content,
+            }
+          }
+
           if (Array.isArray(delta?.tool_calls) && delta.tool_calls.length > 0) {
             mergeToolCallDelta(toolCallAccumulator, delta.tool_calls)
           }

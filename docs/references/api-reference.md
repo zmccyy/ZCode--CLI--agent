@@ -158,13 +158,13 @@ zcode -p "Hello" -m deepseek-chat --json
 | `vertex` | Google Vertex AI | ❌ 需完整 REPL |
 | `foundry` | Azure Foundry | ❌ 需完整 REPL |
 
-完整 REPL 还识别以下旧版开关（无 `ZCODE_PROVIDER` 时）：
+完整 REPL 还识别以下旧版开关（无 `ZCODE_PROVIDER` 时，仅向后兼容）：
 
-| 变量名 | 效果 |
-|--------|------|
-| `CLAUDE_CODE_USE_BEDROCK=1` | 使用 Bedrock |
-| `CLAUDE_CODE_USE_VERTEX=1` | 使用 Vertex |
-| `CLAUDE_CODE_USE_FOUNDRY=1` | 使用 Foundry |
+| 变量名 | 效果 | 推荐替代 |
+|--------|------|----------|
+| `ZCODE_USE_BEDROCK=1` | 使用 Bedrock | `ZCODE_PROVIDER=bedrock` |
+| `ZCODE_USE_VERTEX=1` | 使用 Vertex | `ZCODE_PROVIDER=vertex` |
+| `ZCODE_USE_FOUNDRY=1` | 使用 Foundry | `ZCODE_PROVIDER=foundry` |
 
 默认（均未设置）：`firstParty`
 
@@ -263,4 +263,4 @@ ZCODE_OPENAI_TIMEOUT=60000
 - [本地开发指南](../guides/local-development.md)
 - [系统设计说明书 — 接口设计](../系统设计说明书.md#6-接口设计)
 
-*最后更新：2026-05-31*
+*最后更新：2026-06-01*

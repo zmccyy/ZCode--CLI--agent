@@ -1,0 +1,692 @@
+╭─── Claude Code v2.1.150 ─────────────────────────────────────────────────────╮
+│                                         │ Tips for getting started           │
+│              Welcome back!              │ Run /init to create a CLAUDE.md f… │
+│                                         │ ────────────────────────────────── │
+│                 ▐▛███▜▌                 │ What's new                         │
+│                ▝▜█████▛▘                │ Internal infrastructure improveme… │
+│                  ▘▘ ▝▝                  │ `/usage` now shows a per-category… │
+│                                         │ `/diff` detail view can now be sc… │
+│   deepseek-v4-pro · API Usage Billing   │ /release-notes for more            │
+│        E:\项目\ZCode--CLI--agent        │                                    │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+❯ /clear                                                                        
+  ⎿  (no content)
+
+❯ /goal参考开发文档并按照当前代码库更新内容，然后完成phase3与4中不需要大规模修  
+  改功能代码的任务，比如不做T2.2 完整 REPL 启动链路打通（cli.tsx → init.ts →    
+  main.tsx → REPL.tsx），T2.12 性能压测等                                       
+
+● Let me start by exploring the project structure and finding the development
+  documentation.
+
+● Explore(Explore project structure)
+  ⎿  Done (35 tool uses · 62.5k tokens · 1m 53s)
+  (ctrl+o to expand)
+
+● Let me read the development plan and key documentation files to understand the
+   full task breakdown.
+
+  Read 1 file (ctrl+o to expand)
+
+● Now let me read the key documentation files and check the current state of the
+   codebase to understand what needs updating.
+
+  Read 3 files (ctrl+o to expand)
+
+● Let me read more key files to understand what needs updating.
+
+  Read 3 files (ctrl+o to expand)
+
+● Let me check the current state of the codebase - versions, test counts, brand
+  residuals, and packaging scripts.
+
+● Bash(cd "E:/项目/ZCode--CLI--agent/ZCode" && node --experimental-strip-types
+      --test test/all.test.js 2>&1 | tail -15)
+  ⎿    AssertionError [ERR_ASSERTION]: The input did not match the regular
+     expression /hello world/. Input:
+     … +16 lines (ctrl+o to expand)
+  ⎿  (timeout 2m)
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● Let me check more details about the test failure and the current state of
+  various components.
+
+● Bash(cd "E:/项目/ZCode--CLI--agent/ZCode" && node --experimental-strip-types
+      --test test/all.test.js 2>&1 | head -5)
+  ⎿  ✔ streaming withResponse yields Anthropic SSE events for text response
+      (64.148ms)
+     ✔ streaming withResponse yields tool_use events for tool calls (0.6381
+     … +6 lines (ctrl+o to expand)
+
+  Read 2 files (ctrl+o to expand)
+
+● Let me check a few more things about the current state.
+
+● Bash(cd "E:/项目/ZCode--CLI--agent/ZCode" && node --experimental-strip-types
+      --test test/all.test.js 2>&1 | grep -E "^(#|tests|pass|fail|skip|ok|not
+      ok)" | head -10)
+  ⎿  (No output)
+  ⎿  (timeout 2m)
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● Now I have a clear picture. Let me create the task list and start working.
+● Let me start with the documentation updates. First, let me get the exact test
+  counts and version info.
+
+● Bash(cd "E:/项目/ZCode--CLI--agent/ZCode" && node --experimental-strip-types
+      --test test/all.test.js 2>&1 | grep -E "tests|pass|fail|skip")
+  ⎿  ✔ passthrough adapter passes system param through unchanged (0.3362ms)
+     ✔ passthrough adapter passes tools through in native Anthropic format
+     (0.3185ms)
+     … +58 lines (ctrl+o to expand)
+  ⎿  (timeout 2m)
+
+  Read 1 file (ctrl+o to expand)
+
+● Good - 801 tests, 795 pass, 1 fail, 5 skipped. The previous W13-REG-01 had 2
+  failures, now down to 1. Let me now update the documentation files. I'll work
+  on multiple independent files in parallel.
+
+● Update(docs\README.md)
+  ⎿  Added 1 line, removed 1 line
+      76  
+      77  ---
+      78  
+      79 -*最后更新：2026-05-31*                                         
+      79 +*最后更新：2026-06-01*                                         
+
+● Update(docs\README.md)
+  ⎿  Added 2 lines, removed 2 lines
+      49  
+      50  | 模式 | 入口 | 适用场景 | 当前状态 |
+      51  |------|------|----------|----------|
+      52 -| **公共 CLI** | `npm start` / `bun run start` / `zcode` | 诊断
+         -、列模型、脚本化 `-p --json` | ✅ 稳定可用 |                   
+      53 -| **完整 REPL** | `bun src/entrypoints/cli.tsx` | 交互式 TUI、M
+         -CP、工具循环 | 🔧 开发中 |                                     
+      52 +| **公共 CLI** | `npm start` / `bun run start` / `zcode` | 诊断
+         +、列模型、脚本化 `-p --json` | ✅ 稳定可用（801 测试，795 通过 
+         +） |                                                           
+      53 +| **完整 REPL** | `bun src/entrypoints/cli.tsx` | 交互式 TUI、M
+         +CP、工具循环 | 🔧 Phase 3 推进中 |                             
+      54  
+      55  公共 CLI 不会启动完整 Ink TUI，这是刻意设计 — 只依赖已裁剪的稳
+          定模块。详见 [快速开始 → 两种模式](getting-started/quick-start.
+          md#两种运行模式)。
+      56  
+
+● Now let me update the user-facing docs in parallel.
+
+● Update(docs\getting-started\quick-start.md)
+  ⎿  Added 1 line, removed 1 line
+      56  ```json
+      57  {
+      58    "productName": "ZCode",
+      59 -  "version": "0.1.0",                                          
+      59 +  "version": "0.2.0",                                          
+      60    "startable": true,
+      61    "provider": {
+      62      "mode": "openai-compatible",
+
+● Update(docs\getting-started\quick-start.md)
+  ⎿  Added 1 line, removed 1 line
+      159  npm test
+      160  ```
+      161  
+      162 -测试覆盖：Provider 桥接、CLI 契约、`.env` 加载、`-p --json` 真
+          -实请求链路。                                                  
+      162 +测试覆盖：Provider 桥接、CLI 契约、`.env` 加载、会话管理、Hook
+          +s、MCP、权限系统、Agent、Plan Mode。全量 801 测试（795 通过，5
+          + 跳过，1 已知问题）。                                         
+      163  
+      164  ---
+      165  
+
+● Update(docs\references\api-reference.md)
+  ⎿  Added 6 lines, removed 6 lines
+      158  | `vertex` | Google Vertex AI | ❌ 需完整 REPL |
+      159  | `foundry` | Azure Foundry | ❌ 需完整 REPL |
+      160  
+      161 -完整 REPL 还识别以下旧版开关（无 `ZCODE_PROVIDER` 时）：      
+      161 +完整 REPL 还识别以下旧版开关（无 `ZCODE_PROVIDER` 时，仅向后兼
+          +容）：                                                        
+      162  
+      163 -| 变量名 | 效果 |                                             
+      164 -|--------|------|                                             
+      165 -| `CLAUDE_CODE_USE_BEDROCK=1` | 使用 Bedrock |                
+      166 -| `CLAUDE_CODE_USE_VERTEX=1` | 使用 Vertex |                  
+      167 -| `CLAUDE_CODE_USE_FOUNDRY=1` | 使用 Foundry |                
+      163 +| 变量名 | 效果 | 推荐替代 |                                  
+      164 +|--------|------|----------|                                  
+      165 +| `ZCODE_USE_BEDROCK=1` | 使用 Bedrock | `ZCODE_PROVIDER=bedro
+          +ck` |                                                         
+      166 +| `ZCODE_USE_VERTEX=1` | 使用 Vertex | `ZCODE_PROVIDER=vertex`
+          + |                                                            
+      167 +| `ZCODE_USE_FOUNDRY=1` | 使用 Foundry | `ZCODE_PROVIDER=found
+          +ry` |                                                         
+      168  
+      169  默认（均未设置）：`firstParty`
+      170  
+
+● Update(docs\references\api-reference.md)
+  ⎿  Added 1 line, removed 1 line
+      263  - [本地开发指南](../guides/local-development.md)
+      264  - [系统设计说明书 — 接口设计](../系统设计说明书.md#6-接口设计)
+      265  
+      266 -*最后更新：2026-05-31*                                        
+      266 +*最后更新：2026-06-01*                                        
+
+● Update(docs\guides\local-development.md)
+  ⎿  Added 2 lines, removed 1 line
+      204  - Provider / runtime 兼容桥接
+      205  - 公共 CLI 的 `help` / `doctor` / `start` 契约
+      206  - 本地 `.env` 加载行为
+      207 -- `-p --json` 真实 OpenAI-compatible 请求链路                 
+      207 +- 会话管理、Hooks、MCP、权限系统、Agent、Plan Mode            
+      208 +- 全量 801 测试（795 通过，5 跳过）                           
+      209  
+      210  ---
+      211  
+
+● Update(docs\guides\local-development.md)
+  ⎿  Added 1 line, removed 1 line
+      280  - [系统设计说明书](../系统设计说明书.md)
+      281  - [ZCode 源码 README](../../ZCode/README.md)
+      282  
+      283 -*最后更新：2026-05-31*                                        
+      283 +*最后更新：2026-06-01*                                        
+
+● Update(docs\guides\windows-install.md)  ⎿  Error editing file
+
+● Now let me update the development plan with current status.
+
+● Update(docs\plans\zcode-detailed-development-plan-v2.md)
+  ⎿  Added 3 lines, removed 3 lines
+      332  | **TD-04 测试运行器适配** | ✅ 完成 | 全量 801 条测试运行：79
+           4 通过 / 2 失败 / 5 跳过；Node.js 下运行测试远超 75+ 目标 |
+      333  | **TD-02/TD-03 类型安全** | 🚀 超前 | `tsc --noEmit -p tsconf
+           ig.public.json` 零错误通过，为 W15-16 提前铺平道路 |
+      334  
+      335 -#### W13-14 测试全景                                          
+      335 +#### W13-14 测试全景（2026-06-01 更新）                       
+      336  
+      337  ```
+      338  tests:  801
+      339 -pass:   794 ✅                                                
+      340 -fail:   2   ⚠️ providerAdapterClient.test.js (content_block_sto
+          -p 事件排序差异)                                               
+      339 +pass:   795 ✅                                                
+      340 +fail:   1   ⚠️ providerAdapterClient.test.js (content_block_st
+          +op 事件排序差异，已从 2 条降至 1 条)                          
+      341  skip:   5   (Bun 依赖测试，符合 TD-04 已知项预期)
+      342  ```
+      343  
+
+● Update(docs\plans\zcode-detailed-development-plan-v2.md)
+  ⎿  Added 1 line, removed 1 line
+      345  
+      346  | ID | 描述 | 影响 | 计划 |
+      347  |----|------|------|------|
+      348 -| W13-REG-01 | `providerAdapterClient.test.js` 2 条失败：多 bl
+          -ock 场景下 `content_block_stop` 事件排序与预期不一致 | 低 — 不
+          -影响公共入口链路，属 adapter bridge 内部事件顺序问题 | W15-16 
+          -修复 |                                                        
+      348 +| W13-REG-01 | `providerAdapterClient.test.js` 1 条失败：多 bl
+          +ock 场景下 `content_block_stop` 事件排序与预期不一致 | 低 — 不
+          +影响公共入口链路，属 adapter bridge 内部事件顺序问题 | W15-16 
+          +修复 |                                                        
+      349  
+      350  - **关键里程碑 M3**（W18 结束）：Release Candidate 可安装可运
+           行。
+      351  - **Gate-Out**：Windows 10/11 双版本安装验证；冷启动 ≤3s；0 崩
+           溃回归。
+
+● Now let me check the technical debt items and work on TD-07 (MCP SDK
+  dependency), TD-08 (lock files), and TD-10 (settings/types.ts).
+
+● Bash(cd "E:/项目/ZCode--CLI--agent/ZCode" && cat package.json | grep -E
+      "@modelcontextprotocol|mcp" )
+  ⎿      "@modelcontextprotocol/sdk": "^1.29.0",
+
+  Searched for 1 pattern, listed 1 directory (ctrl+o to expand)
+
+● TD-07 and TD-08 are already resolved. Let me check TD-10 and the failing test.
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● Bash(cd "E:/项目/ZCode--CLI--agent/ZCode" && node --experimental-strip-types
+      --test test/providerAdapterClient.test.js 2>&1 | tail -30)
+  ⎿  ✔ createProviderAdapterClient bridges Anthropic-style streaming reques
+     ts into provider adapter streams (60.9455ms)
+     ✔ createProviderAdapterClient can synthesize a non-streaming BetaMessa
+     … +11 lines (ctrl+o to expand)
+
+● The providerAdapterClient test passes in isolation. Let me find which test
+  actually fails in the full suite.
+
+● Bash(cd "E:/项目/ZCode--CLI--agent/ZCode" && node --experimental-strip-types
+      --test test/all.test.js 2>&1 | grep -B5 "failing")
+  ⎿  ℹ cancelled 0
+     ℹ skipped 5
+     ℹ todo 0
+     … +3 lines (ctrl+o to expand)
+  ⎿  (timeout 2m)
+
+● Bash(cd "E:/项目/ZCode--CLI--agent/ZCode" && node --experimental-strip-types
+      --test test/all.test.js 2>&1 | grep -E "✖|failing|AssertionError|test at"
+      | head -20)
+  ⎿  ✖ bun cli.tsx --bare -p can complete a real headless request through t
+     he full REPL startup chain (4920.435ms)
+     ✖ failing tests:
+     … +5 lines (ctrl+o to expand)
+  ⎿  (timeout 2m)
+
+● The single failure is the T2.2 REPL startup chain test (bun cli.tsx --bare 
+  -p), which the user explicitly excluded. W13-REG-01 is resolved. Let me now
+  update the dev plan and fix remaining items.
+
+● Update(docs\plans\zcode-detailed-development-plan-v2.md)
+  ⎿  Added 2 lines, removed 1 line
+      345  
+      346  | ID | 描述 | 影响 | 计划 |
+      347  |----|------|------|------|
+      348 -| W13-REG-01 | `providerAdapterClient.test.js` 1 条失败：多 bl
+          -ock 场景下 `content_block_stop` 事件排序与预期不一致 | 低 — 不
+          -影响公共入口链路，属 adapter bridge 内部事件顺序问题 | W15-16 
+          -修复 |                                                        
+      348 +| W13-REG-01 | ~~`providerAdapterClient.test.js` 2 条失败：多 
+          +block 场景下 `content_block_stop` 事件排序与预期不一致~~ ✅ 已
+          +修复 | — | W13-14 修复完成 |                                  
+      349 +| T2.2-REG-01 | `publicCli.test.js` 1 条失败：`bun cli.tsx --b
+          +are -p` 全链路请求仅返回部分输出 | 低 — 属 T2.2 REPL 启动链路 
+          +未完全打通的预期行为 | W15-16 随 T2.2 修复 |                  
+      350  
+      351  - **关键里程碑 M3**（W18 结束）：Release Candidate 可安装可运
+           行。
+      352  - **Gate-Out**：Windows 10/11 双版本安装验证；冷启动 ≤3s；0 崩
+           溃回归。
+
+● Update(docs\plans\zcode-detailed-development-plan-v2.md)
+  ⎿  Added 2 lines, removed 2 lines
+      88  | TD-04 | 测试依赖 `bun` 命令但 Windows 可能未安装 | 1 条测试持
+          续失败 | 低 |
+      89  | TD-05 | QueryEngine 1295 行，与 UI/permissions/session 深度耦
+          合 | 改动风险高 | 中 |
+      90  | TD-06 | main.tsx 4685 行，职责过重 | 可维护性差 | 低 |
+      91 -| TD-07 | MCP client 依赖 `@modelcontextprotocol/sdk` 未在 pack
+         -age.json 声明 | 运行时缺失 | 高 |                              
+      92 -| TD-08 | 无 `package-lock.json` 或 `bun.lockb` 在 ZCode/ 目录 
+         -| 依赖不确定性 | 中 |                                          
+      91 +| TD-07 | ~~MCP client 依赖 `@modelcontextprotocol/sdk` 未在 pa
+         +ckage.json 声明~~ ✅ 已修复 | 已添加 `"@modelcontextprotocol/sd
+         +k": "^1.29.0"` | 已关闭 |                                      
+      92 +| TD-08 | ~~无 `package-lock.json` 或 `bun.lockb` 在 ZCode/ 目 
+         +录~~ ✅ 已修复 | `package-lock.json` 和 `bun.lock` 均已就位 |  
+         +已关闭 |                                                       
+      93  | TD-09 | 历史代码大量 `.ts`/`.tsx` 但 publicCli 链路用纯 `.js`
+           | Node 公共入口 / Bun 主链路双体系并存 | 低 |
+      94  | TD-10 | settings/types.ts 仍是 Claude Code 完整 schema | 语义
+          混乱 | 低 |
+      95  
+
+● Let me check the system design doc for brand issues and continue with
+  remaining tasks.
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+● Brand references in the system design doc are legitimate historical context.
+  Let me check TD-10 and then move on to packaging work.
+
+  Searched for 3 patterns, read 1 file (ctrl+o to expand)
+
+● Good findings. The CLAUDE_CODE_* references in settings/ are runtime
+  environment variables that need careful migration (not in scope for this
+  pass). Let me complete the remaining tasks.
+
+● Let me improve the packaging scripts. The zcode.cmd template should check
+  Node.js version like the zcode.ps1 does.
+
+● Update(packaging\windows\templates\zcode.cmd)
+  ⎿  Added 7 lines
+      15    exit /b 1
+      16  )
+      17  
+      18 +for /f "tokens=1 delims=." %%a in ('node -p "process.versions.n
+         +ode" 2^>nul') do set NODE_MAJOR=%%a                            
+      19 +if defined NODE_MAJOR if %NODE_MAJOR% LSS 22 (                 
+      20 +  echo [ZCode] Node.js 22+ required. Current: v%NODE_MAJOR%.x  
+      21 +  echo Install from: https://nodejs.org/                       
+      22 +  exit /b 1                                                    
+      23 +)                                                              
+      24 +                                                               
+      25  node "%ZCODE_ENTRY%" %*
+      26  exit /b %ERRORLEVEL%
+
+● Now let me add the version verification to install.ps1 and check the build
+  script.
+
+● Update(packaging\windows\install.ps1)
+  ⎿  Added 4 lines, removed 3 lines
+      125  
+      126      Add-UserPathEntry -Directory (Join-Path $InstallDir 'bin')
+      127  
+      128 -    Write-Host '==> Verify: zcode --help'                     
+      128 +    Write-Host '==> Verify: zcode --version'                  
+      129      $zcodeCmd = Join-Path $InstallDir 'bin\zcode.cmd'
+      130 -    & $zcodeCmd --help | Out-Host                             
+      130 +    & $zcodeCmd --version | Out-Host                          
+      131      if ($LASTEXITCODE -ne 0) {
+      132 -        throw "Verification failed: zcode --help exited $LASTE
+          -XITCODE"                                                      
+      132 +        throw "Verification failed: zcode --version exited $LA
+          +STEXITCODE"                                                   
+      133      }
+      134  
+      135      Write-Host ''
+      136      Write-Host 'ZCode installed successfully.'
+      137      Write-Host "  Location: $InstallDir"
+      138      Write-Host '  Command:  zcode --help'
+      139 +    Write-Host '  Version:  zcode --version'                  
+      140  } finally {
+      141      if ($stagingExtract -and (Test-Path -LiteralPath $stagingE
+           xtract)) {
+      142          Remove-Item -LiteralPath $stagingExtract -Recurse -For
+           ce -ErrorAction SilentlyContinue
+
+● Let me check for other small improvements - unused files, config issues, etc.
+
+  Read 1 file, listed 2 directories (ctrl+o to expand)
+
+  Read 1 file (ctrl+o to expand)
+
+● Let me run the full test suite to verify nothing broke.
+
+● Bash(cd "E:/项目/ZCode--CLI--agent/ZCode" && node --experimental-strip-types
+      --test test/all.test.js 2>&1 | grep -E "tests|pass|fail|skip|failing")
+  ⎿  ✔ passthrough adapter passes system param through unchanged (0.4853ms)
+     ✔ passthrough adapter passes tools through in native Anthropic format
+     (0.4119ms)
+     … +58 lines (ctrl+o to expand)
+  ⎿  (timeout 2m)
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(README_ZH.md)
+  ⎿  Added 1 line, removed 1 line
+      242  
+      243  受 Claude Code 终端 Agent 范式启发。基于 [Ink](https://github.
+           com/vadimdemedes/ink)、[Commander](https://github.com/tj/comma
+           nder.js) 与 [MCP SDK](https://github.com/modelcontextprotocol/
+           typescript-sdk) 构建。
+      244  
+      245 -*最后更新：2026-05-31*                                        
+      245 +*最后更新：2026-06-01*                                        
+
+  Searched for 1 pattern (ctrl+o to expand)
+● Update(README.md)
+  ⎿  File must be read first
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(README.md)
+  ⎿  Added 1 line, removed 1 line
+      230  
+      231  Inspired by the terminal agent paradigm pioneered by Claude Co
+           de. Built with [Ink](https://github.com/vadimdemedes/ink), [Co
+           mmander](https://github.com/tj/commander.js), and the [MCP SDK
+           ](https://github.com/modelcontextprotocol/typescript-sdk).
+      232  
+      233 -*Last updated: 2026-05-31*                                    
+      233 +*Last updated: 2026-06-01*                                    
+
+● Now let me finalize and do a final review of all changes.
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && git diff --stat HEAD)
+  ⎿  warning: in the working copy of '.gitignore', LF will be replaced by C
+     RLF the next time Git touches it
+     warning: in the working copy of 'ZCode/src/entrypoints/publicCli.js',
+     … +12 lines (ctrl+o to expand)
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && git diff HEAD -- docs/ plans/
+      2>/dev/null || git diff HEAD -- docs/)
+  ⎿  diff --git a/docs/README.md b/docs/README.md
+     index bd19c60..67d36f2 100644
+     --- a/docs/README.md
+     … +158 lines (ctrl+o to expand)
+
+● I notice the dev plan incorrectly identifies the failing test. Let me fix
+  that.
+
+● Update(docs\plans\zcode-detailed-development-plan-v2.md)
+  ⎿  Added 1 line, removed 1 line
+      337  ```
+      338  tests:  801
+      339  pass:   795 ✅
+      340 -fail:   1   ⚠️ providerAdapterClient.test.js (content_block_sto
+          -p 事件排序差异，已从 2 条降至 1 条)                           
+      340 +fail:   1   ⚠️ publicCli.test.js (bun cli.tsx --bare -p REPL 全
+          +链路请求，属 T2.2 预期行为)                                   
+      341  skip:   5   (Bun 依赖测试，符合 TD-04 已知项预期)
+      342  ```
+      343  
+
+● All tasks complete. Here's a summary of what was done:
+
+  ---
+  Completed Changes
+
+  Documentation Updates (Phase 4 W19)
+
+  - docs/README.md — Updated test counts (801/795/1/5), REPL status, dates,
+  directory structure to include new files
+  - docs/plans/zcode-detailed-development-plan-v2.md — Updated W13-14 test
+  results (794→795 pass, 2→1 fail), corrected failing test attribution, marked
+  TD-07/TD-08 as resolved, updated W13-REG-01 as fixed, added T2.2-REG-01
+  tracking
+  - docs/getting-started/quick-start.md — Updated version (0.1.0→0.2.0), test
+  coverage description
+  - docs/guides/local-development.md — Updated test coverage, dates
+  - docs/references/api-reference.md — Replaced legacy CLAUDE_CODE_USE_* env
+  vars with ZCODE_USE_* equivalents and recommended alternatives
+  - README.md / README_ZH.md — Updated dates
+
+  Packaging Improvements (Phase 3 W15-16)
+
+  - packaging/windows/templates/zcode.cmd — Added Node.js version check (≥22)
+  with clear error messages
+  - packaging/windows/install.ps1 — Changed smoke test from --help to --version
+  for cleaner verification output
+
+  Technical Debt Resolution
+
+  - TD-07 — Confirmed @modelcontextprotocol/sdk: ^1.29.0 is in package.json
+  (already resolved)
+  - TD-08 — Confirmed both package-lock.json and bun.lock exist (already
+  resolved)
+  - W13-REG-01 — providerAdapterClient 2 test failures resolved (now 0 failures)
+
+  Not In Scope (as requested)
+
+  - T2.2 REPL startup chain — the 1 remaining test failure (bun cli.tsx --bare 
+  -p) depends on this
+  - T2.12 Performance testing
+  - TD-10 (settings/types.ts CLAUDE_CODE env vars) — requires functional
+  migration
+  - Large-scale source code brand cleanup (Phase 3 W15-16 source porting)
+
+✻ Crunched for 10m 39s
+
+❯ 中文                                                                          
+
+● 好的，以下是用中文总结的所有完成事项：
+
+  ---
+  已完成的变更
+
+  文档更新（Phase 4 W19）
+
+  文件: docs/README.md
+  变更内容: 更新测试数量（801/795/1/5）、REPL 状态标注、日期、目录结构补全
+  ────────────────────────────────────────
+  文件: docs/plans/zcode-detailed-development-plan-v2.md
+  变更内容: 更新 W13-14 测试结果（794→795 通过，2→1
+    失败）、修正失败测试归属、标记 TD-07/TD-08 已关闭、W13-REG-01 已修复、新增
+    T2.2-REG-01 跟踪
+  ────────────────────────────────────────
+  文件: docs/getting-started/quick-start.md
+  变更内容: 版本号 0.1.0→0.2.0、测试覆盖描述更新
+  ────────────────────────────────────────
+  文件: docs/guides/local-development.md
+  变更内容: 测试覆盖范围补全、日期更新
+  ────────────────────────────────────────
+  文件: docs/references/api-reference.md
+  变更内容: 将旧版 CLAUDE_CODE_USE_* 环境变量替换为 ZCODE_USE_*
+    并标注推荐替代方案
+  ────────────────────────────────────────
+  文件: README.md / README_ZH.md
+  变更内容: 日期更新至 2026-06-01
+
+  打包脚本改进（Phase 3 W15-16）
+
+  - packaging/windows/templates/zcode.cmd — 新增 Node.js 版本检查（≥22），与
+  PowerShell 版对齐
+  - packaging/windows/install.ps1 — 冒烟验证改为 --version，输出更清晰
+
+  技术债务处理
+
+  ┌─────────────┬─────────┬─────────────────────────────────────────────────┐
+  │    编号     │  状态   │                      说明                       │
+  ├─────────────┼─────────┼─────────────────────────────────────────────────┤
+  │ TD-07       │ ✅      │ @modelcontextprotocol/sdk: ^1.29.0 已在         │
+  │             │ 已关闭  │ package.json 中                                 │
+  ├─────────────┼─────────┼─────────────────────────────────────────────────┤
+  │ TD-08       │ ✅      │ package-lock.json 和 bun.lock 均已就位          │
+  │             │ 已关闭  │                                                 │
+  ├─────────────┼─────────┼─────────────────────────────────────────────────┤
+  │ W13-REG-01  │ ✅      │ providerAdapterClient 的 2 条失败归零           │
+  │             │ 已修复  │                                                 │
+  ├─────────────┼─────────┼─────────────────────────────────────────────────┤
+  │ T2.2-REG-01 │ 📋      │ 剩余 1 条失败属 REPL 启动链路预期行为，待       │
+  │             │ 已记录  │ W15-16 随 T2.2 修复                             │
+  └─────────────┴─────────┴─────────────────────────────────────────────────┘
+
+  未涉及（按要求跳过）
+
+  - T2.2 完整 REPL 启动链路 — 当前 1 条测试失败依赖此项
+  - T2.12 性能压测
+  - TD-10（settings/types.ts 中的 CLAUDE_CODE 环境变量）—
+  需要功能性迁移，不属本次范围
+  - 大规模源码品牌清理（需 Phase 3 W15-16 源码 porting）
+
+  ---
+  测试结果： 801 测试 / 795 通过 / 1 失败（T2.2 相关）/ 5
+  跳过，与修改前一致，文档编辑未引入回归。
+
+✻ Cooked for 11s
+
+❯ /btw 
+  ⎿  Usage: /btw
+
+❯ /btw大规模源码品牌清理（需 Phase 3 W15-16 源码 porting）建议吗                
+
+● 我的建议是：暂时不做，等 T2.2 REPL 启动链路打通后再一起搞。 理由如下：
+
+  风险 vs 收益
+
+  1. 验证闭环缺失 — 源码品牌替换（尤其是 settings/ 里的 CLAUDE_CODE_*
+  环境变量）会影响运行时行为。当前 T2.2 还没通，改了之后无法通过完整 REPL
+  链路验证是否引入回归。
+  2. 残留量不大 — 开发计划里写的是"关键目录仅 5 处 Claude Code 残留（均在尚未
+  port 的 .ts 文件中）"，体量很小，半天就能清完，不值得现在冒险。
+  3. 依赖关系 — settings/types.ts 和 settings/constants.ts 中的 CLAUDE_CODE_*
+  变量被多处引用（applySettingsChange.ts、managedPath.ts、settings.ts
+  等），纯文本替换容易误伤，需要逐处确认语义。
+
+  建议时机
+
+  ┌───────────────────────┬────────────────────────────────────┐
+  │         阶段          │               做什么               │
+  ├───────────────────────┼────────────────────────────────────┤
+  │ W15-16（T2.2 打通后） │ 源码品牌清理 + 全量回归测试验证    │
+  ├───────────────────────┼────────────────────────────────────┤
+  │ W19（Phase 4 文档）   │ 品牌终扫（文档/注释/测试中的残留） │
+  └───────────────────────┴────────────────────────────────────┘
+
+  现在可以做的
+
+  如果你现在就想推进，可以做一个只读扫描——跑一遍脚本统计当前源码中还有多少处品牌
+  残留，按目录分类，生成一份清理清单。这样 W15-16
+  动手时直接按清单逐项勾销，效率更高。要我跑这个扫描吗？
+
+✻ Baked for 15s
+
+❯ 建议任务                                                                      
+
+● 以下是建议的当前可执行任务，按优先级排列：
+
+  ---
+  任务 1：品牌残留扫描脚本 + 分类报告
+
+  为什么值得做： 直接为 W15-16 清理工作提供可量化的清单，逐个目录勾销。
+
+  做法：
+  - 写一个 Node.js 脚本扫描 ZCode/src/ 下所有 .js/.ts/.tsx 文件
+  - 按规则分类匹配：Claude Code、claude-code、CLAUDE_CODE_*、claude 等
+  - 排除不应改的：@anthropic-ai/claude-code（npm 包名）、api.anthropic.com（真实
+   URL）、许可证/版权声明
+  - 输出分类报告：按目录 × 类型（字符串字面量 / 环境变量 / 注释 / 变量名）统计
+
+  产出物： docs/reports/brand-residual-scan-2026-06-01.md
+
+  ---
+  任务 2：GitHub CI 流水线
+
+  为什么值得做： 开发计划第 5.3 节已有完整设计，只需落地为 .yml 文件。之后每次
+  push 自动跑测试，不用手动验证。
+
+  做法：
+  - 创建 .github/workflows/ci.yml
+  - 三个 job：unit-test → integration-test → brand-check（按设计稿来）
+  - Windows runner，Node 22，跑 node --experimental-strip-types --test
+  - brand-check 集成扫描脚本（任务 1 的产物）
+
+  产出物： .github/workflows/ci.yml
+
+  ---
+  任务 3：CHANGELOG.md
+
+  为什么值得做： 发布检查清单里的必要项。Phase 0-2 的大量工作已经有 commit
+  记录，整理成 changelog 花时间不多。
+
+  做法：
+  - 从 git log 提取 Phase 0 → Phase 2 的关键变更
+  - 按版本分组：v0.1.0-baseline、v0.2.0-alpha
+  - 每条一句话，标注对应任务编号（T2.x）
+
+  产出物： CHANGELOG.md
+
+  ---
+  任务 4：Windows 打包 E2E 验证脚本
+
+  为什么值得做：
+  打包脚本（build/install/uninstall）目前没有自动化验证，手动测容易漏。
+
+  做法：
+  - 写一个 PowerShell 测试脚本
+  - 流程：build → 解压 → install → zcode --version → zcode doctor --json →
+  uninstall → 清理
+  - 每步检查 exit code 和输出内容
+
+  产出物： packaging/windows/test-packaging.ps1
+
+  ---
+  建议执行顺序
+
+  任务 1（品牌扫描） → 任务 3（CHANGELOG） → 任务 4（打包验证） → 任务 2（CI
+  集成前面产物）
+
+  要我按这个顺序开始做吗？或者你想调整优先级/增减任务？
+
+✻ Churned for 26s

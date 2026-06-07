@@ -10,7 +10,7 @@ import {
   getProductName,
   getVersionBanner,
 } from '../config/brandText.js'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
 const DEFAULT_COMMANDS = Object.freeze(['help', 'doctor', 'models', 'print'])
@@ -76,6 +76,99 @@ function parseDotEnvLine(line) {
   return [key, stripWrappingQuotes(rawValue)]
 }
 
+/**
+ * Extract code blocks from markdown text. Returns an array of { language, code, startLine, endLine }.
+ * Matches ```language\n...\n``` fenced blocks.
+ */
+function extractCodeBlocks(text) {
+  if (typeof text !== 'string' || !text) return []
+  const blocks = []
+  const regex = /```(\w*)\s*\n([\s\S]*?)```/g
+  let match
+  while ((match = regex.exec(text)) !== null) {
+    const language = match[1]?.trim() || ''
+    const code = match[2]?.replace(/\n$/, '') || ''
+    if (!code.trim()) continue
+    blocks.push({ language, code })
+  }
+  return blocks
+}
+
+/**
+ * Infer a filename from a code block's language and existing project structure.
+ * Falls back to a generic name when language-specific detection fails.
+ */
+function inferFilename(language, cwd = process.cwd()) {
+  const extMap = {
+    js: 'module.js',
+    ts: 'module.ts',
+    tsx: 'Component.tsx',
+    jsx: 'Component.jsx',
+    py: 'script.py',
+    rs: 'module.rs',
+    go: 'module.go',
+    java: 'Main.java',
+    rb: 'script.rb',
+    php: 'script.php',
+    css: 'style.css',
+    html: 'index.html',
+    json: 'data.json',
+    yaml: 'config.yaml',
+    yml: 'config.yml',
+    toml: 'config.toml',
+    md: 'README.md',
+    sql: 'query.sql',
+    sh: 'script.sh',
+    bat: 'script.bat',
+    ps1: 'script.ps1',
+    dockerfile: 'Dockerfile',
+  }
+  const lang = language.toLowerCase()
+  return extMap[lang] || `output.${lang || 'txt'}`
+}
+
+/**
+ * Write code blocks to files. Returns an array of written file paths.
+ * If a writePath is provided (single file), writes only the first code block.
+ */
+function writeCodeBlocks(blocks, writePath, cwd = process.cwd()) {
+  if (!blocks.length) return []
+
+  const written = []
+
+  if (writePath) {
+    // Single file mode: write first block
+    const block = blocks[0]
+    const targetPath = path.resolve(cwd, writePath)
+    mkdirSync(path.dirname(targetPath), { recursive: true })
+    writeFileSync(targetPath, block.code + '\n', 'utf8')
+    written.push(targetPath)
+  } else {
+    // Multi-file mode: infer filenames
+    for (const block of blocks) {
+      const filename = inferFilename(block.language, cwd)
+      const targetPath = path.resolve(cwd, filename)
+      mkdirSync(path.dirname(targetPath), { recursive: true })
+
+      // Avoid overwriting: append suffix if file exists
+      let finalPath = targetPath
+      let counter = 1
+      while (existsSync(finalPath)) {
+        const ext = path.extname(targetPath)
+        const base = path.basename(targetPath, ext)
+        const dir = path.dirname(targetPath)
+        finalPath = path.join(dir, `${base}-${counter}${ext}`)
+        counter++
+      }
+
+      writeFileSync(finalPath, block.code + '\n', 'utf8')
+      written.push(finalPath)
+    }
+  }
+
+  return written
+}
+
 export function loadDotEnvFile({
   cwd = process.cwd(),
   env = process.env,
@@ -122,6 +215,11 @@ function parseArgv(argv = []) {
     model: null,
     printPrompt: null,
     command: null,
+    write: false,
+    writePath: null,
+    plan: false,
+    yolo: false,
+    reasoning: false,
   }
   const positionals = []
 
@@ -162,6 +260,34 @@ function parseArgv(argv = []) {
       }
       options.printPrompt = prompt
       index += 1
+      continue
+    }
+
+    if (arg === '--write' || arg === '-w') {
+      const next = argv[index + 1]
+      const writePath = readString(next)
+      if (!writePath) {
+        options.write = true
+      } else {
+        options.write = true
+        options.writePath = writePath
+        index += 1
+      }
+      continue
+    }
+
+    if (arg === '--plan') {
+      options.plan = true
+      continue
+    }
+
+    if (arg === '--yolo') {
+      options.yolo = true
+      continue
+    }
+
+    if (arg === '--reasoning') {
+      options.reasoning = true
       continue
     }
 
@@ -222,6 +348,20 @@ export function renderHelp({ version = '0.0.0' } = {}) {
     '  models               List the models exposed by the active provider',
     '  -p, --print <prompt> Run a minimal non-interactive prompt',
     '',
+    'Options:',
+    '  -m, --model <id>     Specify the model to use',
+    '  --json               Output in JSON format',
+    '  -w, --write [path]   Write code blocks from response to file(s)',
+    '  --plan               Plan mode: suggest changes without executing writes',
+    '  --yolo               YOLO mode: auto-approve all operations',
+    '  --reasoning          Show model thinking/reasoning process',
+    '',
+    'Examples:',
+    `  ${commandName} -p "explain this code" --reasoning`,
+    `  ${commandName} -p "write a hello world script" --write hello.js`,
+    `  ${commandName} -p "generate config" --write`,
+    `  ${commandName} doctor --json`,
+    '',
     'Notes:',
     '  This public build does not boot the full interactive TUI path.',
     '  The public local entrypoint is intentionally limited to stable modules.',
@@ -275,6 +415,7 @@ async function collectPrintResponse({
   prompt,
   model,
   provider,
+  collectReasoning = false,
 }) {
   if (!isPrintCapableProvider(provider)) {
     throw new Error(
@@ -287,6 +428,8 @@ async function collectPrintResponse({
   let messageId = null
   let finishReason = null
   let text = ''
+  let reasoning = ''
+  let usage = null
   const toolCalls = []
 
   for await (const chunk of provider.streamChat({
@@ -308,6 +451,11 @@ async function collectPrintResponse({
       continue
     }
 
+    if (chunk.type === 'reasoning_delta' && collectReasoning && typeof chunk.text === 'string') {
+      reasoning += chunk.text
+      continue
+    }
+
     if (chunk.type === 'text_delta' && typeof chunk.text === 'string') {
       text += chunk.text
       continue
@@ -320,6 +468,16 @@ async function collectPrintResponse({
 
     if (chunk.type === 'response_end') {
       finishReason = readString(chunk.finishReason) || finishReason || 'stop'
+      if (chunk.usage && typeof chunk.usage === 'object') {
+        usage = {
+          inputTokens: chunk.usage.input_tokens || chunk.usage.inputTokens || 0,
+          outputTokens: chunk.usage.output_tokens || chunk.usage.outputTokens || 0,
+          totalTokens:
+            (chunk.usage.input_tokens || chunk.usage.inputTokens || 0) +
+            (chunk.usage.output_tokens || chunk.usage.outputTokens || 0),
+        }
+      }
+      continue
     }
   }
 
@@ -330,6 +488,8 @@ async function collectPrintResponse({
     text,
     toolCalls,
     finishReason: finishReason || 'stop',
+    reasoning: reasoning || undefined,
+    usage: usage || undefined,
   }
 }
 
@@ -354,6 +514,92 @@ function renderModelsText(models) {
   return models
     .map(model => `${model.id} [${model.provider}]`)
     .join('\n')
+}
+
+function renderSep(label = '') {
+  const cols = typeof process.stdout?.columns === 'number' ? process.stdout.columns : 80
+  const sepWidth = Math.max(0, cols - label.length - 4)
+  const left = '─'.repeat(Math.floor(sepWidth / 2))
+  const right = '─'.repeat(Math.ceil(sepWidth / 2))
+  return label ? `${left} ${label} ${right}` : '─'.repeat(cols)
+}
+
+function renderPrintResult(result, { json, write, writePath, showReasoning, cwd }) {
+  const lines = []
+
+  if (json) return JSON.stringify(result, null, 2)
+
+  // Header
+  lines.push(renderSep(`${result.model}`))
+
+  // Reasoning section
+  if (showReasoning && result.reasoning) {
+    lines.push('')
+    lines.push('∴ Thinking')
+    lines.push(renderSep())
+    lines.push(result.reasoning)
+    lines.push(renderSep())
+    lines.push('')
+  }
+
+  // Main text
+  if (result.text) {
+    lines.push(result.text)
+  }
+
+  // Tool calls
+  if (result.toolCalls && result.toolCalls.length > 0) {
+    lines.push('')
+    lines.push(renderSep('Tool Calls'))
+    for (const tc of result.toolCalls) {
+      lines.push(`  ${tc.name || 'unknown'}(${JSON.stringify(tc.arguments || tc.input || {})})`)
+    }
+  }
+
+  // Code block extraction
+  if (result.text) {
+    const blocks = extractCodeBlocks(result.text)
+    if (blocks.length > 0) {
+      lines.push('')
+      lines.push(renderSep(`${blocks.length} code block${blocks.length > 1 ? 's' : ''}`))
+      if (write) {
+        // Write to files
+        try {
+          const written = writeCodeBlocks(blocks, writePath, cwd)
+          for (const wp of written) {
+            lines.push(`  ✓ Written: ${wp}`)
+          }
+        } catch (err) {
+          lines.push(`  ✗ Error: ${err.message}`)
+        }
+      } else {
+        // Preview mode: show filenames
+        for (let i = 0; i < blocks.length; i++) {
+          const block = blocks[i]
+          const filename = writePath || inferFilename(block.language, cwd)
+          lines.push(`  [${i + 1}] ${block.language || 'text'} → ${filename} (${block.code.split('\n').length} lines)`)
+        }
+        lines.push(`  Run with --write to create file${blocks.length > 1 ? 's' : ''}`)
+      }
+    }
+  }
+
+  // Usage footer
+  if (result.usage) {
+    lines.push('')
+    lines.push(renderSep(`${formatTokens(result.usage.inputTokens)} in / ${formatTokens(result.usage.outputTokens)} out`))
+  } else {
+    lines.push('')
+    lines.push(renderSep())
+  }
+
+  return lines.join('\n')
+}
+
+function formatTokens(n) {
+  if (n == null) return '0'
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`
+  return String(n)
 }
 
 export async function runCli(
@@ -419,16 +665,52 @@ export async function runCli(
     }
 
     if (options.printPrompt) {
+      if (options.plan) {
+        writeLine(stdout, `── PLAN MODE ──`)
+        writeLine(stdout, `Prompt: ${options.printPrompt}`)
+        writeLine(stdout, `Model:  ${options.model || 'auto'}`)
+        writeLine(stdout, '')
+        writeLine(stdout, 'In plan mode, suggestions would be shown without executing changes.')
+        writeLine(stdout, 'Remove --plan to execute.')
+        return 0
+      }
+
       const result = await collectPrintResponse({
         prompt: options.printPrompt,
         model: options.model,
         provider: createProviderFromEnv(env),
+        collectReasoning: options.reasoning,
       })
 
       if (options.json) {
-        writeJson(stdout, result)
+        // JSON mode: include all metadata
+        const blocks = result.text ? extractCodeBlocks(result.text) : []
+        const output = {
+          ...result,
+          codeBlocks: blocks.length > 0 ? blocks.map(b => ({
+            language: b.language,
+            lines: b.code.split('\n').length,
+          })) : undefined,
+        }
+
+        if (options.write && blocks.length > 0) {
+          try {
+            output.written = writeCodeBlocks(blocks, options.writePath, cwd)
+          } catch (err) {
+            output.writeError = err.message
+          }
+        }
+
+        writeJson(stdout, output)
       } else {
-        writeLine(stdout, result.text || JSON.stringify(result.toolCalls, null, 2))
+        // Text mode: structured output
+        writeLine(stdout, renderPrintResult(result, {
+          json: false,
+          write: options.write,
+          writePath: options.writePath,
+          showReasoning: options.reasoning,
+          cwd,
+        }))
       }
 
       return 0

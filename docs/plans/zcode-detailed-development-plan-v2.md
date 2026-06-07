@@ -88,8 +88,8 @@
 | TD-04 | 测试依赖 `bun` 命令但 Windows 可能未安装 | 1 条测试持续失败 | 低 |
 | TD-05 | QueryEngine 1295 行，与 UI/permissions/session 深度耦合 | 改动风险高 | 中 |
 | TD-06 | main.tsx 4685 行，职责过重 | 可维护性差 | 低 |
-| TD-07 | MCP client 依赖 `@modelcontextprotocol/sdk` 未在 package.json 声明 | 运行时缺失 | 高 |
-| TD-08 | 无 `package-lock.json` 或 `bun.lockb` 在 ZCode/ 目录 | 依赖不确定性 | 中 |
+| TD-07 | ~~MCP client 依赖 `@modelcontextprotocol/sdk` 未在 package.json 声明~~ ✅ 已修复 | 已添加 `"@modelcontextprotocol/sdk": "^1.29.0"` | 已关闭 |
+| TD-08 | ~~无 `package-lock.json` 或 `bun.lockb` 在 ZCode/ 目录~~ ✅ 已修复 | `package-lock.json` 和 `bun.lock` 均已就位 | 已关闭 |
 | TD-09 | 历史代码大量 `.ts`/`.tsx` 但 publicCli 链路用纯 `.js` | Node 公共入口 / Bun 主链路双体系并存 | 低 |
 | TD-10 | settings/types.ts 仍是 Claude Code 完整 schema | 语义混乱 | 低 |
 
@@ -332,12 +332,12 @@
 | **TD-04 测试运行器适配** | ✅ 完成 | 全量 801 条测试运行：794 通过 / 2 失败 / 5 跳过；Node.js 下运行测试远超 75+ 目标 |
 | **TD-02/TD-03 类型安全** | 🚀 超前 | `tsc --noEmit -p tsconfig.public.json` 零错误通过，为 W15-16 提前铺平道路 |
 
-#### W13-14 测试全景
+#### W13-14 测试全景（2026-06-01 更新）
 
 ```
 tests:  801
-pass:   794 ✅
-fail:   2   ⚠️ providerAdapterClient.test.js (content_block_stop 事件排序差异)
+pass:   795 ✅
+fail:   1   ⚠️ publicCli.test.js (bun cli.tsx --bare -p REPL 全链路请求，属 T2.2 预期行为)
 skip:   5   (Bun 依赖测试，符合 TD-04 已知项预期)
 ```
 
@@ -345,7 +345,8 @@ skip:   5   (Bun 依赖测试，符合 TD-04 已知项预期)
 
 | ID | 描述 | 影响 | 计划 |
 |----|------|------|------|
-| W13-REG-01 | `providerAdapterClient.test.js` 2 条失败：多 block 场景下 `content_block_stop` 事件排序与预期不一致 | 低 — 不影响公共入口链路，属 adapter bridge 内部事件顺序问题 | W15-16 修复 |
+| W13-REG-01 | ~~`providerAdapterClient.test.js` 2 条失败：多 block 场景下 `content_block_stop` 事件排序与预期不一致~~ ✅ 已修复 | — | W13-14 修复完成 |
+| T2.2-REG-01 | `publicCli.test.js` 1 条失败：`bun cli.tsx --bare -p` 全链路请求仅返回部分输出 | 低 — 属 T2.2 REPL 启动链路未完全打通的预期行为 | W15-16 随 T2.2 修复 |
 
 - **关键里程碑 M3**（W18 结束）：Release Candidate 可安装可运行。
 - **Gate-Out**：Windows 10/11 双版本安装验证；冷启动 ≤3s；0 崩溃回归。

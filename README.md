@@ -230,4 +230,4 @@ bun test          # or: npm test
 
 Inspired by the terminal agent paradigm pioneered by Claude Code. Built with [Ink](https://github.com/vadimdemedes/ink), [Commander](https://github.com/tj/commander.js), and the [MCP SDK](https://github.com/modelcontextprotocol/typescript-sdk).
 
-*Last updated: 2026-05-31*
+*Last updated: 2026-06-01*

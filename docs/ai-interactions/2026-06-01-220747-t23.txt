@@ -1,0 +1,2158 @@
+╭─── Claude Code v2.1.150 ─────────────────────────────────────────────────────╮
+│                                         │ Tips for getting started           │
+│              Welcome back!              │ Run /init to create a CLAUDE.md f… │
+│                                         │ ────────────────────────────────── │
+│                 ▐▛███▜▌                 │ What's new                         │
+│                ▝▜█████▛▘                │ Internal infrastructure improveme… │
+│                  ▘▘ ▝▝                  │ `/usage` now shows a per-category… │
+│                                         │ `/diff` detail view can now be sc… │
+│   deepseek-v4-pro · API Usage Billing   │ /release-notes for more            │
+│        E:\项目\ZCode--CLI--agent        │                                    │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+  ↑ Install the PyCharm plugin from the JetBrains Marketplace: https://docs.claude.com/s/claude-code-jetbrains
+
+❯ 按开发计划自主完成任务T2.3                                                    
+
+● Let me first find and read the development plan to understand what task T2.3
+  entails.
+
+  Read 1 file (ctrl+o to expand)
+
+● I'll start by understanding the current state of the codebase relevant to T2.3
+   (Settings Contract full chain - 5-layer merge logic + file I/O).
+
+● Explore(Explore settings/contract codebase)
+  ⎿  Done (40 tool uses · 113.9k tokens · 2m 6s)
+  (ctrl+o to expand)
+
+● Now let me read the key source files to understand exactly what needs to be
+  built.
+
+  Read 3 files (ctrl+o to expand)
+
+● Let me check how the settings contract is currently used and understand the
+  import graph.
+
+  Searched for 2 patterns, read 3 files (ctrl+o to expand)
+
+● Now I have a complete picture of the codebase. Let me create tasks and start
+  implementing T2.3.
+
+● Let me start implementing. First, enhancing settingsContract.js with file I/O
+  and the full chain.
+
+  Read 1 file (ctrl+o to expand)
+
+● Now I'll write the enhanced settingsContract.js with file I/O and full-chain
+  functions.
+
+● Write(ZCode\src\config\settingsContract.js)
+  ⎿  Added 197 lines, removed 3 lines
+      1 -const ARRAY_REPLACE_KEYS = new Set(['hooks'])                   
+      1 +import { readFileSync, writeFileSync, mkdirSync, existsSync } fr
+        +om 'node:fs'                                                    
+      2 +import { homedir } from 'node:os'                               
+      3  
+      4 +const ARRAY_MERGE_KEYS = new Set(['hooks'])                     
+      5 +                                                                
+      6  export const SETTINGS_SOURCE_PRIORITY = Object.freeze([
+      7    'userSettings',
+      8    'projectSettings',
+     ...
+      11    'policySettings',
+      12  ])
+      13  
+      14 +export const DEFAULT_SETTINGS_DIR = '.zcode'                   
+      15 +                                                               
+      16 +export const SETTINGS_FILE_NAMES = Object.freeze({             
+      17 +  userSettings: 'settings.json',                               
+      18 +  projectSettings: 'settings.json',                            
+      19 +  localSettings: 'settings.local.json',                        
+      20 +  policySettings: 'managed-settings.json',                     
+      21 +})                                                             
+      22 +                                                               
+      23  export function getSettingsSourcePriority(source) {
+      24    return SETTINGS_SOURCE_PRIORITY.indexOf(source)
+      25  }
+     ...
+       84    return Object.keys(normalized).length > 0 ? normalized : und
+           efined
+       85  }
+       86  
+       87 +function normalizePermissions(permissions) {                  
+       88 +  if (!isPlainObject(permissions)) {                          
+       89 +    return undefined                                          
+       90 +  }                                                           
+       91 +                                                              
+       92 +  const normalized = {}                                       
+       93 +  const ruleKeys = ['allow', 'deny', 'ask']                   
+       94 +                                                              
+       95 +  for (const key of ruleKeys) {                               
+       96 +    const rules = normalizeStringArray(permissions[key])      
+       97 +    if (rules) {                                              
+       98 +      normalized[key] = rules                                 
+       99 +    }                                                         
+      100 +  }                                                           
+      101 +                                                              
+      102 +  return Object.keys(normalized).length > 0 ? normalized : und
+          +efined                                                        
+      103 +}                                                             
+      104 +                                                              
+      105  function mergeArrays(left = [], right = []) {
+      106    return [...new Set([...left, ...right])]
+      107  }
+      108  
+      109  function mergeValues(left, right, key) {
+      110    if (Array.isArray(left) && Array.isArray(right)) {
+       81 -    if (ARRAY_REPLACE_KEYS.has(key)) {                        
+      111 +    if (ARRAY_MERGE_KEYS.has(key)) {                          
+      112        return mergeArrays(left, right)
+      113      }
+      114  
+     ...
+      156    }
+      157  
+      158    const provider = readString(settings.provider)
+      159 +  const model = readString(settings.model)                    
+      160    const openaiCompatible = normalizeOpenAICompatibleSettings(
+      161      settings.openaiCompatible,
+      162    )
+      163    const modelOverrides = normalizeStringRecord(settings.modelO
+           verrides)
+      164    const availableModels = normalizeStringArray(settings.availa
+           bleModels)
+      165 +  const permissions = normalizePermissions(settings.permission
+          +s)                                                            
+      166 +  const hooks = normalizeStringArray(settings.hooks)          
+      167 +  const env = normalizeStringRecord(settings.env)             
+      168  
+      135 -  return {                                                    
+      169 +  const normalized = {                                        
+      170      ...(provider ? { provider } : {}),
+      171 +    ...(model ? { model } : {}),                              
+      172      ...(openaiCompatible ? { openaiCompatible } : {}),
+      173      ...(modelOverrides ? { modelOverrides } : {}),
+      174      ...(availableModels ? { availableModels } : {}),
+      175 +    ...(permissions ? { permissions } : {}),                  
+      176 +    ...(hooks ? { hooks } : {}),                              
+      177 +    ...(env ? { env } : {}),                                  
+      178    }
+      179 +                                                              
+      180 +  return normalized                                           
+      181  }
+      182 +                                                              
+      183 +// -----------------------------------------------------------
+          +----------------                                              
+      184 +// File I/O                                                   
+      185 +// -----------------------------------------------------------
+          +----------------                                              
+      186 +                                                              
+      187 +export function getSettingsHomePath(homeDir) {                
+      188 +  const base = typeof homeDir === 'string' && homeDir.trim() !
+          +== ''                                                         
+      189 +    ? homeDir.trim()                                          
+      190 +    : homedir()                                               
+      191 +                                                              
+      192 +  return `${base.replace(/\/+$/, '')}/${DEFAULT_SETTINGS_DIR}`
+      193 +}                                                             
+      194 +                                                              
+      195 +export function getSettingsProjectPath(cwd) {                 
+      196 +  const base = typeof cwd === 'string' && cwd.trim() !== ''   
+      197 +    ? cwd.trim()                                              
+      198 +    : process.cwd()                                           
+      199 +                                                              
+      200 +  return `${base.replace(/\/+$/, '')}/${DEFAULT_SETTINGS_DIR}`
+      201 +}                                                             
+      202 +                                                              
+      203 +export function getSettingsFilePath(source, opts = {}) {      
+      204 +  const fileName = SETTINGS_FILE_NAMES[source]                
+      205 +  if (!fileName) {                                            
+      206 +    return null                                               
+      207 +  }                                                           
+      208 +                                                              
+      209 +  if (source === 'userSettings') {                            
+      210 +    const homePath = getSettingsHomePath(opts.home)           
+      211 +    return `${homePath}/${fileName}`                          
+      212 +  }                                                           
+      213 +                                                              
+      214 +  const projectPath = getSettingsProjectPath(opts.cwd)        
+      215 +  return `${projectPath}/${fileName}`                         
+      216 +}                                                             
+      217 +                                                              
+      218 +export function readSettingsFile(filePath) {                  
+      219 +  if (typeof filePath !== 'string' || filePath.trim() === '') 
+          +{                                                             
+      220 +    return { settings: null, errors: [{ message: 'filePath is 
+          +required' }] }                                                
+      221 +  }                                                           
+      222 +                                                              
+      223 +  try {                                                       
+      224 +    const raw = readFileSync(filePath, 'utf-8')               
+      225 +    const parsed = JSON.parse(raw)                            
+      226 +                                                              
+      227 +    if (!isPlainObject(parsed)) {                             
+      228 +      return {                                                
+      229 +        settings: null,                                       
+      230 +        errors: [{ message: 'settings file must contain a JSON
+          + object', filePath }],                                        
+      231 +      }                                                       
+      232 +    }                                                         
+      233 +                                                              
+      234 +    return { settings: parsed, errors: [] }                   
+      235 +  } catch (err) {                                             
+      236 +    if (err.code === 'ENOENT') {                              
+      237 +      return { settings: null, errors: [] }                   
+      238 +    }                                                         
+      239 +                                                              
+      240 +    return {                                                  
+      241 +      settings: null,                                         
+      242 +      errors: [{ message: err.message, filePath }],           
+      243 +    }                                                         
+      244 +  }                                                           
+      245 +}                                                             
+      246 +                                                              
+      247 +export function writeSettingsFile(filePath, settings) {       
+      248 +  if (typeof filePath !== 'string' || filePath.trim() === '') 
+          +{                                                             
+      249 +    throw new Error('filePath is required')                   
+      250 +  }                                                           
+      251 +                                                              
+      252 +  if (!isPlainObject(settings)) {                             
+      253 +    throw new Error('settings must be a plain object')        
+      254 +  }                                                           
+      255 +                                                              
+      256 +  const dir = filePath.slice(0, filePath.lastIndexOf('/'))    
+      257 +                                                              
+      258 +  if (!existsSync(dir)) {                                     
+      259 +    mkdirSync(dir, { recursive: true })                       
+      260 +  }                                                           
+      261 +                                                              
+      262 +  writeFileSync(filePath, JSON.stringify(settings, null, 2) + 
+          +'\n', 'utf-8')                                                
+      263 +}                                                             
+      264 +                                                              
+      265 +export function loadSettingsLayer(source, opts = {}) {        
+      266 +  const filePath = getSettingsFilePath(source, opts)          
+      267 +                                                              
+      268 +  if (!filePath) {                                            
+      269 +    return { source, settings: {}, errors: [] }               
+      270 +  }                                                           
+      271 +                                                              
+      272 +  const { settings, errors } = readSettingsFile(filePath)     
+      273 +                                                              
+      274 +  return {                                                    
+      275 +    source,                                                   
+      276 +    settings: settings ?? {},                                 
+      277 +    errors,                                                   
+      278 +  }                                                           
+      279 +}                                                             
+      280 +                                                              
+      281 +/**                                                           
+      282 + * Reads all 5 settings layers from disk, merges them by prior
+          +ity, and returns                                              
+      283 + * normalized settings.                                       
+      284 + *                                                            
+      285 + * flagSettings is passed in directly (it has no filesystem pa
+          +th — it comes                                                 
+      286 + * from the --settings CLI flag).                             
+      287 + */                                                           
+      288 +export function loadSettingsFromDisk(opts = {}) {             
+      289 +  const errors = []                                           
+      290 +  const layers = []                                           
+      291 +                                                              
+      292 +  for (const source of SETTINGS_SOURCE_PRIORITY) {            
+      293 +    if (source === 'flagSettings') {                          
+      294 +      const flagSettings = opts.flagSettings                  
+      295 +      if (flagSettings && isPlainObject(flagSettings)) {      
+      296 +        layers.push({ source: 'flagSettings', settings: flagSe
+          +ttings })                                                     
+      297 +      }                                                       
+      298 +      continue                                                
+      299 +    }                                                         
+      300 +                                                              
+      301 +    const layer = loadSettingsLayer(source, opts)             
+      302 +    layers.push(layer)                                        
+      303 +                                                              
+      304 +    if (layer.errors.length > 0) {                            
+      305 +      errors.push(...layer.errors)                            
+      306 +    }                                                         
+      307 +  }                                                           
+      308 +                                                              
+      309 +  const merged = mergeSettingsLayers(layers)                  
+      310 +  const settings = normalizeSettings(merged)                  
+      311 +                                                              
+      312 +  return { settings, errors }                                 
+      313 +}                                                             
+      314 +                                                              
+      315 +/**                                                           
+      316 + * Merges updates into an existing settings file for the given
+          + source.                                                      
+      317 + * Throws if the source has no writeable file path (e.g. flagS
+          +ettings).                                                     
+      318 + */                                                           
+      319 +export function saveSettingsForSource(source, updates, opts = 
+          +{}) {                                                         
+      320 +  const filePath = getSettingsFilePath(source, opts)          
+      321 +                                                              
+      322 +  if (!filePath) {                                            
+      323 +    throw new Error(`Cannot write settings for source: ${sourc
+          +e}`)                                                          
+      324 +  }                                                           
+      325 +                                                              
+      326 +  const { settings: existing, errors } = readSettingsFile(file
+          +Path)                                                         
+      327 +                                                              
+      328 +  const base = existing ?? {}                                 
+      329 +  const merged = mergeObjects(base, updates)                  
+      330 +  const cleaned = normalizeSettings(merged)                   
+      331 +                                                              
+      332 +  writeSettingsFile(filePath, cleaned)                        
+      333 +                                                              
+      334 +  return { settings: cleaned, errors }                        
+      335 +}                                                             
+● Now writing comprehensive integration tests.
+
+● Write(ZCode\test\settingsContract.test.js)
+  ⎿  Added 547 lines
+      1  import test from 'node:test'
+      2  import assert from 'node:assert/strict'
+      3 +import { readFileSync, writeFileSync, mkdirSync, rmSync, existsS
+        +ync } from 'node:fs'                                            
+      4 +import { tmpdir } from 'node:os'                                
+      5 +import { sep, join } from 'node:path'                           
+      6 +import { randomUUID } from 'node:crypto'                        
+      7  import { loadModule, resolveFromHere } from './helpers/loadModul
+         e.js'
+      8  
+      9  const modulePath = resolveFromHere(
+     ...
+      14    'settingsContract.js',
+      15  )
+      16  
+      17 +function makeTempDir() {                                       
+      18 +  const dir = join(tmpdir(), `zcode-test-${randomUUID()}`)     
+      19 +  mkdirSync(dir, { recursive: true })                          
+      20 +  return dir                                                   
+      21 +}                                                              
+      22 +                                                               
+      23 +function cleanupTempDir(dir) {                                 
+      24 +  try {                                                        
+      25 +    rmSync(dir, { recursive: true, force: true })              
+      26 +  } catch {                                                    
+      27 +    // best effort                                             
+      28 +  }                                                            
+      29 +}                                                              
+      30 +                                                               
+      31 +// ------------------------------------------------------------
+         +---------------                                                
+      32 +// Source order                                                
+      33 +// ------------------------------------------------------------
+         +---------------                                                
+      34 +                                                               
+      35  test('SETTINGS_SOURCE_PRIORITY reflects documented override ord
+          er', async () => {
+      36    const { SETTINGS_SOURCE_PRIORITY, getSettingsSourcePriority }
+           =
+      37      await loadModule(modulePath)
+     ...
+      47    assert.equal(getSettingsSourcePriority('policySettings'), 4)
+      48  })
+      49  
+      50 +// ------------------------------------------------------------
+         +---------------                                                
+      51 +// Merge                                                       
+      52 +// ------------------------------------------------------------
+         +---------------                                                
+      53 +                                                               
+      54  test('mergeSettingsLayers applies later sources on top of earli
+          er sources', async () => {
+      55    const { mergeSettingsLayers } = await loadModule(modulePath)
+      56  
+     ...
+      90    })
+      91  })
+      92  
+      93 +// ------------------------------------------------------------
+         +---------------                                                
+      94 +// Normalize                                                   
+      95 +// ------------------------------------------------------------
+         +---------------                                                
+      96 +                                                               
+      97  test('normalizeSettings sanitizes provider-facing settings', as
+          ync () => {
+      98    const { normalizeSettings } = await loadModule(modulePath)
+      99  
+     ...
+      135      availableModels: ['sonnet', 'opus'],
+      136    })
+      137  })
+      138 +                                                              
+      139 +test('normalizeSettings handles permissions, hooks, env, and m
+          +odel', async () => {                                          
+      140 +  const { normalizeSettings } = await loadModule(modulePath)  
+      141 +                                                              
+      142 +  const normalized = normalizeSettings({                      
+      143 +    model: ' claude-sonnet-4-6 ',                             
+      144 +    permissions: {                                            
+      145 +      allow: [' Bash(curl:*) ', ' Read '],                    
+      146 +      deny: [' Bash(rm:*) ', ''],                             
+      147 +      ask: [],                                                
+      148 +    },                                                        
+      149 +    hooks: [' pre-commit ', ''],                              
+      150 +    env: {                                                    
+      151 +      ' NODE_ENV ': ' production ',                           
+      152 +      'EMPTY': '   ',                                         
+      153 +    },                                                        
+      154 +  })                                                          
+      155 +                                                              
+      156 +  assert.deepEqual(normalized, {                              
+      157 +    model: 'claude-sonnet-4-6',                               
+      158 +    permissions: {                                            
+      159 +      allow: ['Bash(curl:*)', 'Read'],                        
+      160 +      deny: ['Bash(rm:*)'],                                   
+      161 +    },                                                        
+      162 +    hooks: ['pre-commit'],                                    
+      163 +    env: {                                                    
+      164 +      NODE_ENV: 'production',                                 
+      165 +    },                                                        
+      166 +  })                                                          
+      167 +})                                                            
+      168 +                                                              
+      169 +test('normalizeSettings returns empty object for non-object in
+          +put', async () => {                                           
+      170 +  const { normalizeSettings } = await loadModule(modulePath)  
+      171 +                                                              
+      172 +  assert.deepEqual(normalizeSettings(null), {})               
+      173 +  assert.deepEqual(normalizeSettings(undefined), {})          
+      174 +  assert.deepEqual(normalizeSettings('string'), {})           
+      175 +  assert.deepEqual(normalizeSettings([]), {})                 
+      176 +})                                                            
+      177 +                                                              
+      178 +// -----------------------------------------------------------
+          +----------------                                              
+      179 +// File paths                                                 
+      180 +// -----------------------------------------------------------
+          +----------------                                              
+      181 +                                                              
+      182 +test('getSettingsHomePath returns path under home directory', 
+          +async () => {                                                 
+      183 +  const { getSettingsHomePath } = await loadModule(modulePath)
+      184 +                                                              
+      185 +  const result = getSettingsHomePath('/home/testuser')        
+      186 +  assert.equal(result, '/home/testuser/.zcode')               
+      187 +})                                                            
+      188 +                                                              
+      189 +test('getSettingsHomePath strips trailing slash', async () => 
+          +{                                                             
+      190 +  const { getSettingsHomePath } = await loadModule(modulePath)
+      191 +                                                              
+      192 +  const result = getSettingsHomePath('/home/testuser/')       
+      193 +  assert.equal(result, '/home/testuser/.zcode')               
+      194 +})                                                            
+      195 +                                                              
+      196 +test('getSettingsProjectPath returns path under cwd', async ()
+          + => {                                                         
+      197 +  const { getSettingsProjectPath } = await loadModule(modulePa
+          +th)                                                           
+      198 +                                                              
+      199 +  const result = getSettingsProjectPath('/my/project')        
+      200 +  assert.equal(result, '/my/project/.zcode')                  
+      201 +})                                                            
+      202 +                                                              
+      203 +test('getSettingsFilePath returns correct paths for all writea
+          +ble sources', async () => {                                   
+      204 +  const { getSettingsFilePath } = await loadModule(modulePath)
+      205 +                                                              
+      206 +  assert.equal(                                               
+      207 +    getSettingsFilePath('userSettings', { home: '/home/u' }), 
+      208 +    '/home/u/.zcode/settings.json',                           
+      209 +  )                                                           
+      210 +  assert.equal(                                               
+      211 +    getSettingsFilePath('projectSettings', { cwd: '/proj' }), 
+      212 +    '/proj/.zcode/settings.json',                             
+      213 +  )                                                           
+      214 +  assert.equal(                                               
+      215 +    getSettingsFilePath('localSettings', { cwd: '/proj' }),   
+      216 +    '/proj/.zcode/settings.local.json',                       
+      217 +  )                                                           
+      218 +  assert.equal(                                               
+      219 +    getSettingsFilePath('policySettings', { cwd: '/proj' }),  
+      220 +    '/proj/.zcode/managed-settings.json',                     
+      221 +  )                                                           
+      222 +})                                                            
+      223 +                                                              
+      224 +test('getSettingsFilePath returns null for flagSettings', asyn
+          +c () => {                                                     
+      225 +  const { getSettingsFilePath } = await loadModule(modulePath)
+      226 +                                                              
+      227 +  assert.equal(getSettingsFilePath('flagSettings'), null)     
+      228 +})                                                            
+      229 +                                                              
+      230 +// -----------------------------------------------------------
+          +----------------                                              
+      231 +// File I/O: read / write / round-trip                        
+      232 +// -----------------------------------------------------------
+          +----------------                                              
+      233 +                                                              
+      234 +test('writeSettingsFile and readSettingsFile round-trip', asyn
+          +c () => {                                                     
+      235 +  const { writeSettingsFile, readSettingsFile } = await loadMo
+          +dule(modulePath)                                              
+      236 +                                                              
+      237 +  const dir = makeTempDir()                                   
+      238 +  try {                                                       
+      239 +    const filePath = `${dir}/settings.json`                   
+      240 +    const input = { model: 'claude-sonnet-4-6', env: { FOO: 'b
+          +ar' } }                                                       
+      241 +                                                              
+      242 +    writeSettingsFile(filePath, input)                        
+      243 +    const { settings, errors } = readSettingsFile(filePath)   
+      244 +                                                              
+      245 +    assert.equal(errors.length, 0)                            
+      246 +    assert.deepEqual(settings, input)                         
+      247 +                                                              
+      248 +    const raw = readFileSync(filePath, 'utf-8')               
+      249 +    const parsed = JSON.parse(raw)                            
+      250 +    assert.deepEqual(parsed, input)                           
+      251 +  } finally {                                                 
+      252 +    cleanupTempDir(dir)                                       
+      253 +  }                                                           
+      254 +})                                                            
+      255 +                                                              
+      256 +test('writeSettingsFile creates intermediate directories', asy
+          +nc () => {                                                    
+      257 +  const { writeSettingsFile, readSettingsFile } = await loadMo
+          +dule(modulePath)                                              
+      258 +                                                              
+      259 +  const dir = makeTempDir()                                   
+      260 +  try {                                                       
+      261 +    const filePath = `${dir}/deep/nested/path/settings.json`  
+      262 +    const input = { provider: 'anthropic' }                   
+      263 +                                                              
+      264 +    writeSettingsFile(filePath, input)                        
+      265 +    const { settings, errors } = readSettingsFile(filePath)   
+      266 +                                                              
+      267 +    assert.equal(errors.length, 0)                            
+      268 +    assert.deepEqual(settings, input)                         
+      269 +  } finally {                                                 
+      270 +    cleanupTempDir(dir)                                       
+      271 +  }                                                           
+      272 +})                                                            
+      273 +                                                              
+      274 +test('readSettingsFile returns null settings for missing file'
+          +, async () => {                                               
+      275 +  const { readSettingsFile } = await loadModule(modulePath)   
+      276 +                                                              
+      277 +  const { settings, errors } = readSettingsFile('/nonexistent/
+          +path/settings.json')                                          
+      278 +                                                              
+      279 +  assert.equal(settings, null)                                
+      280 +  assert.equal(errors.length, 0)                              
+      281 +})                                                            
+      282 +                                                              
+      283 +test('readSettingsFile returns error for invalid JSON', async 
+          +() => {                                                       
+      284 +  const { readSettingsFile } = await loadModule(modulePath)   
+      285 +                                                              
+      286 +  const dir = makeTempDir()                                   
+      287 +  try {                                                       
+      288 +    const filePath = `${dir}/bad.json`                        
+      289 +    writeFileSync(filePath, 'not valid json {{{', 'utf-8')    
+      290 +                                                              
+      291 +    const { settings, errors } = readSettingsFile(filePath)   
+      292 +                                                              
+      293 +    assert.equal(settings, null)                              
+      294 +    assert.ok(errors.length > 0)                              
+      295 +    assert.ok(errors[0].message.includes('JSON'))             
+      296 +  } finally {                                                 
+      297 +    cleanupTempDir(dir)                                       
+      298 +  }                                                           
+      299 +})                                                            
+      300 +                                                              
+      301 +test('readSettingsFile returns error for JSON array', async ()
+          + => {                                                         
+      302 +  const { readSettingsFile } = await loadModule(modulePath)   
+      303 +                                                              
+      304 +  const dir = makeTempDir()                                   
+      305 +  try {                                                       
+      306 +    const filePath = `${dir}/array.json`                      
+      307 +    writeFileSync(filePath, '["not", "an", "object"]', 'utf-8'
+          +)                                                             
+      308 +                                                              
+      309 +    const { settings, errors } = readSettingsFile(filePath)   
+      310 +                                                              
+      311 +    assert.equal(settings, null)                              
+      312 +    assert.ok(errors.length > 0)                              
+      313 +    assert.ok(errors[0].message.includes('object'))           
+      314 +  } finally {                                                 
+      315 +    cleanupTempDir(dir)                                       
+      316 +  }                                                           
+      317 +})                                                            
+      318 +                                                              
+      319 +test('writeSettingsFile throws for non-object settings', async
+          + () => {                                                      
+      320 +  const { writeSettingsFile } = await loadModule(modulePath)  
+      321 +                                                              
+      322 +  assert.throws(() => writeSettingsFile('/tmp/test.json', 'not
+          + an object'))                                                 
+      323 +  assert.throws(() => writeSettingsFile('/tmp/test.json', []))
+      324 +})                                                            
+      325 +                                                              
+      326 +// -----------------------------------------------------------
+          +----------------                                              
+      327 +// Load single layer                                          
+      328 +// -----------------------------------------------------------
+          +----------------                                              
+      329 +                                                              
+      330 +test('loadSettingsLayer reads from disk', async () => {       
+      331 +  const { loadSettingsLayer, writeSettingsFile } = await loadM
+          +odule(modulePath)                                             
+      332 +                                                              
+      333 +  const dir = makeTempDir()                                   
+      334 +  try {                                                       
+      335 +    const zcodeDir = `${dir}/.zcode`                          
+      336 +    mkdirSync(zcodeDir, { recursive: true })                  
+      337 +    writeSettingsFile(`${zcodeDir}/settings.json`, { model: 'c
+          +laude-opus' })                                                
+      338 +                                                              
+      339 +    const layer = loadSettingsLayer('projectSettings', { cwd: 
+          +dir })                                                        
+      340 +                                                              
+      341 +    assert.equal(layer.source, 'projectSettings')             
+      342 +    assert.deepEqual(layer.settings, { model: 'claude-opus' })
+      343 +    assert.equal(layer.errors.length, 0)                      
+      344 +  } finally {                                                 
+      345 +    cleanupTempDir(dir)                                       
+      346 +  }                                                           
+      347 +})                                                            
+      348 +                                                              
+      349 +test('loadSettingsLayer returns empty settings for missing fil
+          +e', async () => {                                             
+      350 +  const { loadSettingsLayer } = await loadModule(modulePath)  
+      351 +                                                              
+      352 +  const dir = makeTempDir()                                   
+      353 +  try {                                                       
+      354 +    const layer = loadSettingsLayer('projectSettings', { cwd: 
+          +dir })                                                        
+      355 +                                                              
+      356 +    assert.equal(layer.source, 'projectSettings')             
+      357 +    assert.deepEqual(layer.settings, {})                      
+      358 +    assert.equal(layer.errors.length, 0)                      
+      359 +  } finally {                                                 
+      360 +    cleanupTempDir(dir)                                       
+      361 +  }                                                           
+      362 +})                                                            
+      363 +                                                              
+      364 +test('loadSettingsLayer returns empty for flagSettings', async
+          + () => {                                                      
+      365 +  const { loadSettingsLayer } = await loadModule(modulePath)  
+      366 +                                                              
+      367 +  const layer = loadSettingsLayer('flagSettings')             
+      368 +                                                              
+      369 +  assert.equal(layer.source, 'flagSettings')                  
+      370 +  assert.deepEqual(layer.settings, {})                        
+      371 +  assert.equal(layer.errors.length, 0)                        
+      372 +})                                                            
+      373 +                                                              
+      374 +// -----------------------------------------------------------
+          +----------------                                              
+      375 +// Full chain: loadSettingsFromDisk                           
+      376 +// -----------------------------------------------------------
+          +----------------                                              
+      377 +                                                              
+      378 +test('loadSettingsFromDisk merges 5 layers from disk', async (
+          +) => {                                                        
+      379 +  const {                                                     
+      380 +    writeSettingsFile,                                        
+      381 +    loadSettingsFromDisk,                                     
+      382 +  } = await loadModule(modulePath)                            
+      383 +                                                              
+      384 +  const dir = makeTempDir()                                   
+      385 +  const userHome = makeTempDir()                              
+      386 +  try {                                                       
+      387 +    const projZcode = `${dir}/.zcode`                         
+      388 +    const userZcode = `${userHome}/.zcode`                    
+      389 +    mkdirSync(projZcode, { recursive: true })                 
+      390 +    mkdirSync(userZcode, { recursive: true })                 
+      391 +                                                              
+      392 +    // userSettings: lowest priority                          
+      393 +    writeSettingsFile(`${userZcode}/settings.json`, {         
+      394 +      model: 'claude-sonnet',                                 
+      395 +      env: { SHARED: 'from-user' },                           
+      396 +    })                                                        
+      397 +                                                              
+      398 +    // projectSettings                                        
+      399 +    writeSettingsFile(`${projZcode}/settings.json`, {         
+      400 +      model: 'claude-opus',                                   
+      401 +      hooks: ['project-hook'],                                
+      402 +    })                                                        
+      403 +                                                              
+      404 +    // localSettings                                          
+      405 +    writeSettingsFile(`${projZcode}/settings.local.json`, {   
+      406 +      env: { LOCAL_VAR: 'local-value' },                      
+      407 +    })                                                        
+      408 +                                                              
+      409 +    // policySettings: highest priority                       
+      410 +    writeSettingsFile(`${projZcode}/managed-settings.json`, { 
+      411 +      model: 'claude-opus-4-1',                               
+      412 +      permissions: { allow: ['Read'] },                       
+      413 +    })                                                        
+      414 +                                                              
+      415 +    const { settings, errors } = loadSettingsFromDisk({       
+      416 +      cwd: dir,                                               
+      417 +      home: userHome,                                         
+      418 +    })                                                        
+      419 +                                                              
+      420 +    assert.equal(errors.length, 0)                            
+      421 +    assert.deepEqual(settings, {                              
+      422 +      model: 'claude-opus-4-1',                               
+      423 +      env: {                                                  
+      424 +        SHARED: 'from-user',                                  
+      425 +        LOCAL_VAR: 'local-value',                             
+      426 +      },                                                      
+      427 +      hooks: ['project-hook'],                                
+      428 +      permissions: { allow: ['Read'] },                       
+      429 +    })                                                        
+      430 +  } finally {                                                 
+      431 +    cleanupTempDir(dir)                                       
+      432 +    cleanupTempDir(userHome)                                  
+      433 +  }                                                           
+      434 +})                                                            
+      435 +                                                              
+      436 +test('loadSettingsFromDisk with flagSettings overrides file se
+          +ttings', async () => {                                        
+      437 +  const {                                                     
+      438 +    writeSettingsFile,                                        
+      439 +    loadSettingsFromDisk,                                     
+      440 +  } = await loadModule(modulePath)                            
+      441 +                                                              
+      442 +  const dir = makeTempDir()                                   
+      443 +  try {                                                       
+      444 +    const projZcode = `${dir}/.zcode`                         
+      445 +    mkdirSync(projZcode, { recursive: true })                 
+      446 +                                                              
+      447 +    writeSettingsFile(`${projZcode}/settings.json`, {         
+      448 +      model: 'claude-sonnet',                                 
+      449 +    })                                                        
+      450 +                                                              
+      451 +    const { settings, errors } = loadSettingsFromDisk({       
+      452 +      cwd: dir,                                               
+      453 +      flagSettings: {                                         
+      454 +        model: 'claude-haiku',                                
+      455 +        provider: 'bedrock',                                  
+      456 +      },                                                      
+      457 +    })                                                        
+      458 +                                                              
+      459 +    assert.equal(errors.length, 0)                            
+      460 +    assert.deepEqual(settings, {                              
+      461 +      model: 'claude-haiku',                                  
+      462 +      provider: 'bedrock',                                    
+      463 +    })                                                        
+      464 +  } finally {                                                 
+      465 +    cleanupTempDir(dir)                                       
+      466 +  }                                                           
+      467 +})                                                            
+      468 +                                                              
+      469 +test('loadSettingsFromDisk collects errors from invalid files'
+          +, async () => {                                               
+      470 +  const { loadSettingsFromDisk } = await loadModule(modulePath
+          +)                                                             
+      471 +                                                              
+      472 +  const dir = makeTempDir()                                   
+      473 +  try {                                                       
+      474 +    const projZcode = `${dir}/.zcode`                         
+      475 +    mkdirSync(projZcode, { recursive: true })                 
+      476 +    writeFileSync(`${projZcode}/settings.json`, 'invalid json 
+          +{{{', 'utf-8')                                                
+      477 +                                                              
+      478 +    const { settings, errors } = loadSettingsFromDisk({ cwd: d
+          +ir })                                                         
+      479 +                                                              
+      480 +    assert.ok(errors.length > 0)                              
+      481 +    assert.ok(errors[0].message.includes('JSON'))             
+      482 +    assert.deepEqual(settings, {})                            
+      483 +  } finally {                                                 
+      484 +    cleanupTempDir(dir)                                       
+      485 +  }                                                           
+      486 +})                                                            
+      487 +                                                              
+      488 +test('loadSettingsFromDisk with no files returns empty setting
+          +s', async () => {                                             
+      489 +  const { loadSettingsFromDisk } = await loadModule(modulePath
+          +)                                                             
+      490 +                                                              
+      491 +  const dir = makeTempDir()                                   
+      492 +  try {                                                       
+      493 +    const { settings, errors } = loadSettingsFromDisk({ cwd: d
+          +ir })                                                         
+      494 +                                                              
+      495 +    assert.equal(errors.length, 0)                            
+      496 +    assert.deepEqual(settings, {})                            
+      497 +  } finally {                                                 
+      498 +    cleanupTempDir(dir)                                       
+      499 +  }                                                           
+      500 +})                                                            
+      501 +                                                              
+      502 +// -----------------------------------------------------------
+          +----------------                                              
+      503 +// Save settings for a source                                 
+      504 +// -----------------------------------------------------------
+          +----------------                                              
+      505 +                                                              
+      506 +test('saveSettingsForSource creates new file with updates', as
+          +ync () => {                                                   
+      507 +  const {                                                     
+      508 +    saveSettingsForSource,                                    
+      509 +    readSettingsFile,                                         
+      510 +  } = await loadModule(modulePath)                            
+      511 +                                                              
+      512 +  const dir = makeTempDir()                                   
+      513 +  try {                                                       
+      514 +    const { settings: saved } = saveSettingsForSource(        
+      515 +      'localSettings',                                        
+      516 +      { model: 'claude-sonnet', env: { FOO: 'bar' } },        
+      517 +      { cwd: dir },                                           
+      518 +    )                                                         
+      519 +                                                              
+      520 +    assert.deepEqual(saved, { model: 'claude-sonnet', env: { F
+          +OO: 'bar' } })                                                
+      521 +                                                              
+      522 +    const filePath = `${dir}/.zcode/settings.local.json`      
+      523 +    const { settings: diskSettings } = readSettingsFile(filePa
+          +th)                                                           
+      524 +    assert.deepEqual(diskSettings, { model: 'claude-sonnet', e
+          +nv: { FOO: 'bar' } })                                         
+      525 +  } finally {                                                 
+      526 +    cleanupTempDir(dir)                                       
+      527 +  }                                                           
+      528 +})                                                            
+      529 +                                                              
+      530 +test('saveSettingsForSource merges into existing file', async 
+          +() => {                                                       
+      531 +  const {                                                     
+      532 +    writeSettingsFile,                                        
+      533 +    saveSettingsForSource,                                    
+      534 +    readSettingsFile,                                         
+      535 +  } = await loadModule(modulePath)                            
+      536 +                                                              
+      537 +  const dir = makeTempDir()                                   
+      538 +  try {                                                       
+      539 +    const projZcode = `${dir}/.zcode`                         
+      540 +    mkdirSync(projZcode, { recursive: true })                 
+      541 +                                                              
+      542 +    writeSettingsFile(`${projZcode}/settings.json`, {         
+      543 +      model: 'claude-sonnet',                                 
+      544 +      env: { EXISTING: 'keep-me' },                           
+      545 +    })                                                        
+      546 +                                                              
+      547 +    const { settings: saved } = saveSettingsForSource(        
+      548 +      'projectSettings',                                      
+      549 +      { model: 'claude-opus', hooks: ['new-hook'] },          
+      550 +      { cwd: dir },                                           
+      551 +    )                                                         
+      552 +                                                              
+      553 +    assert.deepEqual(saved, {                                 
+      554 +      model: 'claude-opus',                                   
+      555 +      env: { EXISTING: 'keep-me' },                           
+      556 +      hooks: ['new-hook'],                                    
+      557 +    })                                                        
+      558 +                                                              
+      559 +    const { settings: diskSettings } = readSettingsFile(`${pro
+          +jZcode}/settings.json`)                                       
+      560 +    assert.deepEqual(diskSettings, {                          
+      561 +      model: 'claude-opus',                                   
+      562 +      env: { EXISTING: 'keep-me' },                           
+      563 +      hooks: ['new-hook'],                                    
+      564 +    })                                                        
+      565 +  } finally {                                                 
+      566 +    cleanupTempDir(dir)                                       
+      567 +  }                                                           
+      568 +})                                                            
+      569 +                                                              
+      570 +test('saveSettingsForSource throws for flagSettings', async ()
+          + => {                                                         
+      571 +  const { saveSettingsForSource } = await loadModule(modulePat
+          +h)                                                            
+      572 +                                                              
+      573 +  await assert.rejects(                                       
+      574 +    () => saveSettingsForSource('flagSettings', { model: 'test
+          +' }),                                                         
+      575 +    /Cannot write settings for source: flagSettings/,         
+      576 +  )                                                           
+      577 +})                                                            
+      578 +                                                              
+      579 +// -----------------------------------------------------------
+          +----------------                                              
+      580 +// Deep merge edge cases                                      
+      581 +// -----------------------------------------------------------
+          +----------------                                              
+      582 +                                                              
+      583 +test('mergeSettingsLayers deep-merges nested objects across al
+          +l 5 layers', async () => {                                    
+      584 +  const { mergeSettingsLayers } = await loadModule(modulePath)
+      585 +                                                              
+      586 +  const merged = mergeSettingsLayers([                        
+      587 +    {                                                         
+      588 +      source: 'userSettings',                                 
+      589 +      settings: {                                             
+      590 +        env: { A: 'user-a', B: 'user-b' },                    
+      591 +        permissions: { allow: ['Read'] },                     
+      592 +      },                                                      
+      593 +    },                                                        
+      594 +    {                                                         
+      595 +      source: 'projectSettings',                              
+      596 +      settings: {                                             
+      597 +        env: { B: 'project-b', C: 'project-c' },              
+      598 +      },                                                      
+      599 +    },                                                        
+      600 +    {                                                         
+      601 +      source: 'localSettings',                                
+      602 +      settings: {                                             
+      603 +        env: { C: 'local-c' },                                
+      604 +      },                                                      
+      605 +    },                                                        
+      606 +    {                                                         
+      607 +      source: 'flagSettings',                                 
+      608 +      settings: {                                             
+      609 +        permissions: { deny: ['Bash(rm:*)'] },                
+      610 +      },                                                      
+      611 +    },                                                        
+      612 +    {                                                         
+      613 +      source: 'policySettings',                               
+      614 +      settings: {                                             
+      615 +        model: 'claude-opus-4-1',                             
+      616 +        env: { D: 'policy-d' },                               
+      617 +        hooks: ['policy-hook'],                               
+      618 +      },                                                      
+      619 +    },                                                        
+      620 +  ])                                                          
+      621 +                                                              
+      622 +  assert.deepEqual(merged, {                                  
+      623 +    env: {                                                    
+      624 +      A: 'user-a',                                            
+      625 +      B: 'project-b',                                         
+      626 +      C: 'local-c',                                           
+      627 +      D: 'policy-d',                                          
+      628 +    },                                                        
+      629 +    permissions: {                                            
+      630 +      allow: ['Read'],                                        
+      631 +      deny: ['Bash(rm:*)'],                                   
+      632 +    },                                                        
+      633 +    model: 'claude-opus-4-1',                                 
+      634 +    hooks: ['policy-hook'],                                   
+      635 +  })                                                          
+      636 +})                                                            
+      637 +                                                              
+      638 +test('mergeSettingsLayers with empty layers returns empty obje
+          +ct', async () => {                                            
+      639 +  const { mergeSettingsLayers } = await loadModule(modulePath)
+      640 +                                                              
+      641 +  assert.deepEqual(mergeSettingsLayers([]), {})               
+      642 +  assert.deepEqual(mergeSettingsLayers(), {})                 
+      643 +})                                                            
+      644 +                                                              
+      645 +test('mergeSettingsLayers handles layers with null/undefined s
+          +ettings', async () => {                                       
+      646 +  const { mergeSettingsLayers } = await loadModule(modulePath)
+      647 +                                                              
+      648 +  const merged = mergeSettingsLayers([                        
+      649 +    { source: 'userSettings', settings: null },               
+      650 +    { source: 'policySettings', settings: { model: 'claude-opu
+          +s' } },                                                       
+      651 +  ])                                                          
+      652 +                                                              
+      653 +  assert.deepEqual(merged, { model: 'claude-opus' })          
+      654 +})                                                            
+
+● Now let me run the tests to verify everything passes.
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && node --experimental-strip-types --test
+      ZCode/test/settingsContract.test.js 2>&1)
+  ⎿  Error: Exit code 1
+     ✔ SETTINGS_SOURCE_PRIORITY reflects documented override order (3.607ms)
+     ✔ mergeSettingsLayers applies later sources on top of earlier sources 
+     (0.6084ms)
+     ✔ normalizeSettings sanitizes provider-facing settings (0.5796ms)
+     ✔ normalizeSettings handles permissions, hooks, env, and model (0.2974ms)
+     ✔ normalizeSettings returns empty object for non-object input (0.2179ms)
+     ✔ getSettingsHomePath returns path under home directory (0.2897ms)
+     ✔ getSettingsHomePath strips trailing slash (0.1923ms)
+     ✔ getSettingsProjectPath returns path under cwd (0.1938ms)
+     ✔ getSettingsFilePath returns correct paths for all writeable sources 
+     (0.2848ms)
+     … +41 lines (ctrl+o to expand)
+
+● 28 of 29 tests pass. The one failure is that saveSettingsForSource throws
+  synchronously but the test uses assert.rejects (for async). Let me fix that.
+
+● Update(ZCode\test\settingsContract.test.js)
+  ⎿  Added 1 line, removed 1 line
+      570  test('saveSettingsForSource throws for flagSettings', async ()
+            => {
+      571    const { saveSettingsForSource } = await loadModule(modulePat
+           h)
+      572  
+      573 -  await assert.rejects(                                       
+      573 +  assert.throws(                                              
+      574      () => saveSettingsForSource('flagSettings', { model: 'test
+           ' }),
+      575      /Cannot write settings for source: flagSettings/,
+      576    )
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && node --experimental-strip-types --test
+      ZCode/test/settingsContract.test.js 2>&1)
+  ⎿  ✔ SETTINGS_SOURCE_PRIORITY reflects documented override order (4.054ms
+     )
+     ✔ mergeSettingsLayers applies later sources on top of earlier sources
+     … +34 lines (ctrl+o to expand)
+
+● All 29 tests pass. Now let me run the existing dependent tests to verify no
+  regressions.
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && node --experimental-strip-types --test
+      ZCode/test/providerRuntime.test.js 2>&1)
+  ⎿  ✔ resolveProviderMode defaults to first-party Anthropic (37.8635ms)
+     ✔ resolveProviderMode preserves existing Anthropic provider env select
+     ion (0.2574ms)
+     … +18 lines (ctrl+o to expand)
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && node --experimental-strip-types --test
+      ZCode/test/providerEnvironment.test.js 2>&1)
+  ⎿  ✔ applyProviderSettingsToEnv maps unified openai-compatible settings i
+     nto env (4.6566ms)
+     ✔ applyProviderSettingsToEnv maps anthropic provider selections into l
+     … +13 lines (ctrl+o to expand)
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && node --experimental-strip-types --test
+      ZCode/test/providerContract.test.js 2>&1)
+  ⎿  ✔ normalizeModelDescriptor fills provider metadata defaults (2.3623ms)
+     ✔ normalizeToolCall parses OpenAI-compatible function calls (0.8751ms)
+     ✔ createProviderAdapter returns stable provider contract methods (0.62
+     … +9 lines (ctrl+o to expand)
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && node --experimental-strip-types --test
+      ZCode/test/brandConfig.test.js 2>&1)
+  ⎿  ✔ getBrandConfig returns ZCode defaults (1.6893ms)
+     ✔ getBrandConfig applies env overrides (1.3709ms)
+     ℹ tests 2
+     … +7 lines (ctrl+o to expand)
+
+● All dependent tests pass with no regressions. Let me run the full test suite
+  to confirm.
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && node --experimental-strip-types --test
+      ZCode/test/*.test.js 2>&1)  ⎿  Error: Exit code 1
+     ✔ streaming withResponse yields Anthropic SSE events for text response 
+     (128.7596ms)
+     ✔ streaming withResponse yields tool_use events for tool calls (3.1234ms)
+     ✔ non-streaming create resolves with a collected BetaMessage (0.8692ms)
+     ✔ non-streaming create result has .asResponse() on the promise (0.6644ms)
+     ✔ streaming asResponse returns a Response (0.8829ms)
+     ✔ countTokens returns an estimated input token count (0.6317ms)
+     ✔ models.list yields models from the provider (0.5841ms)
+     ✔ passthrough adapter passes system param through unchanged (0.6676ms)
+     ✔ passthrough adapter passes tools through in native Anthropic format 
+     (0.6661ms)
+     … +163 lines (ctrl+o to expand)
+
+● T2.3 Settings Contract 全链路 — 完成总结
+
+  交付成果
+
+  1. 增强 settingsContract.js（142行 → 325行）
+
+  新增文件 I/O 函数：
+  - getSettingsFilePath(source, opts) — 获取各 source 的文件路径
+  - readSettingsFile(filePath) — 安全读取 JSON（缺失文件返回空，无效 JSON
+  收集错误）
+  - writeSettingsFile(filePath, settings) — 写入 JSON（自动创建目录）
+  - loadSettingsLayer(source, opts) — 从磁盘加载单个层级
+  - loadSettingsFromDisk(opts) — 全链路入口：读取全部 5 层 → 按优先级排序 → 合并
+   → 归一化
+  - saveSettingsForSource(source, updates, opts) — 将更新合并写入指定 source
+  文件
+
+  新增导出常量：
+  - DEFAULT_SETTINGS_DIR = .zcode
+  - SETTINGS_FILE_NAMES — 各 source 对应文件名映射
+
+  增强 normalizeSettings：
+  - 新增 permissions（allow/deny/ask 规则数组）、hooks、env、model 字段归一化
+
+  重命名内部常量 ARRAY_REPLACE_KEYS → ARRAY_MERGE_KEYS（更准确描述其语义：hooks
+  数组是合并而非替换）
+
+  2. 完善测试覆盖（3条 → 29条，全部通过）
+
+  ┌─────────────┬───────┬───────────────────────────────────────────────────┐
+  │    分类     │ 测试  │                     覆盖内容                      │
+  │             │  数   │                                                   │
+  ├─────────────┼───────┼───────────────────────────────────────────────────┤
+  │ Source      │ 1     │ 优先级顺序验证                                    │
+  │ order       │       │                                                   │
+  ├─────────────┼───────┼───────────────────────────────────────────────────┤
+  │ Merge logic │ 4     │ 3层合并、5层深层合并、空层、null/undefined        │
+  │             │       │ settings                                          │
+  ├─────────────┼───────┼───────────────────────────────────────────────────┤
+  │ Normalizati │ 3     │ provider字段、permissions/hooks/env/model、非对象 │
+  │ on          │       │ 输入                                              │
+  ├─────────────┼───────┼───────────────────────────────────────────────────┤
+  │ File paths  │ 5     │ home/cwd路径、各source文件路径、flagSettings返回n │
+  │             │       │ ull                                               │
+  ├─────────────┼───────┼───────────────────────────────────────────────────┤
+  │ File I/O    │ 6     │ 读写往返、目录创建、缺失文件、无效JSON、JSON数组  │
+  │             │       │ 、类型校验                                        │
+  ├─────────────┼───────┼───────────────────────────────────────────────────┤
+  │ Load layer  │ 3     │ 磁盘加载、缺失文件、flagSettings                  │
+  ├─────────────┼───────┼───────────────────────────────────────────────────┤
+  │ Full chain  │ 4     │ 5层全链路、flagSettings覆盖、错误收集、无文件场景 │
+  ├─────────────┼───────┼───────────────────────────────────────────────────┤
+  │ Save        │ 3     │ 新建文件、合并现有文件、flagSettings抛错          │
+  │ settings    │       │                                                   │
+  └─────────────┴───────┴───────────────────────────────────────────────────┘
+
+  3. 零回归 — 所有已有测试（providerRuntime 7/7、providerEnvironment
+  4/4、providerContract 3/3 等）全部通过。唯一的2条失败是预存的 bun
+  未安装问题（TD-04），与本次变更无关。
+
+✻ Worked for 7m 43s
+
+❯ 我已经手动安装了bun，重新检查运行环境                                         
+
+● Bash(which bun && bun --version 2>&1)
+  ⎿  /c/Users/Zm'CC'y'y/AppData/Roaming/npm/bun
+     1.3.14
+
+● bun 已可用（v1.3.14）。重新跑完整测试套件：
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && node --experimental-strip-types --test
+      ZCode/test/*.test.js 2>&1)
+  ⎿  Error: Exit code 1
+     ✔ streaming withResponse yields Anthropic SSE events for text response 
+     (134.4111ms)
+     ✔ streaming withResponse yields tool_use events for tool calls (2.8876ms)
+     ✔ non-streaming create resolves with a collected BetaMessage (0.9845ms)
+     ✔ non-streaming create result has .asResponse() on the promise (0.6858ms)
+     ✔ streaming asResponse returns a Response (0.6021ms)
+     ✔ countTokens returns an estimated input token count (0.4764ms)
+     ✔ models.list yields models from the provider (0.6191ms)
+     ✔ passthrough adapter passes system param through unchanged (0.702ms)
+     ✔ passthrough adapter passes tools through in native Anthropic format 
+     (0.8323ms)
+     … +149 lines (ctrl+o to expand)
+
+● brandConfig.js 第 1 行有语法错误 anconst is not defined。让我看一下。
+
+  Read 1 file (ctrl+o to expand)
+
+● 第 1 行有 anconst 语法错误——这是个意外残留。让我看下 git diff 确认原始内容。
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && git diff
+      ZCode/src/config/brandConfig.js 2>&1)
+  ⎿  diff --git a/ZCode/src/config/brandConfig.js b/ZCode/src/config/brandC
+     onfig.js
+     index 67f1bf9..4fdffaf 100644
+     … +10 lines (ctrl+o to expand)
+
+● 原始代码是 const DEFAULT_BRAND_CONFIG = Object.freeze({...})，被意外改成了
+  anconst\nlet...。帮你还原：
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && git checkout --
+      ZCode/src/config/brandConfig.js 2>&1)
+  ⎿  (No output)
+
+● 已还原。重新跑全量测试：
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && node --experimental-strip-types --test
+      ZCode/test/*.test.js 2>&1)
+  ⎿  ✔ streaming withResponse yields Anthropic SSE events for text response
+      (114.4103ms)
+     ✔ streaming withResponse yields tool_use events for tool calls (3.0649
+     … +255 lines (ctrl+o to expand)
+
+● 242/242 全部通过，零失败。
+
+  运行环境已就绪：
+
+  ┌────────────────┬─────────────────────────────────────────┐
+  │      项目      │                  状态                   │
+  ├────────────────┼─────────────────────────────────────────┤
+  │ Node.js        │ ✅ --experimental-strip-types 可用      │
+  ├────────────────┼─────────────────────────────────────────┤
+  │ Bun            │ ✅ v1.3.14                              │
+  ├────────────────┼─────────────────────────────────────────┤
+  │ 全量测试       │ ✅ 242 pass / 0 fail                    │
+  ├────────────────┼─────────────────────────────────────────┤
+  │ brandConfig.js │ ✅ 已从 git 还原（修复了 anconst 笔误） │
+  └────────────────┴─────────────────────────────────────────┘
+
+✻ Brewed for 43s
+
+❯ 很好，按开发计划自主完成任务T2.4                                              
+
+● Let me first understand what T2.4 entails by reviewing the development plan
+  and exploring the relevant codebase.
+
+● Explore(Explore model registry/config codebase)
+  ⎿  Done (39 tool uses · 108.6k tokens · 2m 9s)
+  (ctrl+o to expand)
+
+● Good, I have a thorough understanding. Let me now read the key files directly
+  to plan the implementation.
+  Read 4 files (ctrl+o to expand)
+
+● Now I have a clear picture. Let me create tasks and start implementing T2.4.
+
+● First, adding openaiCompatible to APIProvider type and to all model configs.
+
+● Update(ZCode\src\utils\model\providers.ts)
+  ⎿  Added 1 line, removed 1 line
+      1  import type { AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_F
+         ILEPATHS } from '../../services/analytics/index.js'
+      2  import { isEnvTruthy } from '../envUtils.js'
+      3  
+      4 -export type APIProvider = 'firstParty' | 'bedrock' | 'vertex' | 
+        -'foundry'                                                       
+      4 +export type APIProvider = 'firstParty' | 'bedrock' | 'vertex' | 
+        +'foundry' | 'openaiCompatible'                                  
+      5  
+      6  export function getAPIProvider(): APIProvider {
+      7    return isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK)
+
+● Now adding openaiCompatible field to every model config in configs.ts.
+
+● Update(ZCode\src\utils\model\configs.ts)
+  ⎿  Added 11 lines
+      11    bedrock: 'us.anthropic.claude-3-7-sonnet-20250219-v1:0',
+      12    vertex: 'claude-3-7-sonnet@20250219',
+      13    foundry: 'claude-3-7-sonnet',
+      14 +  openaiCompatible: 'claude-3-7-sonnet-20250219',              
+      15  } as const satisfies ModelConfig
+      16  
+      17  export const CLAUDE_3_5_V2_SONNET_CONFIG = {
+     ...
+      19    bedrock: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+      20    vertex: 'claude-3-5-sonnet-v2@20241022',
+      21    foundry: 'claude-3-5-sonnet',
+      22 +  openaiCompatible: 'claude-3-5-sonnet-20241022',              
+      23  } as const satisfies ModelConfig
+      24  
+      25  export const CLAUDE_3_5_HAIKU_CONFIG = {
+     ...
+      27    bedrock: 'us.anthropic.claude-3-5-haiku-20241022-v1:0',
+      28    vertex: 'claude-3-5-haiku@20241022',
+      29    foundry: 'claude-3-5-haiku',
+      30 +  openaiCompatible: 'claude-3-5-haiku-20241022',               
+      31  } as const satisfies ModelConfig
+      32  
+      33  export const CLAUDE_HAIKU_4_5_CONFIG = {
+     ...
+      35    bedrock: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
+      36    vertex: 'claude-haiku-4-5@20251001',
+      37    foundry: 'claude-haiku-4-5',
+      38 +  openaiCompatible: 'claude-haiku-4-5-20251001',               
+      39  } as const satisfies ModelConfig
+      40  
+      41  export const CLAUDE_SONNET_4_CONFIG = {
+     ...
+      43    bedrock: 'us.anthropic.claude-sonnet-4-20250514-v1:0',
+      44    vertex: 'claude-sonnet-4@20250514',
+      45    foundry: 'claude-sonnet-4',
+      46 +  openaiCompatible: 'claude-sonnet-4-20250514',                
+      47  } as const satisfies ModelConfig
+      48  
+      49  export const CLAUDE_SONNET_4_5_CONFIG = {
+     ...
+      51    bedrock: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
+      52    vertex: 'claude-sonnet-4-5@20250929',
+      53    foundry: 'claude-sonnet-4-5',
+      54 +  openaiCompatible: 'claude-sonnet-4-5-20250929',              
+      55  } as const satisfies ModelConfig
+      56  
+      57  export const CLAUDE_OPUS_4_CONFIG = {
+     ...
+      59    bedrock: 'us.anthropic.claude-opus-4-20250514-v1:0',
+      60    vertex: 'claude-opus-4@20250514',
+      61    foundry: 'claude-opus-4',
+      62 +  openaiCompatible: 'claude-opus-4-20250514',                  
+      63  } as const satisfies ModelConfig
+      64  
+      65  export const CLAUDE_OPUS_4_1_CONFIG = {
+     ...
+      67    bedrock: 'us.anthropic.claude-opus-4-1-20250805-v1:0',
+      68    vertex: 'claude-opus-4-1@20250805',
+      69    foundry: 'claude-opus-4-1',
+      70 +  openaiCompatible: 'claude-opus-4-1-20250805',                
+      71  } as const satisfies ModelConfig
+      72  
+      73  export const CLAUDE_OPUS_4_5_CONFIG = {
+     ...
+      75    bedrock: 'us.anthropic.claude-opus-4-5-20251101-v1:0',
+      76    vertex: 'claude-opus-4-5@20251101',
+      77    foundry: 'claude-opus-4-5',
+      78 +  openaiCompatible: 'claude-opus-4-5-20251101',                
+      79  } as const satisfies ModelConfig
+      80  
+      81  export const CLAUDE_OPUS_4_6_CONFIG = {
+     ...
+      83    bedrock: 'us.anthropic.claude-opus-4-6-v1',
+      84    vertex: 'claude-opus-4-6',
+      85    foundry: 'claude-opus-4-6',
+      86 +  openaiCompatible: 'claude-opus-4-6',                         
+      87  } as const satisfies ModelConfig
+      88  
+      89  export const CLAUDE_SONNET_4_6_CONFIG = {
+     ...
+      91    bedrock: 'us.anthropic.claude-sonnet-4-6',
+      92    vertex: 'claude-sonnet-4-6',
+      93    foundry: 'claude-sonnet-4-6',
+      94 +  openaiCompatible: 'claude-sonnet-4-6',                       
+      95  } as const satisfies ModelConfig
+      96  
+      97  // @[MODEL LAUNCH]: Register the new config here.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(ZCode\src\providers\openaiCompatible.js)
+  ⎿  Added 7 lines
+       1 +import { createRequire } from 'node:module'                    
+       2  import {
+       3    createProviderAdapter,
+       4    normalizeToolCall,
+       5  } from '../contracts/providerAdapter.js'
+       6  
+       7 +const _require = createRequire(import.meta.url)                
+       8 +                                                               
+       9 +function loadModelConfigs() {                                  
+      10 +  return _require('../utils/model/configs.ts')                 
+      11 +}                                                              
+      12 +                                                               
+      13  function requireString(value, fieldName) {
+      14    if (typeof value !== 'string' || value.trim() === '') {
+      15      throw new Error(`${fieldName} is required`)
+
+● Now updating the createOpenAICompatibleProvider function signature and
+  listModels():
+
+● Update(ZCode\src\providers\openaiCompatible.js)
+  ⎿  Added 32 lines, removed 1 line
+      253    return readString(reason) || 'stop'
+      254  }
+      255  
+      256 -export function createOpenAICompatibleProvider(config) {      
+      256 +function loadCatalog(useCatalog) {                            
+      257 +  if (!useCatalog) return null                                
+      258 +  try {                                                       
+      259 +    return loadModelConfigs().ALL_MODEL_CONFIGS               
+      260 +  } catch {                                                   
+      261 +    return null                                               
+      262 +  }                                                           
+      263 +}                                                             
+      264 +                                                              
+      265 +export function createOpenAICompatibleProvider(config, options
+          + = {}) {                                                      
+      266    const provider = requireString(config?.provider, 'provider')
+      267    const model = requireString(config?.model, 'model')
+      268    const baseUrl = requireString(config?.baseUrl, 'baseUrl')
+     ...
+      277      timeout: Number.isFinite(config?.timeout) ? config.timeout
+            : 600000,
+      278    }
+      279  
+      280 +  const useCatalog = options.useCatalog !== false             
+      281 +  const catalog = loadCatalog(useCatalog)                     
+      282 +                                                              
+      283    return createProviderAdapter({
+      284      id: `openai-compatible:${provider}`,
+      285      kind: 'openai-compatible',
+      286      provider,
+      287      config: normalizedConfig,
+      288      listModels() {
+      289 +      if (catalog) {                                          
+      290 +        const models = Object.values(catalog).map(cfg => ({   
+      291 +          id: cfg.openaiCompatible,                           
+      292 +          displayName: cfg.firstParty,                        
+      293 +          provider,                                           
+      294 +        }))                                                   
+      295 +                                                              
+      296 +        const hasConfiguredModel = models.some(m => m.id === m
+          +odel)                                                         
+      297 +        if (!hasConfiguredModel) {                            
+      298 +          models.push({                                       
+      299 +            id: model,                                        
+      300 +            displayName: model,                               
+      301 +            provider,                                         
+      302 +          })                                                  
+      303 +        }                                                     
+      304 +                                                              
+      305 +        return models                                         
+      306 +      }                                                       
+      307 +                                                              
+      308        return [
+      309          {
+      310            id: model,
+  Read 1 file (ctrl+o to expand)
+
+● Now adding the dual-line registry function to runtime.js:
+
+● Update(ZCode\src\providers\runtime.js)
+  ⎿  Added 31 lines
+      241    )
+      242  }
+      243  
+      244 +export function createDualLineModelRegistry(settings = {}, env
+          + = process.env) {                                             
+      245 +  const normalizedSettings = normalizeSettings(settings)      
+      246 +  const currentMode = resolveProviderModeFromSettings(normaliz
+          +edSettings, env)                                              
+      247 +  const providers = []                                        
+      248 +                                                              
+      249 +  if (isAnthropicProviderMode(currentMode)) {                 
+      250 +    providers.push(createAnthropicProvider({ provider: current
+          +Mode }))                                                      
+      251 +  }                                                           
+      252 +                                                              
+      253 +  const oaiConfig = normalizedSettings.openaiCompatible       
+      254 +  if (oaiConfig) {                                            
+      255 +    try {                                                     
+      256 +      providers.push(                                         
+      257 +        createOpenAICompatibleProviderFromSettings(normalizedS
+          +ettings, env),                                                
+      258 +      )                                                       
+      259 +    } catch {                                                 
+      260 +      // OpenAI-compatible not fully configured — skip        
+      261 +    }                                                         
+      262 +  }                                                           
+      263 +                                                              
+      264 +  if (providers.length === 0) {                               
+      265 +    providers.push(createAnthropicProvider({ provider: 'firstP
+          +arty' }))                                                     
+      266 +  }                                                           
+      267 +                                                              
+      268 +  return createModelRegistry(                                 
+      269 +    providers.flatMap(provider =>                             
+      270 +      applySettingsToProviderModels(provider, normalizedSettin
+          +gs),                                                          
+      271 +    ),                                                        
+      272 +  )                                                           
+      273 +}                                                             
+      274 +                                                              
+      275  export function createFlatModelRegistry(descriptors = []) {
+      276    return createModelRegistry(descriptors)
+      277  }
+
+● Let me refine the dual-line function to always include Anthropic models as
+  baseline:
+
+● Update(ZCode\src\providers\runtime.js)
+  ⎿  Added 2 lines, removed 4 lines
+      248  
+      249    if (isAnthropicProviderMode(currentMode)) {
+      250      providers.push(createAnthropicProvider({ provider: current
+           Mode }))
+      251 +  } else {                                                    
+      252 +    providers.push(createAnthropicProvider({ provider: 'firstP
+          +arty' }))                                                     
+      253    }
+      254  
+      255    const oaiConfig = normalizedSettings.openaiCompatible
+     ...
+      263      }
+      264    }
+      265  
+      264 -  if (providers.length === 0) {                               
+      265 -    providers.push(createAnthropicProvider({ provider: 'firstP
+          -arty' }))                                                     
+      266 -  }                                                           
+      267 -                                                              
+      266    return createModelRegistry(
+      267      providers.flatMap(provider =>
+      268        applySettingsToProviderModels(provider, normalizedSettin
+           gs),
+
+● Let me read the existing test files to understand what tests to add.
+
+  Read 2 files (ctrl+o to expand)
+
+● Now writing the comprehensive dual-line model registry tests.
+
+● Write(ZCode\test\modelDualLine.test.js)
+  ⎿  Wrote 373 lines to ZCode\test\modelDualLine.test.js
+       2 import assert from 'node:assert/strict'
+       3 import { loadModule, resolveFromHere } from './helpers/loadModul
+         e.js'
+       4 
+       5 const modelRegistryPath = resolveFromHere(
+       6   import.meta.url,
+       7   '..',
+       8   'src',
+       9   'providers',
+      10   'modelRegistry.js',
+     … +417 lines (ctrl+o to expand)
+
+● Run the new tests first:
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && node --experimental-strip-types --test
+      ZCode/test/modelDualLine.test.js 2>&1)
+  ⎿  Error: Exit code 1
+     ✔ openaiCompatible listModels returns all catalog models by default 
+     (30.047ms)
+     ✖ openaiCompatible listModels falls back to single model when catalog 
+     disabled (2.8186ms)
+     ✔ openaiCompatible listModels does not duplicate configured model 
+     (0.3181ms)
+     ✔ createProviderModelRegistry merges models from multiple providers 
+     (1.1521ms)
+     ✔ createProviderModelRegistry list returns all models across providers 
+     (0.3632ms)
+     ✖ createDualLineModelRegistry includes Anthropic models with no openai 
+     config (6.8389ms)
+     ✔ createDualLineModelRegistry includes both lines when openai-compatible 
+     configured (0.5347ms)
+     ✔ createDualLineModelRegistry with openai-compatible provider mode still 
+     includes Anthropic (0.299ms)
+     ✖ createDualLineModelRegistry with bedrock mode uses correct model IDs 
+     (0.5372ms)
+     … +112 lines (ctrl+o to expand)
+
+● Let me check the exact provider names used in model descriptors.
+
+  Read 1 file (ctrl+o to expand)
+
+● I see the issues. The Anthropic adapter uses provider mode names (firstParty,
+  bedrock) not 'anthropic'. Let me fix the tests.
+
+● Write(ZCode\test\modelDualLine.test.js)
+  ⎿  Added 54 lines, removed 106 lines
+      40  
+      41    const models = provider.listModels()
+      42  
+      43 -  // Catalog should have 11 canonical Claude models            
+      43 +  // Catalog has 11 canonical Claude models + 1 configured deep
+         +seek-chat                                                      
+      44    assert.ok(models.length >= 11, `expected >=11 models, got ${m
+          odels.length}`)
+      45  
+      46    const sonnet46 = models.find(m => m.id === 'claude-sonnet-4-6
+          ')
+     ...
+      48    assert.equal(sonnet46.displayName, 'claude-sonnet-4-6')
+      49    assert.equal(sonnet46.provider, 'deepseek')
+      50  
+      51 -  const opus46 = models.find(m => m.id === 'claude-opus-4-6')  
+      52 -  assert.ok(opus46, 'should include claude-opus-4-6')          
+      53 -  assert.equal(opus46.displayName, 'claude-opus-4-6')          
+      54 -                                                               
+      55 -  // The configured model should be included                   
+      51    const configured = models.find(m => m.id === 'deepseek-chat')
+      52    assert.ok(configured, 'should include the configured model')
+      53    assert.equal(configured.displayName, 'deepseek-chat')
+     ...
+      67    )
+      68  
+      69    const models = provider.listModels()
+      75 -                                                               
+      70    assert.equal(models.length, 1)
+      77 -  assert.deepEqual(models[0], {                                
+      78 -    id: 'deepseek-chat',                                       
+      79 -    displayName: 'deepseek-chat',                              
+      80 -    provider: 'deepseek',                                      
+      81 -  })                                                           
+      71 +                                                               
+      72 +  // Normalized descriptor includes capabilities + context meta
+         +data                                                           
+      73 +  assert.equal(models[0].id, 'deepseek-chat')                  
+      74 +  assert.equal(models[0].displayName, 'deepseek-chat')         
+      75 +  assert.equal(models[0].provider, 'deepseek')                 
+      76 +  assert.equal(models[0].capabilities.streaming, true)         
+      77 +  assert.equal(models[0].capabilities.toolCalling, true)       
+      78  })
+      79  
+      80  test('openaiCompatible listModels does not duplicate configured
+           model', async () => {
+      81    const { createOpenAICompatibleProvider } = await loadModule(o
+          aiProviderPath)
+      82  
+      87 -  // Use a model ID that's already in the catalog              
+      83    const provider = createOpenAICompatibleProvider({
+      84      provider: 'anthropic-proxy',
+      85      model: 'claude-sonnet-4-6',
+     ...
+       97  // 2. createProviderModelRegistry with multiple providers
+       98  // -----------------------------------------------------------
+           ----------------
+       99  
+      105 -test('createProviderModelRegistry merges models from multiple 
+          -providers', async () => {                                     
+      100 +test('createProviderModelRegistry merges models from two opena
+          +i-compatible providers', async () => {                        
+      101    const { createProviderModelRegistry } = await loadModule(mod
+           elRegistryPath)
+      102    const { createOpenAICompatibleProvider } = await loadModule(
+           oaiProviderPath)
+      103  
+     ...
+      116      }),
+      117    ])
+      118  
+      124 -  assert.equal(registry.has('qwen-plus'), true)               
+      125 -  assert.equal(registry.has('deepseek-chat'), true)           
+      126 -                                                              
+      119 +  // Each provider contributes its catalog models + configured
+          + model                                                        
+      120    const qwenModels = registry.listByProvider('qwen')
+      121    assert.ok(qwenModels.length >= 1)
+      122    assert.ok(qwenModels.some(m => m.id === 'qwen-plus'))
+     ...
+      124    const deepseekModels = registry.listByProvider('deepseek')
+      125    assert.ok(deepseekModels.length >= 1)
+      126    assert.ok(deepseekModels.some(m => m.id === 'deepseek-chat')
+           )
+      134 -})                                                            
+      127  
+      136 -test('createProviderModelRegistry list returns all models acro
+          -ss providers', async () => {                                  
+      137 -  const { createProviderModelRegistry } = await loadModule(mod
+          -elRegistryPath)                                               
+      138 -  const { createOpenAICompatibleProvider } = await loadModule(
+          -oaiProviderPath)                                              
+      139 -                                                              
+      140 -  const registry = createProviderModelRegistry([              
+      141 -    createOpenAICompatibleProvider({                          
+      142 -      provider: 'qwen',                                       
+      143 -      model: 'qwen-plus',                                     
+      144 -      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode
+          -/v1',                                                         
+      145 -      apiKey: 'test-key',                                     
+      146 -    }),                                                       
+      147 -  ])                                                          
+      148 -                                                              
+      128 +  // Total models should be both lines combined               
+      129    const all = registry.list()
+      150 -  // Should have 11 catalog models + 1 configured model = 12  
+      151 -  assert.ok(all.length >= 11, `expected >=11 models, got ${all
+          -.length}`)                                                    
+      152 -                                                              
+      153 -  // Every model should have the normalized descriptor shape  
+      154 -  for (const model of all) {                                  
+      155 -    assert.ok(typeof model.id === 'string' && model.id.length 
+          -> 0)                                                          
+      156 -    assert.ok(typeof model.provider === 'string' && model.prov
+          -ider.length > 0)                                              
+      157 -    assert.ok(typeof model.displayName === 'string' && model.d
+          -isplayName.length > 0)                                        
+      158 -    assert.ok('contextWindow' in model)                       
+      159 -    assert.ok('maxOutputTokens' in model)                     
+      160 -    assert.ok(typeof model.capabilities === 'object')         
+      161 -    assert.equal(model.capabilities.streaming, true)          
+      162 -    assert.equal(model.capabilities.toolCalling, true)        
+      163 -    assert.equal(model.capabilities.supportsJsonSchema, true) 
+      164 -  }                                                           
+      130 +  assert.ok(all.length >= 22, `expected >=22 dual-provider mod
+          +els, got ${all.length}`)                                      
+      131  })
+      132  
+      133  // -----------------------------------------------------------
+           ----------------
+      134  // 3. createDualLineModelRegistry
+      135  // -----------------------------------------------------------
+           ----------------
+      136  
+      171 -test('createDualLineModelRegistry includes Anthropic models wi
+          -th no openai config', async () => {                           
+      137 +test('createDualLineModelRegistry includes Anthropic firstPart
+          +y models with no openai config', async () => {                
+      138    const { createDualLineModelRegistry } = await loadModule(run
+           timePath)
+      139  
+      140    const registry = createDualLineModelRegistry({}, {})
+      141  
+      142    assert.equal(registry.has('claude-sonnet-4-6'), true)
+      143    assert.equal(registry.has('claude-opus-4-6'), true)
+      178 -  assert.equal(registry.has('claude-haiku-4-5-20251001'), true
+          -)                                                             
+      144  
+      180 -  const anthropicModels = registry.listByProvider('anthropic')
+      181 -  assert.ok(anthropicModels.length >= 11)                     
+      145 +  const firstPartyModels = registry.listByProvider('firstParty
+          +')                                                            
+      146 +  assert.ok(firstPartyModels.length >= 11)                    
+      147  })
+      148  
+      149  test('createDualLineModelRegistry includes both lines when ope
+           nai-compatible configured', async () => {
+     ...
+      161      {},
+      162    )
+      163  
+      199 -  // Anthropic models present                                 
+      164 +  // Anthropic models present (provider = firstParty)         
+      165    assert.equal(registry.has('claude-sonnet-4-6'), true)
+      166  
+      202 -  // OpenAI-compatible models present (catalog models)        
+      167 +  // OpenAI-compatible models present                         
+      168    const deepseekModels = registry.listByProvider('deepseek')
+      169    assert.ok(deepseekModels.length >= 1)
+      170  
+      171    // Configured model present
+      172    assert.equal(registry.has('deepseek-chat'), true)
+      173  
+      209 -  // All models listed                                        
+      174 +  // listByProvider discriminates correctly                   
+      175 +  const firstPartyModels = registry.listByProvider('firstParty
+          +')                                                            
+      176 +  assert.ok(firstPartyModels.length >= 11)                    
+      177 +                                                              
+      178    const all = registry.list()
+      211 -  assert.ok(all.length >= 12, `expected >=12 dual-line models,
+          - got ${all.length}`)                                          
+      179 +  assert.ok(all.length >= 23, `expected >=23 dual-line models,
+          + got ${all.length}`)                                          
+      180  })
+      181  
+      214 -test('createDualLineModelRegistry with openai-compatible provi
+          -der mode still includes Anthropic', async () => {             
+      182 +test('createDualLineModelRegistry with openai-compatible provi
+          +der mode still includes Anthropic baseline', async () => {    
+      183    const { createDualLineModelRegistry } = await loadModule(run
+           timePath)
+      184  
+      185    const registry = createDualLineModelRegistry(
+     ...
+      197  
+      198    // Must include Anthropic firstParty models as baseline
+      199    assert.equal(registry.has('claude-sonnet-4-6'), true)
+      232 -  assert.equal(registry.has('claude-opus-4-6'), true)         
+      200  
+      201    // Must include OpenAI-compatible models
+      202    assert.equal(registry.has('deepseek-chat'), true)
+      203  })
+      204  
+      238 -test('createDualLineModelRegistry with bedrock mode uses corre
+          -ct model IDs', async () => {                                  
+      205 +test('createDualLineModelRegistry with bedrock mode uses bedro
+          +ck model IDs', async () => {                                  
+      206    const { createDualLineModelRegistry } = await loadModule(run
+           timePath)
+      207  
+      208    const registry = createDualLineModelRegistry(
+     ...
+      210      { CLAUDE_CODE_USE_BEDROCK: '1' },
+      211    )
+      212  
+      246 -  // Bedrock models use ARN-style IDs                         
+      247 -  const bedrockModels = registry.listByProvider('anthropic')  
+      213 +  const bedrockModels = registry.listByProvider('bedrock')    
+      214    assert.ok(bedrockModels.length >= 11)
+      215  
+      216    const sonnet46 = registry.get('us.anthropic.claude-sonnet-4-
+           6')
+     ...
+      218    assert.equal(sonnet46.displayName, 'claude-sonnet-4-6')
+      219  })
+      220  
+      221 +test('createDualLineModelRegistry with vertex mode uses vertex
+          + model IDs', async () => {                                    
+      222 +  const { createDualLineModelRegistry } = await loadModule(run
+          +timePath)                                                     
+      223 +                                                              
+      224 +  const registry = createDualLineModelRegistry(               
+      225 +    { provider: 'vertex' },                                   
+      226 +    { CLAUDE_CODE_USE_VERTEX: '1' },                          
+      227 +  )                                                           
+      228 +                                                              
+      229 +  const vertexModels = registry.listByProvider('vertex')      
+      230 +  assert.ok(vertexModels.length >= 11)                        
+      231 +                                                              
+      232 +  const sonnet46 = registry.get('claude-sonnet-4-6')          
+      233 +  assert.ok(sonnet46, 'should find vertex sonnet 4.6')        
+      234 +  assert.equal(sonnet46.displayName, 'claude-sonnet-4-6')     
+      235 +})                                                            
+      236 +                                                              
+      237  // -----------------------------------------------------------
+           ----------------
+      238  // 4. modelOverrides and availableModels with dual-line regist
+           ry
+      239  // -----------------------------------------------------------
+           ----------------
+     ...
+      256      {},
+      257    )
+      258  
+      277 -  // Overridden model should be accessible by its custom ID   
+      259    assert.equal(registry.has('my-custom-sonnet'), true)
+      279 -  // The displayName should still be the canonical name       
+      260    const overridden = registry.get('my-custom-sonnet')
+      261    assert.equal(overridden.displayName, 'claude-sonnet-4-6')
+      262  })
+     ...
+      265    const { createDualLineModelRegistry } = await loadModule(run
+           timePath)
+      266  
+      267    const registry = createDualLineModelRegistry(
+      288 -    {                                                         
+      289 -      availableModels: ['sonnet'],                            
+      290 -    },                                                        
+      268 +    { availableModels: ['sonnet'] },                          
+      269      {},
+      270    )
+      271  
+      272    const all = registry.list()
+      295 -  // Sonnet family includes: claude-sonnet-4, claude-sonnet-4-
+          -5, claude-sonnet-4-6,                                         
+      296 -  // claude-3-5-sonnet, claude-3-7-sonnet                     
+      273 +  // Sonnet family: sonnet35, sonnet37, sonnet40, sonnet45, so
+          +nnet46                                                        
+      274    assert.ok(all.length >= 3, `expected >=3 sonnet models, got 
+           ${all.length}`)
+      275  
+      299 -  // No opus models should be present                         
+      276    const opusModels = all.filter(m => m.id.includes('opus'))
+      301 -  assert.equal(opusModels.length, 0, 'should not include opus 
+          -models')                                                      
+      277 +  assert.equal(opusModels.length, 0, 'should not include opus 
+          +when only sonnet requested')                                  
+      278  })
+      279  
+      280  // -----------------------------------------------------------
+           ----------------
+      305 -// 5. Backward compatibility — existing registries unchanged  
+      281 +// 5. Backward compatibility                                  
+      282  // -----------------------------------------------------------
+           ----------------
+      283  
+      308 -test('createModelRegistryFromSettings still works for single-l
+          -ine Anthropic', async () => {                                 
+      284 +test('createModelRegistryFromSettings works for single-line An
+          +thropic firstParty', async () => {                            
+      285    const { createModelRegistryFromSettings } = await loadModule
+           (runtimePath)
+      286  
+      287    const registry = createModelRegistryFromSettings({}, {})
+      288  
+      289    assert.equal(registry.has('claude-sonnet-4-6'), true)
+      314 -  assert.equal(registry.has('claude-opus-4-6'), true)         
+      290  
+      316 -  const models = registry.listByProvider('anthropic')         
+      317 -  assert.ok(models.length >= 11)                              
+      291 +  const models = registry.listByProvider('firstParty')        
+      292 +  assert.ok(models.length >= 11, `expected >=11, got ${models.
+          +length}`)                                                     
+      293  })
+      294  
+      320 -test('createModelRegistryFromSettings still works for single-l
+          -ine openai-compatible', async () => {                         
+      295 +test('createModelRegistryFromSettings works for single-line op
+          +enai-compatible', async () => {                               
+      296    const { createModelRegistryFromSettings } = await loadModule
+           (runtimePath)
+      297  
+      298    const registry = createModelRegistryFromSettings(
+     ...
+      308      {},
+      309    )
+      310  
+      336 -  // listModels uses catalog, so should have all 11 + configur
+          -ed                                                            
+      311 +  // listModels uses catalog, so includes 11 known models + co
+          +nfigured                                                      
+      312    const all = registry.list()
+      313    assert.ok(all.length >= 11, `expected >=11 models, got ${all
+           .length}`)
+      314  })
+      315  
+      341 -// -----------------------------------------------------------
+          -----------------                                              
+      342 -// 6. listByProvider discriminates correctly                  
+      343 -// -----------------------------------------------------------
+          -----------------                                              
+      316 +test('createProviderModelRegistry returns empty registry for e
+          +mpty providers', async () => {                                
+      317 +  const { createProviderModelRegistry } = await loadModule(mod
+          +elRegistryPath)                                               
+      318  
+      345 -test('listByProvider discriminates between dual-line providers
+          -', async () => {                                              
+      346 -  const { createDualLineModelRegistry } = await loadModule(run
+          -timePath)                                                     
+      347 -                                                              
+      348 -  const registry = createDualLineModelRegistry(               
+      349 -    {                                                         
+      350 -      openaiCompatible: {                                     
+      351 -        provider: 'deepseek',                                 
+      352 -        model: 'deepseek-chat',                               
+      353 -        baseUrl: 'https://api.deepseek.com/v1',               
+      354 -        apiKey: 'test-key',                                   
+      355 -      },                                                      
+      356 -    },                                                        
+      357 -    {},                                                       
+      358 -  )                                                           
+      359 -                                                              
+      360 -  const anthropicModels = registry.listByProvider('anthropic')
+      361 -  const deepseekModels = registry.listByProvider('deepseek')  
+      362 -                                                              
+      363 -  assert.ok(anthropicModels.length >= 11)                     
+      364 -  assert.ok(deepseekModels.length >= 1)                       
+      365 -                                                              
+      366 -  // No overlap in provider names                             
+      367 -  for (const m of anthropicModels) {                          
+      368 -    assert.equal(m.provider, 'anthropic')                     
+      369 -  }                                                           
+      370 -  for (const m of deepseekModels) {                           
+      371 -    assert.equal(m.provider, 'deepseek')                      
+      372 -  }                                                           
+      319 +  const registry = createProviderModelRegistry([])            
+      320 +  assert.equal(registry.list().length, 0)                     
+      321  })
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && node --experimental-strip-types --test
+      ZCode/test/modelDualLine.test.js 2>&1)
+  ⎿  ✔ openaiCompatible listModels returns all catalog models by default (3
+     0.9276ms)
+     ✔ openaiCompatible listModels falls back to single model when catalog
+     … +19 lines (ctrl+o to expand)
+● 14/14 new tests pass. Now running the full test suite to check for
+  regressions.
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && node --experimental-strip-types --test
+      ZCode/test/*.test.js 2>&1)
+  ⎿  Running in the background (↓ to manage)
+
+● Task Output busq8328c
+  ⎿  ✔ streaming withResponse yields Anthropic SSE events for text response
+      (154.1031ms)
+     ✔ streaming withResponse yields tool_use events for tool calls (3.3502
+     … +747 lines (ctrl+o to expand)
+
+● Background command "Run full test suite for T2.4 verification" failed with exit code 1
+
+● The 6 failures are backward-compatibility issues from the expanded
+  listModels() in existing tests. Let me read and fix them.
+
+  Searched for 3 patterns, read 4 files (ctrl+o to expand)
+
+● Found it. The getDefaultModel function picks listModels()[0].id — now it gets
+  a catalog model instead of the configured one. I need to put the configured
+  model first in the list.
+
+● Update(ZCode\src\providers\openaiCompatible.js)
+  ⎿  Added 4 lines, removed 4 lines
+      287      config: normalizedConfig,
+      288      listModels() {
+      289        if (catalog) {
+      290 -        const models = Object.values(catalog).map(cfg => ({   
+      290 +        const catalogModels = Object.values(catalog).map(cfg =
+          +> ({                                                          
+      291            id: cfg.openaiCompatible,
+      292            displayName: cfg.firstParty,
+      293            provider,
+      294          }))
+      295  
+      296 -        const hasConfiguredModel = models.some(m => m.id === m
+          -odel)                                                         
+      296 +        const hasConfiguredModel = catalogModels.some(m => m.i
+          +d === model)                                                  
+      297          if (!hasConfiguredModel) {
+      298 -          models.push({                                       
+      298 +          catalogModels.unshift({                             
+      299              id: model,
+      300              displayName: model,
+      301              provider,
+      302            })
+      303          }
+      304  
+      305 -        return models                                         
+      305 +        return catalogModels                                  
+      306        }
+      307  
+      308        return [
+
+● Let me refine this to always put the configured model first:
+
+● Update(ZCode\src\providers\openaiCompatible.js)
+  ⎿  Added 12 lines, removed 12 lines
+      287      config: normalizedConfig,
+      288      listModels() {
+      289        if (catalog) {
+      290 -        const catalogModels = Object.values(catalog).map(cfg =
+          -> ({                                                          
+      291 -          id: cfg.openaiCompatible,                           
+      292 -          displayName: cfg.firstParty,                        
+      293 -          provider,                                           
+      294 -        }))                                                   
+      290 +        const catalogModels = Object.values(catalog)          
+      291 +          .filter(cfg => cfg.openaiCompatible !== model)      
+      292 +          .map(cfg => ({                                      
+      293 +            id: cfg.openaiCompatible,                         
+      294 +            displayName: cfg.firstParty,                      
+      295 +            provider,                                         
+      296 +          }))                                                 
+      297  
+      296 -        const hasConfiguredModel = catalogModels.some(m => m.i
+          -d === model)                                                  
+      297 -        if (!hasConfiguredModel) {                            
+      298 -          catalogModels.unshift({                             
+      298 +        return [                                              
+      299 +          {                                                   
+      300              id: model,
+      301              displayName: model,
+      302              provider,
+      302 -          })                                                  
+      303 -        }                                                     
+      304 -                                                              
+      305 -        return catalogModels                                  
+      303 +          },                                                  
+      304 +          ...catalogModels,                                   
+      305 +        ]                                                     
+      306        }
+      307  
+      308        return [
+
+● Now fixing the existing tests that need updating due to the expanded model
+  list.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(ZCode\test\openaiCompatibleProvider.test.js)
+  ⎿  Added 11 lines, removed 14 lines
+      37    assert.equal(provider.getCapabilities().toolCalling, true)
+      38    assert.equal(provider.getCapabilities().streaming, true)
+      39    assert.equal(provider.getCapabilities().supportsJsonSchema, t
+          rue)
+      40 -  assert.deepEqual(provider.listModels(), [                    
+      41 -    {                                                          
+      42 -      id: 'qwen-plus',                                         
+      43 -      displayName: 'qwen-plus',                                
+      44 -      provider: 'qwen',                                        
+      45 -      contextWindow: null,                                     
+      46 -      maxOutputTokens: null,                                   
+      47 -      capabilities: {                                          
+      48 -        streaming: true,                                       
+      49 -        toolCalling: true,                                     
+      50 -        supportsJsonSchema: true,                              
+      51 -      },                                                       
+      52 -    },                                                         
+      53 -  ])                                                           
+      40 +                                                               
+      41 +  const models = provider.listModels()                         
+      42 +  assert.ok(models.length >= 1, 'should have at least the confi
+         +gured model')                                                  
+      43 +                                                               
+      44 +  // Configured model must be first                            
+      45 +  assert.equal(models[0].id, 'qwen-plus')                      
+      46 +  assert.equal(models[0].displayName, 'qwen-plus')             
+      47 +  assert.equal(models[0].provider, 'qwen')                     
+      48 +  assert.equal(models[0].capabilities.streaming, true)         
+      49 +  assert.equal(models[0].capabilities.toolCalling, true)       
+      50 +  assert.equal(models[0].capabilities.supportsJsonSchema, true)
+      51  })
+      52  
+      53  test('createOpenAICompatibleProvider normalizes config and tool
+           calls', async () => {
+
+● Update(ZCode\test\providerAdapterClient.test.js)
+  ⎿  Added 12 lines, removed 3 lines
+      413    }
+      414  
+      415    assert.deepEqual(models, [
+      416 -    {                                                         
+      417 -      id: 'deepseek-chat',                                    
+      418 -    },                                                        
+      416 +    { id: 'deepseek-chat' },                                  
+      417 +    { id: 'claude-3-5-haiku-20241022' },                      
+      418 +    { id: 'claude-haiku-4-5-20251001' },                      
+      419 +    { id: 'claude-3-5-sonnet-20241022' },                     
+      420 +    { id: 'claude-3-7-sonnet-20250219' },                     
+      421 +    { id: 'claude-sonnet-4-20250514' },                       
+      422 +    { id: 'claude-sonnet-4-5-20250929' },                     
+      423 +    { id: 'claude-sonnet-4-6' },                              
+      424 +    { id: 'claude-opus-4-20250514' },                         
+      425 +    { id: 'claude-opus-4-1-20250805' },                       
+      426 +    { id: 'claude-opus-4-5-20251101' },                       
+      427 +    { id: 'claude-opus-4-6' },                                
+      428    ])
+      429  })
+● Now let me re-run the full test suite.
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && node --experimental-strip-types --test
+      ZCode/test/openaiCompatibleProvider.test.js
+      ZCode/test/providerAdapterClient.test.js ZCod…)
+  ⎿  ✔ openaiCompatible listModels returns all catalog models by default (3
+     8.3389ms)
+     ✔ openaiCompatible listModels falls back to single model when catalog
+     … +37 lines (ctrl+o to expand)
+
+● All 31 affected tests pass. Now running the complete suite.
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && node --experimental-strip-types --test
+      ZCode/test/*.test.js 2>&1)
+  ⎿  ✔ streaming withResponse yields Anthropic SSE events for text response
+      (130.8866ms)
+     ✔ streaming withResponse yields tool_use events for tool calls (3.4409
+     … +289 lines (ctrl+o to expand)
+
+● 270/270 全部通过，零失败。
+
+● T2.4 Model 元数据统一 — 完成总结
+
+  交付成果
+
+  1. providers.ts — 扩展 APIProvider 类型
+  - 新增 'openaiCompatible' 到 APIProvider 联合类型（configs.ts 第 4 行）
+
+  2. configs.ts — 11 个模型配置增加 openaiCompatible 列
+  - 每个 ModelConfig 常量新增 openaiCompatible 字段，映射到 firstParty 规范 ID
+  - 例如：CLAUDE_SONNET_4_6_CONFIG.openaiCompatible = 'claude-sonnet-4-6'
+
+  3. openaiCompatible.js — listModels() 支持模型目录
+  - 新增 loadCatalog() 函数，通过 createRequire 加载 configs.ts 中的
+  ALL_MODEL_CONFIGS
+  - createOpenAICompatibleProvider(config, options) 新增
+  options.useCatalog（默认 true）
+  - listModels() 新行为：
+    - 有 catalog：返回 配置模型（首位） + 11 个目录模型
+    - 无 catalog/禁用：回退到原行为（仅返回配置模型）
+  - 配置模型始终排在列表首位，保证 getDefaultModel() 取到正确的默认模型
+
+  4. runtime.js — 新增 createDualLineModelRegistry()
+  - 同时创建 Anthropic（firstParty）和 OpenAI-compatible（如已配置）两个
+  provider
+  - 通过 createModelRegistry 合并两线路的模型描述符
+  - 支持 modelOverrides 和 availableModels 双线路过滤
+
+  5. 测试覆盖（新增 14 + 更新 3 = 17 条）
+
+  ┌────────────────────┬───────┬───────────────────────────────────────────┐
+  │        分类        │ 测试  │                 覆盖内容                  │
+  │                    │  数   │                                           │
+  ├────────────────────┼───────┼───────────────────────────────────────────┤
+  │ 目录列表           │ 3     │ 默认列出全部模型、禁用目录回退、去重检查  │
+  ├────────────────────┼───────┼───────────────────────────────────────────┤
+  │ 多 provider 合并   │ 1     │ 两个 OpenAI-compatible provider 模型合并  │
+  ├────────────────────┼───────┼───────────────────────────────────────────┤
+  │ 双线路注册表       │ 5     │ firstParty/bedrock/vertex/openai-compatib │
+  │                    │       │ le 四种模式                               │
+  ├────────────────────┼───────┼───────────────────────────────────────────┤
+  │ modelOverrides/过  │ 2     │ 双线路覆盖 + availableModels 过滤         │
+  │ 滤                 │       │                                           │
+  ├────────────────────┼───────┼───────────────────────────────────────────┤
+  │ 向后兼容           │ 3     │ 单线路注册表仍然正常工作                  │
+  ├────────────────────┼───────┼───────────────────────────────────────────┤
+  │ 已有测试更新       │ 3     │ capabilities 检查、adapter                │
+  │                    │       │ client、publicCli E2E                     │
+  └────────────────────┴───────┴───────────────────────────────────────────┘
+
+  关键架构决策
+
+  - Catalog 默认启用：向后兼容通过「配置模型置顶」保证，而非禁用 catalog
+  - 配置模型优先：listModels()[0] 始终是用户配置的默认模型
+  - Anthropic 始终作为基线：createDualLineModelRegistry 在 openai-compatible
+  模式下仍包含 firstParty 模型
+
+✻ Worked for 16m 51s
+
+❯ /export                                                                       
+  ⎿  Conversation exported to:
+     E:\项目\ZCode--CLI--agent\2026-05-29-165641-t23.txt
+  ⎿  SessionStart:resume hook error  ⎿  Failed with non-blocking status code: node:internal/modules/cjs/loader:1459

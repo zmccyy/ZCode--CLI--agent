@@ -56,7 +56,7 @@ bun run doctor --json
 ```json
 {
   "productName": "ZCode",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "startable": true,
   "provider": {
     "mode": "openai-compatible",
@@ -159,7 +159,7 @@ bun test
 npm test
 ```
 
-测试覆盖：Provider 桥接、CLI 契约、`.env` 加载、`-p --json` 真实请求链路。
+测试覆盖：Provider 桥接、CLI 契约、`.env` 加载、会话管理、Hooks、MCP、权限系统、Agent、Plan Mode。全量 801 测试（795 通过，5 跳过，1 已知问题）。
 
 ---
 

@@ -12,7 +12,19 @@ type Props = {
   fileContent?: string;
 };
 
-/** Renders a list of diff hunks with ellipsis separators between them. */
+function computeStats(hunks: StructuredPatchHunk[]): { added: number; removed: number } {
+  let added = 0;
+  let removed = 0;
+  for (const hunk of hunks) {
+    for (const line of hunk.lines) {
+      if (line.startsWith('+') && !line.startsWith('+++')) added++;
+      else if (line.startsWith('-') && !line.startsWith('---')) removed++;
+    }
+  }
+  return { added, removed };
+}
+
+/** Renders a list of diff hunks with ellipsis separators between them and a stats header. */
 export function StructuredDiffList({
   hunks,
   dim,
@@ -21,10 +33,38 @@ export function StructuredDiffList({
   firstLine,
   fileContent
 }: Props): React.ReactNode {
-  return intersperse(hunks.map(hunk => <Box flexDirection="column" key={hunk.newStart}>
-        <StructuredDiff patch={hunk} dim={dim} width={width} filePath={filePath} firstLine={firstLine} fileContent={fileContent} />
-      </Box>), i => <NoSelect fromLeftEdge key={`ellipsis-${i}`}>
-        <Text dimColor>...</Text>
-      </NoSelect>);
+  const stats = computeStats(hunks);
+  const totalChanges = stats.added + stats.removed;
+
+  const statsLine = [
+    stats.added > 0 ? `+${stats.added}` : null,
+    stats.removed > 0 ? `-${stats.removed}` : null,
+    totalChanges > 0 ? `${totalChanges} change${totalChanges !== 1 ? 's' : ''}` : null,
+    totalChanges === 0 ? 'no changes' : null,
+  ].filter(Boolean).join('  ');
+
+  const header = (
+    <Box key="diff-header" flexDirection="column">
+      <NoSelect fromLeftEdge>
+        <Text dimColor>
+          {`── ${filePath}  ${statsLine} ──`}
+        </Text>
+      </NoSelect>
+    </Box>
+  );
+
+  const diffElements = hunks.map(hunk => (
+    <Box flexDirection="column" key={hunk.newStart}>
+      <StructuredDiff patch={hunk} dim={dim} width={width} filePath={filePath} firstLine={firstLine} fileContent={fileContent} />
+    </Box>
+  ));
+
+  const withSeparators = intersperse(diffElements, i => (
+    <NoSelect fromLeftEdge key={`ellipsis-${i}`}>
+      <Text dimColor>...</Text>
+    </NoSelect>
+  ));
+
+  return <Box flexDirection="column">{header}{withSeparators}</Box>;
 }
 //# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJuYW1lcyI6WyJTdHJ1Y3R1cmVkUGF0Y2hIdW5rIiwiUmVhY3QiLCJCb3giLCJOb1NlbGVjdCIsIlRleHQiLCJpbnRlcnNwZXJzZSIsIlN0cnVjdHVyZWREaWZmIiwiUHJvcHMiLCJodW5rcyIsImRpbSIsIndpZHRoIiwiZmlsZVBhdGgiLCJmaXJzdExpbmUiLCJmaWxlQ29udGVudCIsIlN0cnVjdHVyZWREaWZmTGlzdCIsIlJlYWN0Tm9kZSIsIm1hcCIsImh1bmsiLCJuZXdTdGFydCIsImkiXSwic291cmNlcyI6WyJTdHJ1Y3R1cmVkRGlmZkxpc3QudHN4Il0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCB0eXBlIHsgU3RydWN0dXJlZFBhdGNoSHVuayB9IGZyb20gJ2RpZmYnXG5pbXBvcnQgKiBhcyBSZWFjdCBmcm9tICdyZWFjdCdcbmltcG9ydCB7IEJveCwgTm9TZWxlY3QsIFRleHQgfSBmcm9tICcuLi9pbmsuanMnXG5pbXBvcnQgeyBpbnRlcnNwZXJzZSB9IGZyb20gJy4uL3V0aWxzL2FycmF5LmpzJ1xuaW1wb3J0IHsgU3RydWN0dXJlZERpZmYgfSBmcm9tICcuL1N0cnVjdHVyZWREaWZmLmpzJ1xuXG50eXBlIFByb3BzID0ge1xuICBodW5rczogU3RydWN0dXJlZFBhdGNoSHVua1tdXG4gIGRpbTogYm9vbGVhblxuICB3aWR0aDogbnVtYmVyXG4gIGZpbGVQYXRoOiBzdHJpbmdcbiAgZmlyc3RMaW5lOiBzdHJpbmcgfCBudWxsXG4gIGZpbGVDb250ZW50Pzogc3RyaW5nXG59XG5cbi8qKiBSZW5kZXJzIGEgbGlzdCBvZiBkaWZmIGh1bmtzIHdpdGggZWxsaXBzaXMgc2VwYXJhdG9ycyBiZXR3ZWVuIHRoZW0uICovXG5leHBvcnQgZnVuY3Rpb24gU3RydWN0dXJlZERpZmZMaXN0KHtcbiAgaHVua3MsXG4gIGRpbSxcbiAgd2lkdGgsXG4gIGZpbGVQYXRoLFxuICBmaXJzdExpbmUsXG4gIGZpbGVDb250ZW50LFxufTogUHJvcHMpOiBSZWFjdC5SZWFjdE5vZGUge1xuICByZXR1cm4gaW50ZXJzcGVyc2UoXG4gICAgaHVua3MubWFwKGh1bmsgPT4gKFxuICAgICAgPEJveCBmbGV4RGlyZWN0aW9uPVwiY29sdW1uXCIga2V5PXtodW5rLm5ld1N0YXJ0fT5cbiAgICAgICAgPFN0cnVjdHVyZWREaWZmXG4gICAgICAgICAgcGF0Y2g9e2h1bmt9XG4gICAgICAgICAgZGltPXtkaW19XG4gICAgICAgICAgd2lkdGg9e3dpZHRofVxuICAgICAgICAgIGZpbGVQYXRoPXtmaWxlUGF0aH1cbiAgICAgICAgICBmaXJzdExpbmU9e2ZpcnN0TGluZX1cbiAgICAgICAgICBmaWxlQ29udGVudD17ZmlsZUNvbnRlbnR9XG4gICAgICAgIC8+XG4gICAgICA8L0JveD5cbiAgICApKSxcbiAgICBpID0+IChcbiAgICAgIDxOb1NlbGVjdCBmcm9tTGVmdEVkZ2Uga2V5PXtgZWxsaXBzaXMtJHtpfWB9PlxuICAgICAgICA8VGV4dCBkaW1Db2xvcj4uLi48L1RleHQ+XG4gICAgICA8L05vU2VsZWN0PlxuICAgICksXG4gIClcbn1cbiJdLCJtYXBwaW5ncyI6IkFBQUEsY0FBY0EsbUJBQW1CLFFBQVEsTUFBTTtBQUMvQyxPQUFPLEtBQUtDLEtBQUssTUFBTSxPQUFPO0FBQzlCLFNBQVNDLEdBQUcsRUFBRUMsUUFBUSxFQUFFQyxJQUFJLFFBQVEsV0FBVztBQUMvQyxTQUFTQyxXQUFXLFFBQVEsbUJBQW1CO0FBQy9DLFNBQVNDLGNBQWMsUUFBUSxxQkFBcUI7QUFFcEQsS0FBS0MsS0FBSyxHQUFHO0VBQ1hDLEtBQUssRUFBRVIsbUJBQW1CLEVBQUU7RUFDNUJTLEdBQUcsRUFBRSxPQUFPO0VBQ1pDLEtBQUssRUFBRSxNQUFNO0VBQ2JDLFFBQVEsRUFBRSxNQUFNO0VBQ2hCQyxTQUFTLEVBQUUsTUFBTSxHQUFHLElBQUk7RUFDeEJDLFdBQVcsQ0FBQyxFQUFFLE1BQU07QUFDdEIsQ0FBQzs7QUFFRDtBQUNBLE9BQU8sU0FBU0Msa0JBQWtCQSxDQUFDO0VBQ2pDTixLQUFLO0VBQ0xDLEdBQUc7RUFDSEMsS0FBSztFQUNMQyxRQUFRO0VBQ1JDLFNBQVM7RUFDVEM7QUFDSyxDQUFOLEVBQUVOLEtBQUssQ0FBQyxFQUFFTixLQUFLLENBQUNjLFNBQVMsQ0FBQztFQUN6QixPQUFPVixXQUFXLENBQ2hCRyxLQUFLLENBQUNRLEdBQUcsQ0FBQ0MsSUFBSSxJQUNaLENBQUMsR0FBRyxDQUFDLGFBQWEsQ0FBQyxRQUFRLENBQUMsR0FBRyxDQUFDLENBQUNBLElBQUksQ0FBQ0MsUUFBUSxDQUFDO0FBQ3JELFFBQVEsQ0FBQyxjQUFjLENBQ2IsS0FBSyxDQUFDLENBQUNELElBQUksQ0FBQyxDQUNaLEdBQUcsQ0FBQyxDQUFDUixHQUFHLENBQUMsQ0FDVCxLQUFLLENBQUMsQ0FBQ0MsS0FBSyxDQUFDLENBQ2IsUUFBUSxDQUFDLENBQUNDLFFBQVEsQ0FBQyxDQUNuQixTQUFTLENBQUMsQ0FBQ0MsU0FBUyxDQUFDLENBQ3JCLFdBQVcsQ0FBQyxDQUFDQyxXQUFXLENBQUM7QUFFbkMsTUFBTSxFQUFFLEdBQUcsQ0FDTixDQUFDLEVBQ0ZNLENBQUMsSUFDQyxDQUFDLFFBQVEsQ0FBQyxZQUFZLENBQUMsR0FBRyxDQUFDLENBQUMsWUFBWUEsQ0FBQyxFQUFFLENBQUM7QUFDbEQsUUFBUSxDQUFDLElBQUksQ0FBQyxRQUFRLENBQUMsR0FBRyxFQUFFLElBQUk7QUFDaEMsTUFBTSxFQUFFLFFBQVEsQ0FFZCxDQUFDO0FBQ0giLCJpZ25vcmVMaXN0IjpbXX0=

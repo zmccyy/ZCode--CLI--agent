@@ -204,7 +204,8 @@ npm run test:watch
 - Provider / runtime 兼容桥接
 - 公共 CLI 的 `help` / `doctor` / `start` 契约
 - 本地 `.env` 加载行为
-- `-p --json` 真实 OpenAI-compatible 请求链路
+- 会话管理、Hooks、MCP、权限系统、Agent、Plan Mode
+- 全量 801 测试（795 通过，5 跳过）
 
 ---
 
@@ -279,4 +280,4 @@ ZCODE_OPENAI_MODEL=llama3
 - [系统设计说明书](../系统设计说明书.md)
 - [ZCode 源码 README](../../ZCode/README.md)
 
-*最后更新：2026-05-31*
+*最后更新：2026-06-01*

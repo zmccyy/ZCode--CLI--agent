@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZCode CLI Agent — Terminal-Native AI Coding Agent</title>
+<style>
+/* ============================================================
+   DESIGN TOKENS
+   ============================================================ */
+:root {
+  --bg: #0a0a0a;
+  --fg: #33ff00;
+  --fg-dim: #1a7a00;
+  --fg-muted: #0d3d00;
+  --amber: #ffb000;
+  --red: #ff3333;
+  --cyan: #00d4ff;
+  --font: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+  --glow: 0 0 5px rgba(51, 255, 0, 0.4);
+  --glow-strong: 0 0 10px rgba(51, 255, 0, 0.7);
+  --border: 1px solid #1f521f;
+  --border-bright: 1px solid #33ff00;
+  --radius: 0px;
+}
+
+/* ============================================================
+   RESET & BASE
+   ============================================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: unset;
+}
+
+body {
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* CRT Scanline Overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.06) 2px,
+    rgba(0, 0, 0, 0.06) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Selection */
+::selection {
+  background: var(--fg);
+  color: var(--bg);
+}
+
+/* ============================================================
+   TYPOGRAPHY
+   ============================================================ */
+h1, h2, h3, h4 {
+  font-family: var(--font);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-shadow: var(--glow);
+}
+
+h1 { font-size: 1.4rem; }
+h2 { font-size: 1.15rem; }
+h3 { font-size: 1rem; }
+
+a {
+  color: var(--fg);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--fg-dim);
+  transition: border-color 0.15s;
+}
+a:hover {
+  border-bottom-style: solid;
+  text-shadow: var(--glow-strong);
+}
+
+/* ============================================================
+   LAYOUT
+   ============================================================ */
+.container {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+  position: relative;
+  z-index: 1;
+}
+
+.section-divider {
+  text-align: center;
+  color: var(--fg-dim);
+  margin: 2.5rem 0;
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  user-select: none;
+}
+
+/* ============================================================
+   NAV BAR
+   ============================================================ */
+.nav {
+  border-bottom: var(--border);
+  padding: 0.75rem 0;
+  position: sticky;
+  top: 0;
+  background: rgba(10, 10, 10, 0.95);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+}
+.nav-inner {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.nav-brand {
+  color: var(--fg);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-shadow: var(--glow);
+}
+.nav-brand .cursor {
+  display: inline-block;
+  width: 0.55em;
+  height: 1.1em;
+  background: var(--fg);
+  vertical-align: text-bottom;
+  animation: blink 1s step-end infinite;
+}
+.nav-links {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+.nav-links a {
+  font-size: 0.8rem;
+  border-bottom: none;
+  color: var(--fg-dim);
+  transition: color 0.15s;
+}
+.nav-links a:hover {
+  color: var(--fg);
+  text-shadow: var(--glow);
+  border-bottom: none;
+}
+
+/* ============================================================
+   HERO
+   ============================================================ */
+.hero {
+  padding: 3rem 0 2rem 0;
+  text-align: center;
+}
+.hero-pre {
+  font-family: var(--font);
+  font-size: clamp(0.42rem, 1.1vw, 0.65rem);
+  line-height: 1.15;
+  color: var(--fg);
+  text-shadow: var(--glow);
+  white-space: pre;
+  display: inline-block;
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+.hero-tagline {
+  font-size: 1.05rem;
+  color: var(--amber);
+  margin-bottom: 0.6rem;
+  min-height: 1.8em;
+}
+.hero-tagline .cursor {
+  color: var(--fg);
+  animation: blink 1s step-end infinite;
+}
+.hero-sub {
+  color: var(--fg-dim);
+  font-size: 0.82rem;
+}
+.hero-version {
+  display: inline-block;
+  margin-top: 1rem;
+  padding: 0.2rem 0.6rem;
+  border: var(--border);
+  color: var(--fg-dim);
+  font-size: 0.75rem;
+}
+
+/* ============================================================
+   TERMINAL WINDOW
+   ============================================================ */
+.terminal {
+  border: var(--border-bright);
+  background: rgba(0, 0, 0, 0.6);
+  margin: 2rem 0;
+  overflow: hidden;
+}
+.terminal-titlebar {
+  background: #0d1a0d;
+  border-bottom: var(--border);
+  padding: 0.3rem 0.6rem;
+  font-size: 0.75rem;
+  color: var(--fg-dim);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  user-select: none;
+}
+.terminal-titlebar .dot {
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--fg-dim);
+  display: inline-block;
+}
+.terminal-body {
+  padding: 1rem 1.2rem;
+  overflow-x: auto;
+}
+.terminal-body pre {
+  font-family: var(--font);
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--fg);
+  white-space: pre;
+  margin: 0;
+}
+.terminal-body .prompt { color: var(--fg); }
+.terminal-body .cmd { color: var(--cyan); }
+.terminal-body .dim { color: var(--fg-dim); }
+.terminal-body .amber { color: var(--amber); }
+.terminal-body .red { color: var(--red); }
+
+/* ============================================================
+   FEATURE GRID
+   ============================================================ */
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 1.2rem;
+  margin: 1.5rem 0;
+}
+.feature-card {
+  border: var(--border);
+  padding: 1.2rem;
+  background: rgba(0, 0, 0, 0.4);
+  position: relative;
+  transition: border-color 0.2s, text-shadow 0.2s;
+}
+.feature-card:hover {
+  border-color: var(--fg);
+  text-shadow: var(--glow);
+  animation: glitch 0.3s ease;
+}
+.feature-card h3 {
+  color: var(--amber);
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+.feature-card h3::before { content: '> '; }
+.feature-card p {
+  color: var(--fg-dim);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+.feature-card .card-border-tl,
+.feature-card .card-border-br {
+  position: absolute;
+  color: var(--fg-dim);
+  font-size: 0.6rem;
+  line-height: 0;
+  user-select: none;
+}
+.feature-card .card-border-tl { top: 2px; left: 3px; }
+.feature-card .card-border-br { bottom: 2px; right: 3px; }
+
+/* ============================================================
+   INSTALL SECTION
+   ============================================================ */
+.install-block {
+  border: var(--border);
+  padding: 1.2rem 1.5rem;
+  background: rgba(0, 0, 0, 0.5);
+  margin: 1.5rem 0;
+}
+.install-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.4rem 0;
+  font-size: 0.82rem;
+  position: relative;
+}
+.install-line .prompt-sign {
+  color: var(--fg);
+  flex-shrink: 0;
+}
+.install-line code {
+  color: var(--fg);
+  background: none;
+  font-family: var(--font);
+  word-break: break-all;
+}
+.install-line .copy-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  background: none;
+  border: var(--border);
+  color: var(--fg-dim);
+  font-family: var(--font);
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.install-line .copy-btn:hover {
+  background: var(--fg);
+  color: var(--bg);
+  border-color: var(--fg);
+}
+.install-line .copy-btn.copied {
+  border-color: var(--fg);
+  color: var(--fg);
+}
+
+/* ============================================================
+   STATS BARS
+   ============================================================ */
+.stats-section {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+.stat-item {
+  border: var(--border);
+  padding: 0.8rem 1rem;
+}
+.stat-label {
+  font-size: 0.7rem;
+  color: var(--fg-dim);
+  text-transform: uppercase;
+  margin-bottom: 0.3rem;
+}
+.stat-value {
+  font-size: 1.5rem;
+  color: var(--fg);
+  text-shadow: var(--glow);
+}
+.stat-bar-wrap {
+  margin-top: 0.4rem;
+  background: var(--fg-muted);
+  height: 6px;
+}
+.stat-bar-fill {
+  height: 100%;
+  background: var(--fg);
+  box-shadow: 0 0 6px rgba(51, 255, 0, 0.5);
+  transition: width 1.5s ease-out;
+}
+
+/* ============================================================
+   COMMAND TABLE
+   ============================================================ */
+.cmd-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  font-size: 0.78rem;
+}
+.cmd-table th {
+  text-align: left;
+  padding: 0.5rem 0.8rem;
+  border-bottom: var(--border-bright);
+  color: var(--amber);
+  text-transform: uppercase;
+  font-weight: 400;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+}
+.cmd-table td {
+  padding: 0.4rem 0.8rem;
+  border-bottom: 1px solid var(--fg-muted);
+  color: var(--fg-dim);
+}
+.cmd-table td:first-child {
+  color: var(--fg);
+  white-space: nowrap;
+}
+.cmd-table tr:hover td {
+  background: rgba(51, 255, 0, 0.03);
+}
+
+/* ============================================================
+   QUICK START
+   ============================================================ */
+.quickstart-steps {
+  counter-reset: step;
+  list-style: none;
+}
+.quickstart-steps li {
+  counter-increment: step;
+  padding: 0.6rem 0;
+  border-bottom: 1px dashed var(--fg-muted);
+  font-size: 0.82rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.8rem;
+}
+.quickstart-steps li::before {
+  content: '[' counter(step) ']';
+  color: var(--amber);
+  flex-shrink: 0;
+  font-size: 0.75rem;
+}
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+.footer {
+  border-top: var(--border);
+  margin-top: 3rem;
+  padding: 2rem 0 1.5rem;
+  text-align: center;
+  color: var(--fg-dim);
+  font-size: 0.75rem;
+}
+.footer .status-line {
+  margin-bottom: 0.6rem;
+}
+.footer .status-ok { color: var(--fg); }
+.footer-links {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+.footer-links a {
+  font-size: 0.72rem;
+}
+.footer .blink-cursor {
+  animation: blink 1s step-end infinite;
+}
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+.btn {
+  display: inline-block;
+  font-family: var(--font);
+  font-size: 0.78rem;
+  padding: 0.5rem 1.2rem;
+  border: var(--border-bright);
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-shadow: var(--glow);
+  transition: all 0.15s;
+}
+.btn:hover {
+  background: var(--fg);
+  color: var(--bg);
+  text-shadow: none;
+}
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+@keyframes glitch {
+  0% { transform: translate(0); }
+  20% { transform: translate(-1px, 1px); }
+  40% { transform: translate(1px, -1px); }
+  60% { transform: translate(-1px, -1px); }
+  80% { transform: translate(1px, 1px); }
+  100% { transform: translate(0); }
+}
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.anim-fade-in {
+  animation: fadeInUp 0.6s ease forwards;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 640px) {
+  .container { padding: 1rem 0.8rem; }
+  .hero { padding: 2rem 0 1rem; }
+  .hero-pre { font-size: clamp(0.3rem, 2.2vw, 0.5rem); }
+  .features-grid { grid-template-columns: 1fr; }
+  .stats-section { grid-template-columns: 1fr 1fr; }
+  .nav-inner { flex-direction: column; }
+  .cmd-table { font-size: 0.68rem; }
+  .cmd-table td, .cmd-table th { padding: 0.3rem 0.4rem; }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .hero-tagline .cursor { animation: none; }
+  .feature-card:hover { animation: none; }
+  .footer .blink-cursor { animation: none; }
+  .nav-brand .cursor { animation: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <div class="nav-inner">
+    <span class="nav-brand">ZCODE<span class="cursor"></span></span>
+    <div class="nav-links">
+      <a href="#features">[ Features ]</a>
+      <a href="#install">[ Install ]</a>
+      <a href="#quickstart">[ Quick Start ]</a>
+      <a href="#commands">[ Commands ]</a>
+      <a href="https://github.com/zmccyy/ZCode--CLI--agent" target="_blank" rel="noopener">[ GitHub ]</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+
+<!-- HERO -->
+<section class="hero anim-fade-in">
+  <pre class="hero-pre">
+ ███████╗  ██████╗  ██████╗  ██████╗  ███████╗
+ ╚══███╔╝ ██╔════╝ ██╔═══██╗ ██╔══██╗ ██╔════╝
+   ███╔╝  ██║      ██║   ██║ ██║  ██║ █████╗
+  ███╔╝   ██║      ██║   ██║ ██║  ██║ ██╔══╝
+ ███████╗ ╚██████╗ ╚██████╔╝ ██████╔╝ ███████╗
+ ╚══════╝  ╚═════╝  ╚═════╝  ╚═════╝  ╚══════╝
+  </pre>
+  <div class="hero-tagline" id="typewriter"></div>
+  <p class="hero-sub">Describe the task. Ship the work. All from your terminal.</p>
+  <span class="hero-version">v0.1.0 — [ STABLE ]</span>
+</section>
+
+<div class="section-divider">// ---------------------------------------------------------</div>
+
+<!-- TERMINAL DEMO -->
+<h2>+--- LIVE DEMO ---+</h2>
+<div class="terminal">
+  <div class="terminal-titlebar">
+    <span class="dot"></span> zcode@terminal ~ zcode -p "Explain this repository"
+  </div>
+  <div class="terminal-body">
+<pre><span class="dim">$</span> <span class="cmd">cd ZCode && zcode -p "What does this project do?" --json</span>
+
+<span class="dim">.</span>
+<span class="dim">.</span>
+<span class="dim">.</span>
+
+<span class="amber">{</span>
+<span class="amber">  "provider":</span> <span class="cmd">"openai-compatible:deepseek"</span><span class="amber">,</span>
+<span class="amber">  "model":</span> <span class="cmd">"deepseek-v4-pro"</span><span class="amber">,</span>
+<span class="amber">  "result":</span> <span class="cmd">"ZCode CLI Agent is a terminal-native AI coding assistant</span>
+<span class="cmd">   that enables multi-provider LLM interactions, file editing,</span>
+<span class="cmd">   shell command execution, and MCP tool integration — all</span>
+<span class="cmd">   from within the command line."</span><span class="amber">,</span>
+<span class="amber">  "cost":</span> <span class="cmd">0.0342</span><span class="amber">,</span>
+<span class="amber">  "tokens":</span> <span class="cmd">{ "input": 15234, "output": 512 }</span>
+<span class="amber">}</span>
+
+<span class="dim">$</span> <span class="prompt">zcode --help</span>
+<span class="dim">ZCode CLI Agent v0.1.0
+
+COMMANDS:
+  help        Show available commands
+  doctor      Run system diagnostics
+  models      List configured AI models
+  print       Execute prompt non-interactively (-p)
+
+FLAGS:
+  -p, --print      Non-interactive mode
+  --json           JSON output format
+  --write          Auto-apply edits
+  --plan           Preview mode (no writes)
+  --yolo           Auto-approve all actions
+  --reasoning      Show model reasoning stream
+
+[ OK ] Ready.</span></pre>
+  </div>
+</div>
+
+<div class="section-divider">// ---------------------------------------------------------</div>
+
+<!-- FEATURES -->
+<h2 id="features">+--- FEATURES ---+</h2>
+<div class="features-grid">
+
+  <div class="feature-card anim-fade-in">
+    <span class="card-border-tl">+--</span>
+    <h3>Multi-Provider LLM</h3>
+    <p>Anthropic Claude, AWS Bedrock, Google Vertex, Azure OpenAI, DeepSeek, and any OpenAI-compatible API — switch providers with a config flag.</p>
+    <span class="card-border-br">--+</span>
+  </div>
+
+  <div class="feature-card anim-fade-in">
+    <span class="card-border-tl">+--</span>
+    <h3>Rich Tool System</h3>
+    <p>35+ built-in tools: file read/write/edit, shell exec, grep, glob, LSP diagnostics, WebFetch, WebSearch, skills, and extensible sub-agents.</p>
+    <span class="card-border-br">--+</span>
+  </div>
+
+  <div class="feature-card anim-fade-in">
+    <span class="card-border-tl">+--</span>
+    <h3>MCP Integration</h3>
+    <p>Plug in external tools via Model Context Protocol servers. Extend the agent with custom capabilities without modifying core code.</p>
+    <span class="card-border-br">--+</span>
+  </div>
+
+  <div class="feature-card anim-fade-in">
+    <span class="card-border-tl">+--</span>
+    <h3>Permission Control</h3>
+    <p>Four modes: Plan (preview only), Agent (ask per action), YOLO (auto-approve), Auto (bypass). Fine-grained control over every tool invocation.</p>
+    <span class="card-border-br">--+</span>
+  </div>
+
+  <div class="feature-card anim-fade-in">
+    <span class="card-border-tl">+--</span>
+    <h3>Interactive Ink TUI</h3>
+    <p>Full-screen terminal REPL with session resume, context compression, layered memory, and real-time cost tracking — built on React + Ink.</p>
+    <span class="card-border-br">--+</span>
+  </div>
+
+  <div class="feature-card anim-fade-in">
+    <span class="card-border-tl">+--</span>
+    <h3>Scriptable & CI-Ready</h3>
+    <p>Non-interactive mode with JSON output for CI pipelines. --write, --plan, --yolo, --reasoning flags for every automation scenario.</p>
+    <span class="card-border-br">--+</span>
+  </div>
+
+  <div class="feature-card anim-fade-in">
+    <span class="card-border-tl">+--</span>
+    <h3>Persistent Tasks</h3>
+    <p>Create, track, and auto-restore task lists across sessions. Background tasks with DreamTask, LocalAgentTask, and remote agent orchestration.</p>
+    <span class="card-border-br">--+</span>
+  </div>
+
+  <div class="feature-card anim-fade-in">
+    <span class="card-border-tl">+--</span>
+    <h3>Keyboard-Driven</h3>
+    <p>Fully configurable keybindings: F1 help, Ctrl+K command palette, Ctrl+R history, chord sequences, Vim-mode navigation — no mouse needed.</p>
+    <span class="card-border-br">--+</span>
+  </div>
+
+</div>
+
+<div class="section-divider">// ---------------------------------------------------------</div>
+
+<!-- INSTALL -->
+<h2 id="install">+--- INSTALLATION ---+</h2>
+<div class="install-block">
+  <p style="color:var(--fg-dim);font-size:0.78rem;margin-bottom:0.6rem;"># Requires Bun &gt;= 1.0 or Node.js &gt;= 22</p>
+  <div class="install-line">
+    <span class="prompt-sign">$</span>
+    <code>bun install -g zcode</code>
+    <button class="copy-btn" onclick="copyToClipboard('bun install -g zcode', this)">[ COPY ]</button>
+  </div>
+  <div class="install-line">
+    <span class="prompt-sign">$</span>
+    <code>npm install -g zcode</code>
+    <button class="copy-btn" onclick="copyToClipboard('npm install -g zcode', this)">[ COPY ]</button>
+  </div>
+  <p style="color:var(--fg-dim);font-size:0.72rem;margin-top:0.6rem;"># Or clone and run from source</p>
+  <div class="install-line">
+    <span class="prompt-sign">$</span>
+    <code>git clone https://github.com/zmccyy/ZCode--CLI--agent.git && cd ZCode--CLI--agent/ZCode && bun install</code>
+    <button class="copy-btn" onclick="copyToClipboard('git clone https://github.com/zmccyy/ZCode--CLI--agent.git && cd ZCode--CLI--agent/ZCode && bun install', this)">[ COPY ]</button>
+  </div>
+</div>
+
+<div class="section-divider">// ---------------------------------------------------------</div>
+
+<!-- QUICK START -->
+<h2 id="quickstart">+--- QUICK START ---+</h2>
+<ol class="quickstart-steps">
+  <li>Set your API key: <code style="color:var(--fg)">export ANTHROPIC_API_KEY=sk-ant-...</code> or configure <code style="color:var(--fg)">~/.zcode/config.json</code> for any supported provider.</li>
+  <li>Run interactive mode: <code style="color:var(--fg)">zcode</code> — opens the full terminal REPL with Ink TUI.</li>
+  <li>One-shot prompt: <code style="color:var(--fg)">zcode -p "Refactor the auth module to use JWT"</code> — runs non-interactively and prints the result.</li>
+  <li>Run diagnostics: <code style="color:var(--fg)">zcode doctor</code> — checks your environment, provider config, and tool availability.</li>
+  <li>List models: <code style="color:var(--fg)">zcode models</code> — shows all configured AI models across your providers.</li>
+  <li>Explore docs: <code style="color:var(--fg)">zcode help</code> — browse the full command reference from within the REPL.</li>
+</ol>
+
+<div class="section-divider">// ---------------------------------------------------------</div>
+
+<!-- STATS -->
+<h2>+--- SYSTEM STATUS ---+</h2>
+<div class="stats-section">
+  <div class="stat-item">
+    <div class="stat-label">Tests Passing</div>
+    <div class="stat-value">795 / 801</div>
+    <div class="stat-bar-wrap"><div class="stat-bar-fill" style="width: 99.25%"></div></div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Built-in Tools</div>
+    <div class="stat-value">35+</div>
+    <div class="stat-bar-wrap"><div class="stat-bar-fill" style="width: 100%"></div></div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Commands</div>
+    <div class="stat-value">95+</div>
+    <div class="stat-bar-wrap"><div class="stat-bar-fill" style="width: 95%"></div></div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">LLM Providers</div>
+    <div class="stat-value">6</div>
+    <div class="stat-bar-wrap"><div class="stat-bar-fill" style="width: 85%"></div></div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Permission Modes</div>
+    <div class="stat-value">4</div>
+    <div class="stat-bar-wrap"><div class="stat-bar-fill" style="width: 100%"></div></div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Platform Support</div>
+    <div class="stat-value">Win / Mac / Linux</div>
+    <div class="stat-bar-wrap"><div class="stat-bar-fill" style="width: 100%"></div></div>
+  </div>
+</div>
+
+<div class="section-divider">// ---------------------------------------------------------</div>
+
+<!-- COMMAND REFERENCE -->
+<h2 id="commands">+--- COMMAND REFERENCE ---+</h2>
+<table class="cmd-table">
+  <thead>
+    <tr><th>Command / Flag</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>zcode</td><td>Start interactive REPL session (Ink TUI)</td></tr>
+    <tr><td>zcode -p "..."</td><td>Non-interactive prompt execution</td></tr>
+    <tr><td>zcode --json</td><td>Output results as JSON (for CI/CD)</td></tr>
+    <tr><td>zcode --write</td><td>Auto-apply file edits without confirmation</td></tr>
+    <tr><td>zcode --plan</td><td>Plan-only mode: preview, no file writes</td></tr>
+    <tr><td>zcode --yolo</td><td>Auto-approve all tool permissions</td></tr>
+    <tr><td>zcode --reasoning</td><td>Stream model thinking blocks inline</td></tr>
+    <tr><td>zcode --help</td><td>Show CLI help and available options</td></tr>
+    <tr><td>zcode doctor</td><td>Run system diagnostics and config check</td></tr>
+    <tr><td>zcode models</td><td>List all configured AI models</td></tr>
+    <tr><td>zcode www</td><td>Launch this promotional website locally</td></tr>
+  </tbody>
+</table>
+
+<div class="section-divider">// ---------------------------------------------------------</div>
+
+<!-- CTA -->
+<div style="text-align:center;padding:2rem 0;">
+  <p style="color:var(--fg-dim);font-size:0.82rem;margin-bottom:1rem;">Ready to try terminal-native AI coding?</p>
+  <a class="btn" href="https://github.com/zmccyy/ZCode--CLI--agent" target="_blank" rel="noopener">[ STAR ON GITHUB ]</a>
+  &nbsp;
+  <a class="btn" href="#install">[ GET STARTED ]</a>
+</div>
+
+</div><!-- /.container -->
+
+<!-- FOOTER -->
+<footer class="footer">
+  <p class="status-line"><span class="status-ok">[ OK ]</span> ZCode CLI Agent v0.1.0 — Terminal-Native AI Coding Agent</p>
+  <p style="margin-bottom:0.6rem;">Built with Bun + TypeScript + Ink (React TUI) + Commander</p>
+  <div class="footer-links">
+    <a href="https://github.com/zmccyy/ZCode--CLI--agent" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://github.com/zmccyy/ZCode--CLI--agent/blob/main/README.md" target="_blank" rel="noopener">Documentation</a>
+    <a href="https://github.com/zmccyy/ZCode--CLI--agent/blob/main/LICENSE" target="_blank" rel="noopener">License</a>
+  </div>
+  <p style="margin-top:0.8rem;">&copy; 2026 ZCode CLI Agent. All rights reserved. <span class="blink-cursor">█</span></p>
+</footer>
+
+<!-- ============================================================
+     SCRIPTS
+     ============================================================ -->
+<script>
+// Typewriter effect
+(function() {
+  const el = document.getElementById('typewriter');
+  const text = 'Your terminal-native AI coding agent.';
+  let i = 0;
+  const speed = 55;
+
+  function type() {
+    if (i <= text.length) {
+      el.innerHTML = text.slice(0, i) + '<span class="cursor">_</span>';
+      i++;
+      setTimeout(type, speed);
+    } else {
+      // Keep cursor blinking after typing done
+      el.innerHTML = text + '<span class="cursor">_</span>';
+    }
+  }
+
+  // Small delay before starting
+  setTimeout(type, 400);
+})();
+
+// Copy to clipboard
+function copyToClipboard(text, btn) {
+  navigator.clipboard.writeText(text).then(() => {
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '[ OK ]';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.innerHTML = originalHTML;
+      btn.classList.remove('copied');
+    }, 1800);
+  }).catch(() => {
+    // Fallback for older browsers
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    btn.innerHTML = '[ OK ]';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.innerHTML = '[ COPY ]';
+      btn.classList.remove('copied');
+    }, 1800);
+  });
+}
+
+// Animate stat bars on scroll
+(function() {
+  const bars = document.querySelectorAll('.stat-bar-fill');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const bar = entry.target;
+        const targetWidth = bar.style.width;
+        bar.style.width = '0%';
+        requestAnimationFrame(() => {
+          bar.style.transition = 'width 1.2s ease-out';
+          bar.style.width = targetWidth;
+        });
+        observer.unobserve(bar);
+      }
+    });
+  }, { threshold: 0.3 });
+
+  bars.forEach(bar => {
+    const w = bar.style.width;
+    bar.style.width = '0%';
+    bar.style.transition = 'none';
+    observer.observe(bar);
+    // Store target for when it becomes visible
+    bar.dataset.targetWidth = w;
+    // Reset animation — target is reapplied in the observer callback
+    setTimeout(() => {
+      if (bar.dataset.targetWidth) {
+        bar.style.width = bar.dataset.targetWidth;
+      }
+    }, 0);
+  });
+
+  // Fix: re-apply target widths since we reset them above
+  bars.forEach(bar => {
+    const w = bar.dataset.targetWidth || '100%';
+    bar.style.width = w;
+  });
+})();
+
+console.log('%c[ ZCODE ]%c Terminal-Native AI Coding Agent %cv0.1.0',
+  'color:#33ff00;font-weight:bold;',
+  'color:#33ff00;',
+  'color:#1a7a00;');
+console.log('%c> %cOpen source at %chttps://github.com/zmccyy/ZCode--CLI--agent',
+  'color:#33ff00;', 'color:#ffb000;', 'color:#33ff00;');
+</script>
+</body>
+</html>

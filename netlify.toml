@@ -1,0 +1,8 @@
+# Netlify deploy configuration for ZCode promotional website
+# Publish directory: ZCode/www/ (static HTML, no build step)
+
+[build]
+  publish = "ZCode/www/"
+
+# Redirects and rewrites are handled by the static server automatically
+# No framework-specific redirects needed (single-page static HTML)

@@ -72,6 +72,13 @@ async function main(): Promise<void> {
     return;
   }
 
+  // Fast-path for `zcode www`: serve the promotional website
+  if (args[0] === 'www') {
+    const { wwwMain } = await import('../../www/server.js');
+    await wwwMain(args.slice(1));
+    return;
+  }
+
   // For all other paths, load the startup profiler
   const {
     profileCheckpoint

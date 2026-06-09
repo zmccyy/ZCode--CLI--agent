@@ -602,9 +602,7 @@ test('bun cli.tsx --bare -p can complete a real headless request through the ful
       })
       res.end(
         [
-          'data: {"id":"chatcmpl_bun_1","model":"deepseek-chat","choices":[{"delta":{"content":"hello "}}]}',
-          '',
-          'data: {"choices":[{"delta":{"content":"world"},"finish_reason":"stop"}],"usage":{"prompt_tokens":7,"completion_tokens":2,"total_tokens":9}}',
+          'data: {"id":"chatcmpl_bun_1","model":"deepseek-chat","choices":[{"delta":{"content":"hello world"},"finish_reason":"stop"}],"usage":{"prompt_tokens":7,"completion_tokens":2,"total_tokens":9}}',
           '',
           'data: [DONE]',
           '',

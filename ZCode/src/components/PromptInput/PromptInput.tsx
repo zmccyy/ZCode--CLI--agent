@@ -1695,6 +1695,13 @@ function PromptInput({
     isActive: helpOpen
   });
 
+  useKeybinding('help:open', () => {
+    setHelpOpen(v => !v);
+  }, {
+    context: 'Global',
+    isActive: !isModalOverlayActive
+  });
+
   // Quick Open / Global Search. Hook calls are unconditional (Rules of Hooks);
   // the handler body is feature()-gated so the setState calls and component
   // references get tree-shaken in external builds.

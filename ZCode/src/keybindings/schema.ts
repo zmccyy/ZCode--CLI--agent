@@ -122,6 +122,7 @@ export const KEYBINDING_ACTIONS = [
   // Theme picker actions
   'theme:toggleSyntaxHighlighting',
   // Help menu actions
+  'help:open',
   'help:dismiss',
   // Attachment navigation (select dialog image attachments)
   'attachments:next',

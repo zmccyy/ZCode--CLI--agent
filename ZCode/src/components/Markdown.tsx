@@ -7,7 +7,8 @@ import { type CliHighlight, getCliHighlightPromise } from '../utils/cliHighlight
 import { hashContent } from '../utils/hash.js';
 import { configureMarked, formatToken } from '../utils/markdown.js';
 import { stripPromptXMLTags } from '../utils/messages.js';
-import { MarkdownTable } from './MarkdownTable.js';
+import { MarkdownTable } from './MarkdownTable.js'
+import { CodeBlock } from './CodeBlock.js';
 type Props = {
   children: string;
   /** When true, render all text content as dim */
@@ -133,23 +134,27 @@ function MarkdownBody(t0) {
   if ($[0] !== children || $[1] !== dimColor || $[2] !== highlight || $[3] !== theme) {
     const tokens = cachedLexer(stripPromptXMLTags(children));
     elements = [];
-    let nonTableContent = "";
-    const flushNonTableContent = function flushNonTableContent() {
-      if (nonTableContent) {
-        elements.push(<Ansi key={elements.length} dimColor={dimColor}>{nonTableContent.trim()}</Ansi>);
-        nonTableContent = "";
+    let textContent = "";
+    const flushTextContent = function flushTextContent() {
+      if (textContent) {
+        elements.push(<Ansi key={elements.length} dimColor={dimColor}>{textContent.trim()}</Ansi>);
+        textContent = "";
       }
     };
     for (const token of tokens) {
       if (token.type === "table") {
-        flushNonTableContent();
+        flushTextContent();
         elements.push(<MarkdownTable key={elements.length} token={token as Tokens.Table} highlight={highlight} />);
+      } else if (token.type === "code") {
+        flushTextContent();
+        const codeToken = token as Tokens.Code;
+        elements.push(<CodeBlock key={elements.length} code={codeToken.text} language={codeToken.lang} highlight={highlight} />);
       } else {
-        nonTableContent = nonTableContent + formatToken(token, theme, 0, null, null, highlight);
-        nonTableContent;
+        textContent = textContent + formatToken(token, theme, 0, null, null, highlight);
+        textContent;
       }
     }
-    flushNonTableContent();
+    flushTextContent();
     $[0] = children;
     $[1] = dimColor;
     $[2] = highlight;

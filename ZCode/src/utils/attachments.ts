@@ -2861,6 +2861,11 @@ async function getDiagnosticAttachments(
     return []
   }
 
+  // Respect lsp.autoDiagnose setting (defaults to true when absent)
+  if (toolUseContext.getAppState().settings.lsp?.autoDiagnose === false) {
+    return []
+  }
+
   // Get new diagnostics from the tracker (IDE diagnostics via MCP)
   const newDiagnostics = await diagnosticTracker.getNewDiagnostics()
   if (newDiagnostics.length === 0) {
@@ -2887,6 +2892,11 @@ async function getLSPDiagnosticAttachments(
   if (
     !toolUseContext.options.tools.some(t => toolMatchesName(t, BASH_TOOL_NAME))
   ) {
+    return []
+  }
+
+  // Respect lsp.autoDiagnose setting (defaults to true when absent)
+  if (toolUseContext.getAppState().settings.lsp?.autoDiagnose === false) {
     return []
   }
 

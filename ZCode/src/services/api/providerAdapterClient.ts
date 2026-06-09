@@ -440,6 +440,7 @@ export function convertResponseChunkToEvents(
     model: string | null
     nextContentIndex: number
     activeTextIndex: number | null
+    activeThinkingIndex: number | null
   },
 ) {
   const events: Array<Record<string, unknown>> = []
@@ -485,6 +486,14 @@ export function convertResponseChunkToEvents(
       })
       state.activeTextIndex = null
     }
+    // Close active thinking block
+    if (state.activeThinkingIndex !== null) {
+      events.push({
+        type: 'content_block_stop',
+        index: state.activeThinkingIndex,
+      })
+      state.activeThinkingIndex = null
+    }
 
     const index = state.nextContentIndex++
     state.activeTextIndex = index
@@ -512,7 +521,51 @@ export function convertResponseChunkToEvents(
     return events
   }
 
+  if (chunk.type === 'reasoning_delta' && typeof chunk.text === 'string') {
+    // Close active text block before starting thinking
+    if (state.activeTextIndex !== null) {
+      events.push({
+        type: 'content_block_stop',
+        index: state.activeTextIndex,
+      })
+      state.activeTextIndex = null
+    }
+
+    // Open thinking block on first delta, continue sending deltas to the same block
+    if (state.activeThinkingIndex === null) {
+      const index = state.nextContentIndex++
+      state.activeThinkingIndex = index
+      events.push({
+        type: 'content_block_start',
+        index,
+        content_block: {
+          type: 'thinking',
+          thinking: '',
+          signature: '',
+        },
+      })
+    }
+
+    events.push({
+      type: 'content_block_delta',
+      index: state.activeThinkingIndex,
+      delta: {
+        type: 'thinking_delta',
+        thinking: chunk.text,
+      },
+    })
+    return events
+  }
+
   if (chunk.type === 'tool_call' && isObject(chunk.toolCall)) {
+    // Close active thinking block
+    if (state.activeThinkingIndex !== null) {
+      events.push({
+        type: 'content_block_stop',
+        index: state.activeThinkingIndex,
+      })
+      state.activeThinkingIndex = null
+    }
     const toolCall = chunk.toolCall
     const name = readString(toolCall.name)
     if (!name) {
@@ -555,6 +608,13 @@ export function convertResponseChunkToEvents(
         index: state.activeTextIndex,
       })
       state.activeTextIndex = null
+    }
+    if (state.activeThinkingIndex !== null) {
+      events.push({
+        type: 'content_block_stop',
+        index: state.activeThinkingIndex,
+      })
+      state.activeThinkingIndex = null
     }
     events.push({
       type: 'message_delta',
@@ -836,6 +896,7 @@ export function createProviderAdapterClient({
             model: null as string | null,
             nextContentIndex: 0,
             activeTextIndex: null as number | null,
+            activeThinkingIndex: null as number | null,
           }
           const initialEvents: Array<Record<string, unknown>> = []
 

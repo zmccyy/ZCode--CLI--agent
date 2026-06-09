@@ -1,6 +1,6 @@
 import { feature } from 'bun:bundle';
 import * as React from 'react';
-import { memo, useCallback, useEffect, useRef } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import { logEvent } from 'src/services/analytics/index.js';
 import { useAppState, useSetAppState } from 'src/state/AppState.js';
 import type { PermissionMode } from 'src/utils/permissions/PermissionMode.js';
@@ -31,7 +31,7 @@ export function statusLineShouldDisplay(settings: ReadonlySettings): boolean {
   // Assistant mode: statusline fields (model, permission mode, cwd) reflect the
   // REPL/daemon process, not what the agent child is actually running. Hide it.
   if (feature('KAIROS') && getKairosActive()) return false;
-  return settings?.statusLine !== undefined;
+  return true;
 }
 function buildStatusLineCommandInput(permissionMode: PermissionMode, exceeds200kTokens: boolean, settings: ReadonlySettings, messages: Message[], addedDirs: string[], mainLoopModel: ModelName, vimMode?: VimMode): StatusLineCommandInput {
   const agentType = getMainThreadAgentType();
@@ -125,6 +125,42 @@ function buildStatusLineCommandInput(permissionMode: PermissionMode, exceeds200k
     })
   };
 }
+function buildDefaultStatusLine(
+  permissionMode: PermissionMode,
+  mainLoopModel: ModelName,
+): string {
+  const runtimeModel = getRuntimeMainLoopModel({
+    permissionMode,
+    mainLoopModel,
+    exceeds200kTokens: false,
+  })
+  const modelLabel = renderModelName(runtimeModel)
+  const cost = getTotalCost()
+  const inputTokens = getTotalInputTokens()
+  const outputTokens = getTotalOutputTokens()
+
+  // Permission mode badge
+  const modeLabels: Record<string, string> = {
+    plan: 'Plan',
+    default: 'Agent',
+    acceptEdits: 'YOLO',
+    bypassPermissions: 'Auto',
+    dontAsk: 'Auto',
+    auto: 'Auto',
+  }
+  const modeLabel = modeLabels[permissionMode] || permissionMode
+
+  const parts = [modelLabel]
+  if (inputTokens + outputTokens > 0) {
+    const costLabel = cost > 0 ? ` $${cost.toFixed(3)}` : ''
+    parts.push(`${modeLabel} | ${(inputTokens / 1000).toFixed(0)}k↑ ${(outputTokens / 1000).toFixed(0)}k↓${costLabel}`)
+  } else {
+    parts.push(modeLabel)
+  }
+
+  return `  ${parts.join('  ')} `
+}
+
 type Props = {
   // messages stays behind a ref (read only in the debounced callback);
   // lastAssistantMessageId is the actual re-render trigger.
@@ -306,6 +342,14 @@ function StatusLineInner({
   // Get padding from settings or default to 0
   const paddingX = settings?.statusLine?.padding ?? 0;
 
+  // Default status line when no custom command is configured
+  const defaultStatusText = useMemo(() => {
+    if (statusLineText !== undefined) return null
+    // Only show default when no custom command is set
+    if (settings?.statusLine?.command) return null
+    return buildDefaultStatusLine(permissionMode, mainLoopModel)
+  }, [statusLineText, settings?.statusLine?.command, permissionMode, mainLoopModel])
+
   // StatusLine must have stable height in fullscreen — the footer is
   // flexShrink:0 so a 0→1 row change when the command finishes steals
   // a row from ScrollBox and shifts content. Reserve the row while loading
@@ -313,6 +357,8 @@ function StatusLineInner({
   return <Box paddingX={paddingX} gap={2}>
       {statusLineText ? <Text dimColor wrap="truncate">
           <Ansi>{statusLineText}</Ansi>
+        </Text> : defaultStatusText ? <Text dimColor wrap="truncate">
+          <Ansi>{defaultStatusText}</Ansi>
         </Text> : isFullscreenEnvEnabled() ? <Text> </Text> : null}
     </Box>;
 }

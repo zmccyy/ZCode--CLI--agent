@@ -149,12 +149,17 @@ export function clearDirectoryCache(): void {
 /**
  * Checks if a string looks like a path (starts with path-like prefixes)
  */
+const WINDOWS_DRIVE_RE = /^[A-Za-z]:[\\/]/
+
 export function isPathLikeToken(token: string): boolean {
   return (
+    WINDOWS_DRIVE_RE.test(token) ||
     token.startsWith('~/') ||
     token.startsWith('/') ||
     token.startsWith('./') ||
     token.startsWith('../') ||
+    token.startsWith('.\\') ||
+    token.startsWith('..\\') ||
     token === '~' ||
     token === '.' ||
     token === '..'

@@ -740,6 +740,17 @@ export const SettingsSchema = lazySchema(() =>
         .boolean()
         .optional()
         .describe('Whether to disable syntax highlighting in diffs'),
+      lsp: z
+        .object({
+          autoDiagnose: z
+            .boolean()
+            .optional()
+            .describe(
+              'When true (default), automatically inject LSP diagnostics after file edits. Set to false to disable.',
+            ),
+        })
+        .optional()
+        .describe('LSP (Language Server Protocol) settings'),
       terminalTitleFromRename: z
         .boolean()
         .optional()

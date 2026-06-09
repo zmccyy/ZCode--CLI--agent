@@ -5,6 +5,8 @@ import {
   getTaskListId,
   isTodoV2Enabled,
   listTasks,
+  findPreviousSessionTaskList,
+  restoreTasksFromSession,
   TaskStatusSchema,
 } from '../../utils/tasks.js'
 import { TASK_LIST_TOOL_NAME } from './constants.js'
@@ -65,9 +67,20 @@ export const TaskListTool = buildTool({
   async call() {
     const taskListId = getTaskListId()
 
-    const allTasks = (await listTasks(taskListId)).filter(
+    let allTasks = (await listTasks(taskListId)).filter(
       t => !t.metadata?._internal,
     )
+
+    // Auto-restore tasks from a previous session if the current list is empty
+    if (allTasks.length === 0) {
+      const previous = await findPreviousSessionTaskList(taskListId)
+      if (previous && previous.taskCount > 0) {
+        await restoreTasksFromSession(taskListId, previous.taskListId)
+        allTasks = (await listTasks(taskListId)).filter(
+          t => !t.metadata?._internal,
+        )
+      }
+    }
 
     // Build a set of resolved task IDs for filtering
     const resolvedTaskIds = new Set(

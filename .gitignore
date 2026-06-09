@@ -12,5 +12,8 @@ interaction/
 .env
 .env.local
 
+# temp files
+tmp/
+
 # release artifacts
 dist/

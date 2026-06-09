@@ -860,3 +860,117 @@ export async function unassignTeammateTasks(
 }
 
 export const DEFAULT_TASKS_MODE_TASK_LIST_ID = 'tasklist'
+
+/**
+ * Returns the base tasks directory (parent of all session task lists).
+ */
+export function getTasksBaseDir(): string {
+  return join(getClaudeConfigHomeDir(), 'tasks')
+}
+
+/**
+ * Finds the most recent previous session task list with tasks in it.
+ * Excludes the current session's directory. Returns null if none found.
+ */
+export async function findPreviousSessionTaskList(
+  currentTaskListId: string,
+): Promise<{ taskListId: string; taskCount: number } | null> {
+  const base = getTasksBaseDir()
+  let dirs: string[]
+  try {
+    const { readdir, stat } = await import('fs/promises')
+    dirs = await readdir(base)
+  } catch {
+    return null
+  }
+
+  const currentDir = sanitizePathComponent(currentTaskListId)
+  const candidates: Array<{ name: string; mtimeMs: number; taskCount: number }> =
+    []
+
+  for (const entry of dirs) {
+    if (entry === currentDir || entry.startsWith('.')) continue
+
+    const dirPath = join(base, entry)
+    let files: string[]
+    try {
+      const { readdir, stat } = await import('fs/promises')
+      const s = await stat(dirPath)
+      if (!s.isDirectory()) continue
+      files = await readdir(dirPath)
+    } catch {
+      continue
+    }
+
+    const taskFiles = files.filter(f => f.endsWith('.json'))
+    if (taskFiles.length === 0) continue
+
+    let mtimeMs = 0
+    try {
+      const { stat } = await import('fs/promises')
+      const s = await stat(dirPath)
+      mtimeMs = s.mtimeMs
+    } catch {
+      continue
+    }
+
+    candidates.push({ name: entry, mtimeMs, taskCount: taskFiles.length })
+  }
+
+  if (candidates.length === 0) return null
+
+  // Sort by most recently modified
+  candidates.sort((a, b) => b.mtimeMs - a.mtimeMs)
+  const best = candidates[0]
+  return { taskListId: best.name, taskCount: best.taskCount }
+}
+
+/**
+ * Restores tasks from a previous session into the current session's task list.
+ * Returns the number of tasks restored.
+ */
+export async function restoreTasksFromSession(
+  targetTaskListId: string,
+  sourceSanitizedId: string,
+): Promise<number> {
+  const base = getTasksBaseDir()
+  const sourceDir = join(base, sourceSanitizedId)
+
+  let files: string[]
+  try {
+    const { readdir } = await import('fs/promises')
+    files = (await readdir(sourceDir)).filter(f => f.endsWith('.json'))
+  } catch {
+    return 0
+  }
+  if (files.length === 0) return 0
+
+  await ensureTasksDir(targetTaskListId)
+
+  let restored = 0
+  for (const file of files) {
+    try {
+      const { readFile } = await import('fs/promises')
+      const content = await readFile(join(sourceDir, file), 'utf-8')
+      const task = jsonParse(content) as unknown as Task | null
+      if (!task || typeof task.id !== 'string') continue
+
+      // Create the task in the target list, preserving subject/description/status
+      // but clearing owner since the agent may differ between sessions
+      await createTask(targetTaskListId, {
+        subject: task.subject,
+        description: task.description,
+        status: task.status === 'in_progress' ? 'pending' : task.status,
+        blocks: [],
+        blockedBy: [],
+        metadata: { restoredFrom: sourceSanitizedId },
+      })
+      restored++
+    } catch {
+      continue
+    }
+  }
+
+  notifyTasksUpdated()
+  return restored
+}

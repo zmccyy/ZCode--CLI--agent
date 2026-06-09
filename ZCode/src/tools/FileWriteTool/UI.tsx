@@ -23,7 +23,7 @@ import { logError } from '../../utils/log.js';
 import { getPlansDirectory } from '../../utils/plans.js';
 import { openForScan, readCapped } from '../../utils/readEditContext.js';
 import type { Output } from './FileWriteTool.js';
-const MAX_LINES_TO_RENDER = 10;
+const MAX_LINES_TO_RENDER = 30;
 // Model output uses \n regardless of platform, so always split on \n.
 // os.EOL is \r\n on Windows, which would give numLines=1 for all files.
 const EOL = '\n';

@@ -611,9 +611,33 @@ const MessagesImpl = ({
     return () => progress(null);
   }, [progress]);
   const messageKey = useCallback((msg_7: RenderableMessage) => `${msg_7.uuid}-${conversationId}`, [conversationId]);
+
+  // Phase detection for message flow structure dividers.
+  // Detects Thinking → Action → Result → Reply transitions.
+  const getMessagePhase = useCallback((msg: RenderableMessage): string | null => {
+    if (msg.type === 'assistant') {
+      const block = msg.message.content[0] as {type?: string} | undefined
+      if (block?.type === 'thinking') return 'thinking'
+      if (block?.type === 'tool_use') return 'action'
+      if (block?.type === 'text') return 'reply'
+      return null
+    }
+    if (msg.type === 'user') {
+      const block = msg.message.content[0] as {type?: string} | undefined
+      if (block?.type === 'tool_result') return 'result'
+      return null
+    }
+    if (msg.type === 'grouped_tool_use') return 'action'
+    if (msg.type === 'collapsed_read_search' || msg.type === 'collapsed_read_search_group') return 'action'
+    return null
+  }, [])
+  const phaseLabels: Record<string, string> = { thinking: 'Thinking', action: 'Action', result: 'Result', reply: 'Reply' }
+
   const renderMessageRow = (msg_8: RenderableMessage, index: number) => {
     const prevType = index > 0 ? renderableMessages[index - 1]?.type : undefined;
     const isUserContinuation = msg_8.type === 'user' && prevType === 'user';
+    const currentPhase = getMessagePhase(msg_8)
+    const prevPhase = index > 0 ? getMessagePhase(renderableMessages[index - 1]) : null
     // hasContentAfter is only consumed for collapsed_read_search groups;
     // skip the scan for everything else. streamingText is rendered as a
     // sibling after this map, so it's never in renderableMessages — OR it
@@ -628,10 +652,21 @@ const MessagesImpl = ({
     const wrapped = <MessageActionsSelectedContext.Provider key={k_0} value={index === selectedIdx}>
         {row}
       </MessageActionsSelectedContext.Provider>;
+    // Phase transition dividers: highlight Think→Act→Observe→Reply flow
+    const phaseTransition = prevPhase && currentPhase && prevPhase !== currentPhase ? `${prevPhase}→${currentPhase}` : null
+    const showPhaseDivider = phaseTransition && phaseLabels[prevPhase!] && phaseLabels[currentPhase!] && phaseTransition !== 'reply→action'
     if (unseenDivider && index === dividerBeforeIndex) {
+      if (showPhaseDivider) {
+        return [<Box key="unseen-divider" marginTop={1}>
+            <Divider title={`${unseenDivider.count} new ${plural(unseenDivider.count, 'message')}`} width={columns} color="inactive" />
+          </Box>, <Divider key={`phase-divider-${k_0}`} title={phaseTransition!.replace('thinking', 'Think').replace('action', 'Act').replace('result', 'Observe').replace('reply', 'Reply')} width={columns} color="subtle" />, wrapped]
+      }
       return [<Box key="unseen-divider" marginTop={1}>
           <Divider title={`${unseenDivider.count} new ${plural(unseenDivider.count, 'message')}`} width={columns} color="inactive" />
         </Box>, wrapped];
+    }
+    if (showPhaseDivider) {
+      return [<Divider key={`phase-divider-${k_0}`} title={phaseTransition!.replace('thinking', 'Think').replace('action', 'Act').replace('result', 'Observe').replace('reply', 'Reply')} width={columns} color="subtle" />, wrapped]
     }
     return wrapped;
   };

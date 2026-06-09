@@ -2,7 +2,7 @@
 
 > 公共 CLI 本地启动说明 — 完整文档见 [文档中心](../docs/README.md)。
 
-[← 项目主页](../README_ZH.md) · [快速开始](../docs/getting-started/quick-start.md) · [API 参考](../docs/references/api-reference.md)
+[← 项目主页](../README_ZH.md) · [快速开始](../docs/getting-started/quick-start.md) · [API 参考](../docs/references/api-reference.md) · [系统设计](../docs/系统设计说明书.md)
 
 ---
 
@@ -13,7 +13,7 @@
 | 入口 | 文件 | 状态 |
 |------|------|------|
 | **公共 CLI** | `src/entrypoints/publicCli.js` | ✅ 稳定 |
-| **完整 REPL** | `src/entrypoints/cli.tsx` | 🔧 开发中 |
+| **完整 REPL** | `src/entrypoints/cli.tsx` | 🔧 推进中 |
 
 公共 CLI 是刻意裁剪的最小可启动路径 — 不 boot 完整 Ink TUI，只依赖稳定模块。
 
@@ -36,6 +36,12 @@ bun install
 bun run start --help
 bun run doctor --json
 bun run models
+
+# 新增 CLI 标志
+bun run start -p "..." --plan        # 仅分析，不执行
+bun run start -p "..." --write out.py
+bun run start -p "..." --reasoning   # 流式展示推理过程
+bun run start -p "..." --yolo        # 自动批准
 
 # Node.js 等效
 npm start -- --help
@@ -62,7 +68,7 @@ ZCODE_OPENAI_API_KEY=your-api-key
 
 ## 非交互 Print 模式
 
-配置好 OpenAI-compatible Provider 后：
+配置好 Provider 后：
 
 ```bash
 bun run start -p "Summarize this repository" --json
@@ -89,7 +95,19 @@ zcode -p "Explain this repo" --json
 bun src/entrypoints/cli.tsx
 ```
 
-启动 Ink 交互界面，包含 MCP、认证、插件、工具循环等。部分模块可能尚未就绪。
+启动 Ink 交互界面，包含 MCP、认证、插件、工具循环、LSP 诊断、任务面板、命令面板等。部分模块可能尚未就绪。
+
+### REPL 快捷键
+
+| 按键 | 功能 |
+|------|------|
+| `Ctrl+K` | 命令面板 |
+| `F1` | 帮助覆盖层 |
+| `Ctrl+R` | 历史搜索 / 恢复会话 |
+| `Ctrl+T` | 任务面板 |
+| `Ctrl+O` | 对话记录查看器 |
+| `Shift+Tab` | 循环切换权限模式 |
+| `Meta+T` | 切换推理/思考 |
 
 ---
 
@@ -107,6 +125,7 @@ npm test
 - 公共 CLI 的 help / doctor / start 契约
 - 本地 `.env` 加载
 - `-p --json` 真实请求链路
+- Anthropic 直通适配器流式/非流式/工具透传
 
 ---
 
@@ -117,7 +136,7 @@ npm test
 | `start` | 公共 CLI 入口 |
 | `doctor` | 环境诊断 |
 | `models` | 列出模型 |
-| `test` | 运行测试 |
+| `test` | 运行测试（801 项，795 通过） |
 | `test:watch` | 监听模式测试 |
 
 ---
@@ -126,16 +145,19 @@ npm test
 
 ```
 src/
-├── entrypoints/     publicCli.js · cli.tsx · sdk/
-├── cli/             公共 CLI 核心 (publicCliCore.js)
-├── providers/       LLM Provider 适配层
-├── tools/           Agent 工具实现
-├── main.tsx         完整 CLI 命令注册
-└── ...
+├── entrypoints/         publicCli.js · cli.tsx · sdk/
+├── cli/                 公共 CLI 核心
+├── components/          Ink TUI 组件（StatusLine, StructuredDiff, CodeBlock...）
+├── keybindings/         可配置键绑定系统
+├── services/api/        LLM Provider 适配层（Anthropic 直通 + OpenAI 兼容）
+├── tools/               Agent 工具实现（File*, Bash, Grep, LSP, Task*, MCP）
+├── state/               AppState 状态管理
+├── utils/               工具函数（tasks, settings, attachments, suggestions...）
+└── hooks/               React hooks（useKeybinding, useTypeahead...）
 test/
-└── all.test.js      集成测试
+└── *.test.js            集成测试
 ```
 
 ---
 
-*更多文档：[docs/](../docs/README.md)*
+*更多文档：[docs/](../docs/README.md)* · *最后更新：2026-06-09*

@@ -10,10 +10,93 @@ import {
   getProductName,
   getVersionBanner,
 } from '../config/brandText.js'
+import { resolveRunMode, RUN_MODE_LABELS, getRunModeHelpLines } from '../utils/permissions/runMode.js'
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
 const DEFAULT_COMMANDS = Object.freeze(['help', 'doctor', 'models', 'print'])
+
+// ---------------------------------------------------------------------------
+// Lightweight cost estimation for print mode
+// ---------------------------------------------------------------------------
+
+/** Pricing per 1M tokens: { input, output } in USD. */
+const MODEL_PRICING = {
+  // DeepSeek
+  'deepseek-chat':    { input: 0.14, output: 0.28 },
+  'deepseek-reasoner':{ input: 0.55, output: 2.19 },
+  'deepseek-v3':      { input: 0.27, output: 1.10 },
+  // OpenAI
+  'gpt-4o':           { input: 2.50, output: 10.00 },
+  'gpt-4o-mini':      { input: 0.15, output: 0.60  },
+  'gpt-4-turbo':      { input: 10.00, output: 30.00 },
+  'gpt-4':            { input: 30.00, output: 60.00 },
+  'gpt-3.5-turbo':    { input: 0.50, output: 1.50 },
+  'o1':               { input: 15.00, output: 60.00 },
+  'o1-mini':          { input: 3.00, output: 12.00 },
+  'o3-mini':          { input: 1.10, output: 4.40 },
+  // Anthropic
+  'claude-3-5-sonnet': { input: 3.00, output: 15.00 },
+  'claude-3-5-haiku':  { input: 0.80, output: 4.00  },
+  'claude-3-opus':     { input: 15.00, output: 75.00 },
+  'claude-sonnet-4-20250514': { input: 3.00, output: 15.00 },
+  'claude-haiku-4-5-20251001': { input: 1.00, output: 5.00 },
+  'claude-opus-4-20250514':    { input: 15.00, output: 75.00 },
+  'claude-opus-4-1-20250805':  { input: 15.00, output: 75.00 },
+  'claude-opus-4-5-20251101':  { input: 5.00, output: 25.00 },
+  'claude-opus-4-6':  { input: 5.00, output: 25.00 },
+  // Ollama / local (free)
+  'llama':             { input: 0, output: 0 },
+  'mistral':           { input: 0, output: 0 },
+  'codellama':         { input: 0, output: 0 },
+  'qwen':              { input: 0, output: 0 },
+  'gemma':             { input: 0, output: 0 },
+}
+
+/**
+ * Match a model string against the pricing table.
+ * Returns null if no pricing is known.
+ * @param {string} modelId
+ * @returns {{ input: number, output: number } | null}
+ */
+function lookupModelPricing(modelId) {
+  if (!modelId) return null
+  const key = modelId.toLowerCase()
+
+  // Exact match
+  if (MODEL_PRICING[key]) return MODEL_PRICING[key]
+
+  // Prefix match: e.g. "deepseek-chat-v3-0324" → "deepseek-chat"
+  for (const [prefix, pricing] of Object.entries(MODEL_PRICING)) {
+    if (key.includes(prefix)) return pricing
+  }
+
+  return null
+}
+
+/**
+ * Estimate USD cost from token counts and model pricing.
+ * @param {{ inputTokens?: number, outputTokens?: number, cacheReadInputTokens?: number, cacheCreationInputTokens?: number }} usage
+ * @param {string | null} model
+ * @returns {{ cost: number, pricing: { input: number, output: number } } | null}
+ */
+function estimateCost(usage, model) {
+  const pricing = lookupModelPricing(model)
+  if (!pricing) return null
+
+  const input = usage.inputTokens || 0
+  const output = usage.outputTokens || 0
+  const cost = (input / 1_000_000) * pricing.input + (output / 1_000_000) * pricing.output
+
+  return { cost, pricing }
+}
+
+function formatCost(costUSD) {
+  if (costUSD === 0) return '$0.00'
+  if (costUSD >= 0.01) return `$${costUSD.toFixed(2)}`
+  if (costUSD >= 0.0001) return `$${costUSD.toFixed(4)}`
+  return `< $0.0001`
+}
 
 function getRuntimeSnapshot() {
   return {
@@ -352,8 +435,7 @@ export function renderHelp({ version = '0.0.0' } = {}) {
     '  -m, --model <id>     Specify the model to use',
     '  --json               Output in JSON format',
     '  -w, --write [path]   Write code blocks from response to file(s)',
-    '  --plan               Plan mode: suggest changes without executing writes',
-    '  --yolo               YOLO mode: auto-approve all operations',
+    ...getRunModeHelpLines(),
     '  --reasoning          Show model thinking/reasoning process',
     '',
     'Examples:',
@@ -490,6 +572,16 @@ async function collectPrintResponse({
     finishReason: finishReason || 'stop',
     reasoning: reasoning || undefined,
     usage: usage || undefined,
+    cost: usage
+      ? (() => {
+          const info = estimateCost(usage, responseModel)
+          if (!info) return undefined
+          return {
+            usd: Math.round(info.cost * 1_000_000) / 1_000_000,
+            pricing: info.pricing,
+          }
+        })()
+      : undefined,
   }
 }
 
@@ -584,10 +676,25 @@ function renderPrintResult(result, { json, write, writePath, showReasoning, cwd 
     }
   }
 
-  // Usage footer
+  // Usage footer with token counts + cost
   if (result.usage) {
+    const parts = [
+      `${formatTokens(result.usage.inputTokens)} in`,
+      `${formatTokens(result.usage.outputTokens)} out`,
+    ]
+    if (result.usage.totalTokens) {
+      parts.push(`${formatTokens(result.usage.totalTokens)} total`)
+    }
+    if (result.usage.cacheReadInputTokens > 0) {
+      parts.push(`${formatTokens(result.usage.cacheReadInputTokens)} cache read`)
+    }
+    // Cost
+    const costInfo = estimateCost(result.usage, result.model)
+    if (costInfo) {
+      parts.push(`cost ${formatCost(costInfo.cost)}`)
+    }
     lines.push('')
-    lines.push(renderSep(`${formatTokens(result.usage.inputTokens)} in / ${formatTokens(result.usage.outputTokens)} out`))
+    lines.push(renderSep(parts.join(' · ')))
   } else {
     lines.push('')
     lines.push(renderSep())
@@ -617,6 +724,14 @@ export async function runCli(
   try {
     loadDotEnvFile({ cwd, env })
     const options = parseArgv(argv)
+    const { runMode, error: runModeError } = resolveRunMode({
+      plan: options.plan,
+      yolo: options.yolo,
+    })
+
+    if (runModeError) {
+      writeLine(stderr, `WARNING: ${runModeError}`)
+    }
 
     if (options.version) {
       writeLine(stdout, getVersionBanner(version))
@@ -665,8 +780,8 @@ export async function runCli(
     }
 
     if (options.printPrompt) {
-      if (options.plan) {
-        writeLine(stdout, `── PLAN MODE ──`)
+      if (runMode === 'plan') {
+        writeLine(stdout, `── ${RUN_MODE_LABELS.plan} MODE ──`)
         writeLine(stdout, `Prompt: ${options.printPrompt}`)
         writeLine(stdout, `Model:  ${options.model || 'auto'}`)
         writeLine(stdout, '')
@@ -687,6 +802,7 @@ export async function runCli(
         const blocks = result.text ? extractCodeBlocks(result.text) : []
         const output = {
           ...result,
+          runMode,
           codeBlocks: blocks.length > 0 ? blocks.map(b => ({
             language: b.language,
             lines: b.code.split('\n').length,
@@ -704,6 +820,9 @@ export async function runCli(
         writeJson(stdout, output)
       } else {
         // Text mode: structured output
+        if (runMode === 'yolo') {
+          writeLine(stdout, `── ${RUN_MODE_LABELS.yolo} MODE ──`)
+        }
         writeLine(stdout, renderPrintResult(result, {
           json: false,
           write: options.write,

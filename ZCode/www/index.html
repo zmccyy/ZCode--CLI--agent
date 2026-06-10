@@ -566,7 +566,7 @@ a:hover {
   </pre>
   <div class="hero-tagline" id="typewriter"></div>
   <p class="hero-sub">Describe the task. Ship the work. All from your terminal.</p>
-  <span class="hero-version">v0.1.0 — [ STABLE ]</span>
+  <span class="hero-version">v0.1.0 — [ BETA ]</span>
 </section>
 
 <div class="section-divider">// ---------------------------------------------------------</div>
@@ -625,14 +625,14 @@ FLAGS:
   <div class="feature-card anim-fade-in">
     <span class="card-border-tl">+--</span>
     <h3>Multi-Provider LLM</h3>
-    <p>Anthropic Claude, AWS Bedrock, Google Vertex, Azure OpenAI, DeepSeek, and any OpenAI-compatible API — switch providers with a config flag.</p>
+    <p>Anthropic Claude, AWS Bedrock, Google Vertex, Azure AI Foundry, DeepSeek, and any OpenAI-compatible API — switch providers with a config flag.</p>
     <span class="card-border-br">--+</span>
   </div>
 
   <div class="feature-card anim-fade-in">
     <span class="card-border-tl">+--</span>
     <h3>Rich Tool System</h3>
-    <p>35+ built-in tools: file read/write/edit, shell exec, grep, glob, LSP diagnostics, WebFetch, WebSearch, skills, and extensible sub-agents.</p>
+    <p>50+ built-in tools: file read/write/edit, shell exec, grep, glob, LSP diagnostics, WebFetch, WebSearch, skills, and extensible sub-agents.</p>
     <span class="card-border-br">--+</span>
   </div>
 
@@ -646,7 +646,7 @@ FLAGS:
   <div class="feature-card anim-fade-in">
     <span class="card-border-tl">+--</span>
     <h3>Permission Control</h3>
-    <p>Four modes: Plan (preview only), Agent (ask per action), YOLO (auto-approve), Auto (bypass). Fine-grained control over every tool invocation.</p>
+    <p>Three run modes: Plan (preview only), Agent (ask per action), YOLO (auto-approve). Fine-grained control over every tool invocation.</p>
     <span class="card-border-br">--+</span>
   </div>
 
@@ -685,7 +685,7 @@ FLAGS:
 <!-- INSTALL -->
 <h2 id="install">+--- INSTALLATION ---+</h2>
 <div class="install-block">
-  <p style="color:var(--fg-dim);font-size:0.78rem;margin-bottom:0.6rem;"># Requires Bun &gt;= 1.0 or Node.js &gt;= 22</p>
+  <p style="color:var(--fg-dim);font-size:0.78rem;margin-bottom:0.6rem;"># Requires Node.js &gt;= 18</p>
   <div class="install-line">
     <span class="prompt-sign">$</span>
     <code>bun install -g zcode</code>
@@ -709,7 +709,7 @@ FLAGS:
 <!-- QUICK START -->
 <h2 id="quickstart">+--- QUICK START ---+</h2>
 <ol class="quickstart-steps">
-  <li>Set your API key: <code style="color:var(--fg)">export ANTHROPIC_API_KEY=sk-ant-...</code> or configure <code style="color:var(--fg)">~/.zcode/config.json</code> for any supported provider.</li>
+  <li>Set your API key: <code style="color:var(--fg)">export ANTHROPIC_API_KEY=sk-ant-...</code> or configure <code style="color:var(--fg)">~/.claude.json</code> for any supported provider.</li>
   <li>Run interactive mode: <code style="color:var(--fg)">zcode</code> — opens the full terminal REPL with Ink TUI.</li>
   <li>One-shot prompt: <code style="color:var(--fg)">zcode -p "Refactor the auth module to use JWT"</code> — runs non-interactively and prints the result.</li>
   <li>Run diagnostics: <code style="color:var(--fg)">zcode doctor</code> — checks your environment, provider config, and tool availability.</li>
@@ -729,7 +729,7 @@ FLAGS:
   </div>
   <div class="stat-item">
     <div class="stat-label">Built-in Tools</div>
-    <div class="stat-value">35+</div>
+    <div class="stat-value">50+</div>
     <div class="stat-bar-wrap"><div class="stat-bar-fill" style="width: 100%"></div></div>
   </div>
   <div class="stat-item">
@@ -744,7 +744,7 @@ FLAGS:
   </div>
   <div class="stat-item">
     <div class="stat-label">Permission Modes</div>
-    <div class="stat-value">4</div>
+    <div class="stat-value">3</div>
     <div class="stat-bar-wrap"><div class="stat-bar-fill" style="width: 100%"></div></div>
   </div>
   <div class="stat-item">

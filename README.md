@@ -4,6 +4,8 @@
 
 [English](README.md) | [中文](README_ZH.md)
 
+[![Netlify Status](https://api.netlify.com/api/v1/badges/d3789373-6012-4500-be2c-3a1721923cb2/deploy-status)](https://app.netlify.com/projects/zcode-cli-agent/deploys)
+
 [![Stars](https://img.shields.io/github/stars/zmccyy/ZCode--CLI--agent?style=flat-square&logo=github)](https://github.com/zmccyy/ZCode--CLI--agent/stargazers)
 [![License](https://img.shields.io/github/license/zmccyy/ZCode--CLI--agent?style=flat-square)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.1.0-blue?style=flat-square)](https://github.com/zmccyy/ZCode--CLI--agent/releases)

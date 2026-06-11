@@ -348,6 +348,25 @@ skip:   5   (Bun 依赖测试，符合 TD-04 已知项预期)
 | W13-REG-01 | ~~`providerAdapterClient.test.js` 2 条失败：多 block 场景下 `content_block_stop` 事件排序与预期不一致~~ ✅ 已修复 | — | W13-14 修复完成 |
 | T2.2-REG-01 | `publicCli.test.js` 1 条失败：`bun cli.tsx --bare -p` 全链路请求仅返回部分输出 | 低 — 属 T2.2 REPL 启动链路未完全打通的预期行为 | W15-16 随 T2.2 修复 |
 
+### Phase 3 持续推进（2026-06-08 ~ 06-09）
+
+| 日期 | 工作内容 | 产出 | 状态 |
+|------|----------|------|------|
+| 06-08 | 课程作业质量审计 | P0 修复清单（CI/CD、ESLint/Prettier、标准项目文件、API Key 暴露）；P1 优化清单（TypeScript strict mode、测试覆盖率） | ✅ |
+| 06-09 | LSP 自动诊断设置 | `lsp.autoDiagnose` 设置检查接入 `attachments.ts`，支持通过 settings 关闭自动诊断 | ✅ |
+| 06-09 | 键盘快捷键与命令面板 | F1 帮助快捷键实现，命令面板架构完善 | ✅ |
+| 06-09 | 终端 CLI 主题促销网站 | `zcode www` 命令 + `www/` 目录（index.html + server.ts），Terminal CLI 设计系统集成（等宽字体、光标闪烁、Shell 隐喻、CRT 扫描线） | ✅ |
+| 06-09 | 文档更新 | Phase 3/4 开发计划与实现状态同步更新 | ✅ |
+
+#### 当前测试全景（2026-06-09 更新）
+
+```
+全量测试：795+ 通过 / 1 已知失败 / 5 跳过
+公共 CLI：node src/entrypoints/publicCli.js --help/doctor/models 正常
+类型检查：tsc --noEmit -p tsconfig.public.json 零错误
+品牌残留：.js 表面 100% ZCode，.ts 文件仅 5 处残留
+```
+
 - **关键里程碑 M3**（W18 结束）：Release Candidate 可安装可运行。
 - **Gate-Out**：Windows 10/11 双版本安装验证；冷启动 ≤3s；0 崩溃回归。
 

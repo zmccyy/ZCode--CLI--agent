@@ -227,7 +227,7 @@ bun run start -p "Reply with exactly: OK" --json
 
 ### REPL 启动诊断
 
-完整 REPL 若卡住，参考内部文档 [T2.2 REPL 启动分析](../T2.2-repl-startup-hang-analysis.md)。
+完整 REPL 若卡住，参考内部文档 [T2.2 REPL 启动分析](../ai-interactions/T2.2-repl-startup-hang-analysis.md)。
 
 ---
 

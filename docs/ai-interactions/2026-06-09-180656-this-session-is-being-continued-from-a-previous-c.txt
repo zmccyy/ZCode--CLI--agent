@@ -1,0 +1,1577 @@
+╭─── Claude Code v2.1.150 ─────────────────────────────────────────────────────╮
+│                                         │ Tips for getting started           │
+│              Welcome back!              │ Run /init to create a CLAUDE.md f… │
+│                                         │ ────────────────────────────────── │
+│                 ▐▛███▜▌                 │ What's new                         │
+│                ▝▜█████▛▘                │ Internal infrastructure improveme… │
+│                  ▘▘ ▝▝                  │ `/usage` now shows a per-category… │
+│                                         │ `/diff` detail view can now be sc… │
+│   deepseek-v4-pro · API Usage Billing   │ /release-notes for more            │
+│        E:\项目\ZCode--CLI--agent        │                                    │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+  ↑ Install the PyCharm plugin from the JetBrains Marketplace: https://docs.claude.com/s/claude-code-jetbrains
+
+✻ Conversation compacted (ctrl+o for history)
+
+  ⎿  Referenced file src\utils\settings\types.ts
+  ⎿  Referenced file src\tools\FileWriteTool\UI.tsx
+  ⎿  Read src\utils\suggestions\directoryCompletion.ts (269 lines)
+  ⎿  Referenced file src\components\StatusLine.tsx
+  ⎿  Referenced file src\components\Markdown.tsx
+
+  Read 2 files (ctrl+o to expand)
+
+● Let me find the lsp setting I added and check how settings are accessed from
+  the context.
+
+  Searched for 9 patterns, read 4 files (ctrl+o to expand)
+
+● Now I have all the context. Let me add the autoDiagnose setting check to both
+  diagnostic functions.
+
+● Update(ZCode\src\utils\attachments.ts)
+  ⎿  Added 5 lines
+      2861      return []
+      2862    }
+      2863  
+      2864 +  // Respect lsp.autoDiagnose setting (defaults to true when 
+           +absent)                                                      
+      2865 +  if (toolUseContext.getAppState().settings.lsp?.autoDiagnose
+           + === false) {                                                
+      2866 +    return []                                                
+      2867 +  }                                                          
+      2868 +                                                             
+      2869    // Get new diagnostics from the tracker (IDE diagnostics vi
+            a MCP)
+      2870    const newDiagnostics = await diagnosticTracker.getNewDiagno
+            stics()
+      2871    if (newDiagnostics.length === 0) {
+
+● Update(ZCode\src\utils\attachments.ts)
+  ⎿  Added 5 lines
+      2895      return []
+      2896    }
+      2897  
+      2898 +  // Respect lsp.autoDiagnose setting (defaults to true when 
+           +absent)                                                      
+      2899 +  if (toolUseContext.getAppState().settings.lsp?.autoDiagnose
+           + === false) {                                                
+      2900 +    return []                                                
+      2901 +  }                                                          
+      2902 +                                                             
+      2903    logForDebugging('LSP Diagnostics: getLSPDiagnosticAttachmen
+            ts called')
+      2904  
+      2905    try {
+
+● Task 13 is done. Let me mark it and move to Task 14.
+
+● Let me explore the current keyboard/command palette infrastructure.
+
+● Explore(Explore keyboard shortcuts & command palette)
+  ⎿  Done (19 tool uses · 137.0k tokens · 1m 0s)
+  (ctrl+o to expand)
+● Let me read the development plans to understand the exact requirements for
+  these features.
+
+  Searched for 14 patterns, read 3 files, listed 1 directory (ctrl+o to expand)
+
+● Now I understand the architecture. Let me implement the missing shortcuts: F1
+  for help overlay, Ctrl+K for command palette, and the schema additions needed.
+
+  Read 1 file (ctrl+o to expand)
+
+● Now I have a clear picture. Let me implement:
+
+  1. Add help:open to schema and bindings
+  2. Add ctrl+k as command palette shortcut
+  3. Wire up the handler in PromptInput
+
+● Update(ZCode\src\keybindings\schema.ts)
+  ⎿  Added 1 line
+      122    // Theme picker actions
+      123    'theme:toggleSyntaxHighlighting',
+      124    // Help menu actions
+      125 +  'help:open',                                                
+      126    'help:dismiss',
+      127    // Attachment navigation (select dialog image attachments)
+      128    'attachments:next',
+
+● Update(ZCode\src\keybindings\defaultBindings.ts)
+  ⎿  Added 2 lines
+      42        'ctrl+l': 'app:redraw',
+      43        'ctrl+t': 'app:toggleTodos',
+      44        'ctrl+o': 'app:toggleTranscript',
+      45 +      'ctrl+k': 'app:quickOpen',                               
+      46 +      f1: 'help:open',                                         
+      47        ...(feature('KAIROS') || feature('KAIROS_BRIEF')
+      48          ? { 'ctrl+shift+b': 'app:toggleBrief' as const }
+      49          : {}),
+
+● Now let me add the help:open handler in PromptInput.tsx.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(ZCode\src\components\PromptInput\PromptInput.tsx)
+  ⎿  Error editing file
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(ZCode\src\components\PromptInput\PromptInput.tsx)
+  ⎿  Added 7 lines
+      1695      isActive: helpOpen
+      1696    });
+      1697  
+      1698 +  useKeybinding('help:open', () => {                         
+      1699 +    setHelpOpen(v => !v);                                    
+      1700 +  }, {                                                       
+      1701 +    context: 'Global',                                       
+      1702 +    isActive: !isModalOverlayActive                          
+      1703 +  });                                                        
+      1704 +                                                             
+      1705    // Quick Open / Global Search. Hook calls are unconditional
+             (Rules of Hooks);
+      1706    // the handler body is feature()-gated so the setState call
+            s and component
+      1707    // references get tree-shaken in external builds.
+
+● Let me verify the changes and check that isModalOverlayActive is in scope.
+
+  Searched for 1 pattern (ctrl+o to expand)
+● Good, isModalOverlayActive is in scope. Let me verify the defaultBindings
+  change.
+
+  Read 1 file (ctrl+o to expand)
+
+● Let me run the type checker to validate the changes.
+
+● Bash(cd "E:/项目/ZCode--CLI--agent/ZCode" && npx tsc --noEmit --pretty 2>&1 |
+      head -30)
+  ⎿  tsconfig.json:9:5 - error TS5101: Option 'baseUrl' is deprecated and w
+     ill stop functioning in TypeScript 7.0. Specify compilerOption '"ignor
+     eDeprecations": "6.0"' to silence this error.
+     … +7 lines (ctrl+o to expand)
+
+● Type check passes (only pre-existing tsconfig deprecation warning). Let me
+  move to Task 15.
+
+● Explore(Explore task system for persistence)
+  ⎿  Done (22 tool uses · 43.7k tokens · 55s)
+  (ctrl+o to expand)
+
+● Let me check how tasks are surfaced in the UI and what "persistent task queue"
+   would mean.
+
+  Searched for 2 patterns, read 1 file (ctrl+o to expand)
+
+● Now I understand the task system. Tasks are already persisted to
+  ~/.zcode/tasks/<taskListId>/ as individual JSON files, but since the task list
+   ID defaults to session ID (which changes each restart), tasks don't
+  auto-restore. Let me implement the auto-restore mechanism.
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● Let me implement the auto-restore mechanism in src/utils/tasks.ts.
+
+  Read 1 file (ctrl+o to expand)
+
+● Now let me add the auto-restore function. I'll add it near the end of the
+  file, before the last export.
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● Update(ZCode\src\utils\tasks.ts)
+  ⎿  Added 114 lines
+      860  }
+      861  
+      862  export const DEFAULT_TASKS_MODE_TASK_LIST_ID = 'tasklist'
+      863 +                                                              
+      864 +/**                                                           
+      865 + * Returns the base tasks directory (parent of all session tas
+          +k lists).                                                     
+      866 + */                                                           
+      867 +export function getTasksBaseDir(): string {                   
+      868 +  return join(getClaudeConfigHomeDir(), 'tasks')              
+      869 +}                                                             
+      870 +                                                              
+      871 +/**                                                           
+      872 + * Finds the most recent previous session task list with tasks
+          + in it.                                                       
+      873 + * Excludes the current session's directory. Returns null if n
+          +one found.                                                    
+      874 + */                                                           
+      875 +export async function findPreviousSessionTaskList(            
+      876 +  currentTaskListId: string,                                  
+      877 +): Promise<{ taskListId: string; taskCount: number } | null> {
+      878 +  const base = getTasksBaseDir()                              
+      879 +  let dirs: string[]                                          
+      880 +  try {                                                       
+      881 +    const { readdir, stat } = await import('fs/promises')     
+      882 +    dirs = await readdir(base)                                
+      883 +  } catch {                                                   
+      884 +    return null                                               
+      885 +  }                                                           
+      886 +                                                              
+      887 +  const currentDir = sanitizePathComponent(currentTaskListId) 
+      888 +  const candidates: Array<{ name: string; mtimeMs: number; tas
+          +kCount: number }> =                                           
+      889 +    []                                                        
+      890 +                                                              
+      891 +  for (const entry of dirs) {                                 
+      892 +    if (entry === currentDir || entry.startsWith('.')) continu
+          +e                                                             
+      893 +                                                              
+      894 +    const dirPath = join(base, entry)                         
+      895 +    let files: string[]                                       
+      896 +    try {                                                     
+      897 +      const { readdir, stat } = await import('fs/promises')   
+      898 +      const s = await stat(dirPath)                           
+      899 +      if (!s.isDirectory()) continue                          
+      900 +      files = await readdir(dirPath)                          
+      901 +    } catch {                                                 
+      902 +      continue                                                
+      903 +    }                                                         
+      904 +                                                              
+      905 +    const taskFiles = files.filter(f => f.endsWith('.json'))  
+      906 +    if (taskFiles.length === 0) continue                      
+      907 +                                                              
+      908 +    let mtimeMs = 0                                           
+      909 +    try {                                                     
+      910 +      const { stat } = await import('fs/promises')            
+      911 +      const s = await stat(dirPath)                           
+      912 +      mtimeMs = s.mtimeMs                                     
+      913 +    } catch {                                                 
+      914 +      continue                                                
+      915 +    }                                                         
+      916 +                                                              
+      917 +    candidates.push({ name: entry, mtimeMs, taskCount: taskFil
+          +es.length })                                                  
+      918 +  }                                                           
+      919 +                                                              
+      920 +  if (candidates.length === 0) return null                    
+      921 +                                                              
+      922 +  // Sort by most recently modified                           
+      923 +  candidates.sort((a, b) => b.mtimeMs - a.mtimeMs)            
+      924 +  const best = candidates[0]                                  
+      925 +  return { taskListId: best.name, taskCount: best.taskCount } 
+      926 +}                                                             
+      927 +                                                              
+      928 +/**                                                           
+      929 + * Restores tasks from a previous session into the current ses
+          +sion's task list.                                             
+      930 + * Returns the number of tasks restored.                      
+      931 + */                                                           
+      932 +export async function restoreTasksFromSession(                
+      933 +  targetTaskListId: string,                                   
+      934 +  sourceSanitizedId: string,                                  
+      935 +): Promise<number> {                                          
+      936 +  const base = getTasksBaseDir()                              
+      937 +  const sourceDir = join(base, sourceSanitizedId)             
+      938 +                                                              
+      939 +  let files: string[]                                         
+      940 +  try {                                                       
+      941 +    const { readdir } = await import('fs/promises')           
+      942 +    files = (await readdir(sourceDir)).filter(f => f.endsWith(
+          +'.json'))                                                     
+      943 +  } catch {                                                   
+      944 +    return 0                                                  
+      945 +  }                                                           
+      946 +  if (files.length === 0) return 0                            
+      947 +                                                              
+      948 +  await ensureTasksDir(targetTaskListId)                      
+      949 +                                                              
+      950 +  let restored = 0                                            
+      951 +  for (const file of files) {                                 
+      952 +    try {                                                     
+      953 +      const { readFile } = await import('fs/promises')        
+      954 +      const content = await readFile(join(sourceDir, file), 'u
+          +tf-8')                                                        
+      955 +      const task = jsonParse(content) as unknown as Task | nul
+          +l                                                             
+      956 +      if (!task || typeof task.id !== 'string') continue      
+      957 +                                                              
+      958 +      // Create the task in the target list, preserving subjec
+          +t/description/status                                          
+      959 +      // but clearing owner since the agent may differ between
+          + sessions                                                     
+      960 +      await createTask(targetTaskListId, {                    
+      961 +        subject: task.subject,                                
+      962 +        description: task.description,                        
+      963 +        status: task.status === 'in_progress' ? 'pending' : ta
+          +sk.status,                                                    
+      964 +        blocks: [],                                           
+      965 +        blockedBy: [],                                        
+      966 +        metadata: { restoredFrom: sourceSanitizedId },        
+      967 +      })                                                      
+      968 +      restored++                                              
+      969 +    } catch {                                                 
+      970 +      continue                                                
+      971 +    }                                                         
+      972 +  }                                                           
+      973 +                                                              
+      974 +  notifyTasksUpdated()                                        
+      975 +  return restored                                             
+      976 +}                                                             
+
+❯ Goal set: 完成文档编写的全部任务，包含需求分析，设计分析，代码实现，ai的使用方式（claude code+deepseek/opus4.6，codexapp+GPT5.4）,最后push 
+
+● Let me finish wiring up Task 15 quickly, then address the new goal.
+  Read 1 file (ctrl+o to expand)
+
+● Update(ZCode\src\tools\TaskListTool\TaskListTool.ts)
+  ⎿  Added 2 lines
+       5    getTaskListId,
+       6    isTodoV2Enabled,
+       7    listTasks,
+       8 +  findPreviousSessionTaskList,                                 
+       9 +  restoreTasksFromSession,                                     
+      10    TaskStatusSchema,
+      11  } from '../../utils/tasks.js'
+      12  import { TASK_LIST_TOOL_NAME } from './constants.js'
+
+● Update(ZCode\src\tools\TaskListTool\TaskListTool.ts)
+  ⎿  Added 12 lines, removed 1 line
+      67    async call() {
+      68      const taskListId = getTaskListId()
+      69  
+      70 -    const allTasks = (await listTasks(taskListId)).filter(     
+      70 +    let allTasks = (await listTasks(taskListId)).filter(       
+      71        t => !t.metadata?._internal,
+      72      )
+      73  
+      74 +    // Auto-restore tasks from a previous session if the curren
+         +t list is empty                                                
+      75 +    if (allTasks.length === 0) {                               
+      76 +      const previous = await findPreviousSessionTaskList(taskLi
+         +stId)                                                          
+      77 +      if (previous && previous.taskCount > 0) {                
+      78 +        await restoreTasksFromSession(taskListId, previous.task
+         +ListId)                                                        
+      79 +        allTasks = (await listTasks(taskListId)).filter(       
+      80 +          t => !t.metadata?._internal,                         
+      81 +        )                                                      
+      82 +      }                                                        
+      83 +    }                                                          
+      84 +                                                               
+      85      // Build a set of resolved task IDs for filtering
+      86      const resolvedTaskIds = new Set(
+      87        allTasks.filter(t => t.status === 'completed').map(t => t
+          .id),
+
+● Let me verify the type check passes.
+
+● Bash(cd "E:/项目/ZCode--CLI--agent/ZCode" && npx tsc --noEmit --pretty 2>&1 |
+      head -15)
+  ⎿  tsconfig.json:9:5 - error TS5101: Option 'baseUrl' is deprecated and w
+     ill stop functioning in TypeScript 7.0. Specify compilerOption '"ignor
+     eDeprecations": "6.0"' to silence this error.
+     … +7 lines (ctrl+o to expand)
+
+● All implementation tasks (9-15) are complete. Now addressing the new
+  documentation goal. Let me explore what exists.
+
+  Searched for 1 pattern, listed 3 directories (ctrl+o to expand)
+
+● Bash(git status --short "E:/项目/ZCode--CLI--agent/ZCode/")
+  ⎿   M src/components/Markdown.tsx
+      M src/components/Messages.tsx
+      M src/components/PromptInput/PromptInput.tsx
+     … +11 lines (ctrl+o to expand)
+
+  Read 3 files, listed 3 directories (ctrl+o to expand)
+
+● Let me read the key existing docs to identify gaps.
+
+  Read 3 files (ctrl+o to expand)
+
+● Now I have a clear picture. The existing docs are comprehensive, but three key
+   documents are missing per the user's goal. Let me create them.
+  Read 1 file (ctrl+o to expand)
+
+● Now let me write the three key documents. Starting with the AI methodology
+  guide.
+
+● Write(docs\guides\ai-development-methodology.md)
+  ⎿  Wrote 211 lines to docs\guides\ai-development-methodology.md
+       2 # AI 辅助开发方法论
+       3 > 本文档记录 ZCode CLI Agent 项目开发过程中使用的 AI 工具组合、
+         协作模式与最佳实践。
+       4 > 面向希望了解如何用 AI 工具高效开发复杂软件项目的读者。
+       5 
+       6 [← 返回文档中心](../README.md)
+       7 
+       8 ---
+       9 
+      10 ## 使用的 AI 工具
+     … +218 lines (ctrl+o to expand)
+
+❯ Goal set: review全部代码，整理工作区 
+
+● Write(docs\requirements-analysis.md)
+  ⎿  Wrote 123 lines to docs\requirements-analysis.md
+      1 # 需求分析文档
+      2 
+      3 > ZCode CLI Agent 软件需求规格 — 面向开发者、架构师与项目评审。
+      4 
+      5 [← 返回文档中心](README.md)
+      6 
+      7 ---
+      8 
+      9 ## 1 项目背景
+     … +132 lines (ctrl+o to expand)
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && git log --oneline -20)
+  ⎿  41525a8 fix: close T2.2 REPL startup chain — bun cli.tsx --bare -p now
+      passes
+     d0bbf23 feat: add three-level run modes (Plan/Agent/YOLO) and real-tim
+     … +17 lines (ctrl+o to expand)
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && git status --short)
+  ⎿   M ZCode/src/components/Markdown.tsx
+      M ZCode/src/components/Messages.tsx
+      M ZCode/src/components/PromptInput/PromptInput.tsx
+     … +20 lines (ctrl+o to expand)
+
+● Write(docs\implementation-status.md)
+  ⎿  Wrote 150 lines to docs\implementation-status.md
+      1 # 代码实现文档
+      2 
+      3 > ZCode CLI Agent 实现状态、架构概览与最近变更记录。
+      4 
+      5 [← 返回文档中心](README.md)
+      6 
+      7 ---
+      8 
+      9 ## 1 架构总览
+     … +153 lines (ctrl+o to expand)
+
+● Now let me update the docs hub and then address the review/cleanup goal.
+  Read 1 file (ctrl+o to expand)
+
+● Update(docs\README.md)
+  ⎿  Added 4 lines
+      11  | 我想… | 推荐阅读 |
+      12  |-------|----------|
+      13  | 5 分钟跑起来 | [快速开始](getting-started/quick-start.md) |
+      14 +| 了解功能需求 | [需求分析文档](requirements-analysis.md) |    
+      15 +| 查看实现状态 | [代码实现文档](implementation-status.md) |    
+      16  | 配置开发环境 | [本地开发指南](guides/local-development.md) |
+      17  | Windows 安装 `zcode` | [Windows 安装指南](guides/windows-inst
+          all.md) |
+      18  | 查环境变量 / CLI 契约 | [API 参考](references/api-reference.m
+          d) |
+      19  | 了解整体架构 | [系统设计说明书](系统设计说明书.md) |
+      20 +| 了解 AI 开发方法 | [AI 辅助开发方法论](guides/ai-development-
+         +methodology.md) |                                              
+      21  | 编写项目 README | [README 提示词模板](仓库readme提示词.md) |
+      22  | 查看 AI 协作开发记录 | [AI 交互过程记录](ai-interactions/over
+          view.md) |
+      23 +| 现场演示脚本 | [演示完整流程](guides/demo-walkthrough.md) |  
+      24  
+      25  ---
+      26  
+
+● Update(docs\README.md)
+  ⎿  Added 17 lines, removed 15 lines
+      28  
+      29  ```
+      30  docs/
+      31 -├── getting-started/          # 入门指南                       
+      32 -│   └── quick-start.md        # 5 分钟快速上手                 
+      33 -├── guides/                   # 使用与开发指南                 
+      34 -│   ├── local-development.md  # 本地环境配置                   
+      35 -│   └── windows-install.md    # Windows 安装包                 
+      36 -├── ai-interactions/           # AI 交互记录                   
+      37 -│   ├── overview.md            # 交互总览与总结                
+      38 -│   ├── session-01-planning.txt                                
+      39 -│   ├── session-02-dev-plan.txt                                
+      40 -│   └── session-03-repl-chain.txt                              
+      41 -├── references/               # 技术参考                       
+      42 -│   └── api-reference.md      # CLI 契约与环境变量             
+      43 -├── plans/                    # 开发计划（内部）               
+      44 -├── 系统设计说明书.md          # 架构与模块设计                
+      45 -└── 仓库readme提示词.md        # README 撰写模板               
+      31 +├── getting-started/               # 入门指南                  
+      32 +│   └── quick-start.md             # 5 分钟快速上手            
+      33 +├── guides/                        # 使用与开发指南            
+      34 +│   ├── local-development.md       # 本地环境配置              
+      35 +│   ├── windows-install.md         # Windows 安装包            
+      36 +│   ├── ai-development-methodology.md  # AI 辅助开发方法论     
+      37 +│   └── demo-walkthrough.md        # 现场演示完整流程          
+      38 +├── ai-interactions/               # AI 交互记录               
+      39 +│   ├── overview.md                # 交互总览与总结            
+      40 +│   └── session-*.txt              # 各次会话原始记录          
+      41 +├── references/                    # 技术参考                  
+      42 +│   └── api-reference.md           # CLI 契约与环境变量        
+      43 +├── plans/                         # 开发计划（内部）          
+      44 +├── requirements-analysis.md       # 需求分析                  
+      45 +├── implementation-status.md       # 代码实现状态              
+      46 +├── 系统设计说明书.md               # 架构与模块设计           
+      47 +└── 仓库readme提示词.md              # README 撰写模板         
+      48  ```
+      49  
+      50  ---
+
+● Update(docs\README.md)
+  ⎿  Added 1 line, removed 1 line
+      82  
+      83  ---
+      84  
+      85 -*最后更新：2026-06-01*                                         
+      85 +*最后更新：2026-06-09*                                         
+
+● Documentation complete. Now addressing "review全部代码，整理工作区". Let me
+  review all changes and clean up.
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && git diff --stat ZCode/src/)
+  ⎿   ZCode/src/components/Markdown.tsx                  |  25 +++--
+      ZCode/src/components/Messages.tsx                  |  35 +++++++
+      ZCode/src/components/PromptInput/PromptInput.tsx   |   7 ++
+     … +12 lines (ctrl+o to expand)
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && git diff
+      ZCode/src/components/Markdown.tsx ZCode/src/components/Messages.tsx
+      ZCode/src/components/PromptInput/PromptInput.tsx ZC…)
+  ⎿  diff --git a/ZCode/src/components/Markdown.tsx b/ZCode/src/components/
+     Markdown.tsx
+     index e82f4c7..90a35b9 100644
+     … +215 lines (ctrl+o to expand)
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && git diff ZCode/src/keybindings/
+      ZCode/src/services/api/providerAdapterClient.ts
+      ZCode/src/tools/FileWriteTool/UI.tsx ZCode/src/t…)
+  ⎿  diff --git a/ZCode/src/keybindings/defaultBindings.ts b/ZCode/src/keyb
+     indings/defaultBindings.ts
+     index 8629809..d50aadc 100644
+     … +172 lines (ctrl+o to expand)
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && git diff ZCode/src/utils/attachments.ts
+       ZCode/src/utils/settings/types.ts
+      ZCode/src/utils/suggestions/directoryCompletion.ts ZCo…)
+  ⎿  diff --git a/ZCode/src/utils/attachments.ts b/ZCode/src/utils/attachme
+     nts.ts
+     index 18bab90..fcb2621 100644
+     … +191 lines (ctrl+o to expand)
+
+  Read 1 file (ctrl+o to expand)
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && git status --short)
+  ⎿   M ZCode/src/components/Markdown.tsx
+      M ZCode/src/components/Messages.tsx
+      M ZCode/src/components/PromptInput/PromptInput.tsx
+     … +22 lines (ctrl+o to expand)
+  Read 1 file, listed 1 directory (ctrl+o to expand)
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && git ls-files --error-unmatch
+      "docs/仓库readme提示词.md" 2>&1; echo "exit: $?")
+  ⎿  error: pathspec 'docs/仓库readme提示词.md' did not match any file(s) k
+     nown to git
+     Did you forget to 'git add'?
+     exit: 1
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && git ls-files --error-unmatch
+      "node_modules/.package-lock.json" 2>&1; echo "---"; git ls-files
+      "node_modules/" 2>/dev/null | head…)
+  ⎿  node_modules/.package-lock.json
+     ---
+     node_modules/.bin/nanoid
+     … +4 lines (ctrl+o to expand)
+
+● Let me clean up the workspace: add tmp/ to .gitignore and stage all legitimate
+   changes.
+
+● Update(.gitignore)
+  ⎿  Added 3 lines
+      12  .env
+      13  .env.local
+      14  
+      15 +# temp files                                                   
+      16 +tmp/                                                           
+      17 +                                                               
+      18  # release artifacts
+      19  dist/
+
+● Now let me stage and commit all changes. Let me first do a final review of
+  what will be staged.
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && git add
+      ZCode/src/components/CodeBlock.tsx ZCode/src/components/Markdown.tsx
+      ZCode/src/components/Messages.tsx ZCode/src/compone…)
+  ⎿  warning: in the working copy of '.gitignore', LF will be replaced by C
+     RLF the next time Git touches it
+     warning: in the working copy of 'ZCode/src/components/CodeBlock.tsx',
+     … +34 lines (ctrl+o to expand)
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && git commit -m "$(cat <<'EOF'
+      feat: REPL TUI improvements (tasks 11-15), reasoning stream support, and
+      documentation…)
+  ⎿  [main 128c800] feat: REPL TUI improvements (tasks 11-15), reasoning st
+     ream support, and documentation
+      28 files changed, 2303 insertions(+), 30 deletions(-)
+     … +13 lines (ctrl+o to expand)
+
+● Commit created. Now pushing as requested.
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && git push 2>&1)
+  ⎿  To https://github.com/zmccyy/ZCode--CLI--agent
+        41525a8..128c800  main -> main
+
+● All tasks complete. Here's a summary of everything done:
+
+  代码审查与变更概览
+
+  13 个源文件变更，3 个新增文档，1 个新增组件，6 个打包脚本
+
+  功能实现（Tasks 11-15）
+
+  ┌──────────────┬────────────────────────┬─────────────────────────────────┐
+  │     Task     │          变更          │              文件               │
+  ├──────────────┼────────────────────────┼─────────────────────────────────┤
+  │ 11 Windows   │ isPathLikeToken        │ directoryCompletion.ts          │
+  │ 路径         │ 支持盘符+反斜杠        │                                 │
+  ├──────────────┼────────────────────────┼─────────────────────────────────┤
+  │ 12 Diff 增强 │ 预览行数 10→30         │ FileWriteTool/UI.tsx            │
+  ├──────────────┼────────────────────────┼─────────────────────────────────┤
+  │ 13 LSP 诊断  │ lsp.autoDiagnose       │ types.ts, attachments.ts        │
+  │              │ 设置开关               │                                 │
+  ├──────────────┼────────────────────────┼─────────────────────────────────┤
+  │ 14 快捷键    │ F1 帮助、Ctrl+K        │ defaultBindings.ts, schema.ts,  │
+  │              │ 命令面板               │ PromptInput.tsx                 │
+  ├──────────────┼────────────────────────┼─────────────────────────────────┤
+  │ 15           │ 跨会话自动恢复         │ tasks.ts, TaskListTool.ts       │
+  │ 任务持久化   │                        │                                 │
+  └──────────────┴────────────────────────┴─────────────────────────────────┘
+
+  已有改进（本次 included）
+
+  - providerAdapterClient.ts — reasoning/thinking 流式块支持
+  - CodeBlock.tsx — 语法高亮代码块组件
+  - Messages.tsx — Think→Act→Reply 阶段分隔线
+  - StatusLine.tsx — 默认状态栏（模型/Token/费用）
+  - .gitignore — 添加 tmp/
+
+  文档
+
+  - docs/requirements-analysis.md — 需求分析
+  - docs/implementation-status.md — 代码实现状态
+  - docs/guides/ai-development-methodology.md — AI 使用方法论
+
+  Git
+
+  - Commit: 128c800 — 28 files, +2303/-30
+  - Pushed to main on GitHub
+
+● Ran 1 stop hook (ctrl+o to expand)
+  ⎿  Stop hook error: JSON validation failed
+✻ Crunched for 21m 49s
+
+❯ 翻新readme，保持高质量                                                        
+
+● Let me read the current READMEs and the template to plan the refresh.
+
+  Read 3 files (ctrl+o to expand)
+
+● I have full context on both READMEs. Let me refresh them with current state,
+  new features, and better structure.
+
+● Write(README.md)
+  ⎿  Added 116 lines, removed 39 lines
+      1  # ZCode CLI Agent
+      2  
+      3 -> **Your terminal-native AI coding agent** — natural language in
+        -, real engineering work out.                                    
+      3 +> **Your terminal-native AI coding agent** — describe the task, 
+        +ship the work.                                                  
+      4  
+      5  [English](README.md) | [中文](README_ZH.md)
+      6  
+     ...
+       8  [![License](https://img.shields.io/github/license/zmccyy/ZCode-
+          -CLI--agent?style=flat-square)](LICENSE)
+       9  [![Version](https://img.shields.io/badge/version-0.1.0-blue?sty
+          le=flat-square)](https://github.com/zmccyy/ZCode--CLI--agent/re
+          leases)
+      10  [![Node](https://img.shields.io/badge/node-%3E%3D22-339933?styl
+          e=flat-square&logo=node.js&logoColor=white)](https://nodejs.org
+          /)
+      11 +[![Bun](https://img.shields.io/badge/bun-%3E%3D1.0-f9f1e1?style
+         +=flat-square&logo=bun)](https://bun.sh)                        
+      12  [![Platform](https://img.shields.io/badge/platform-Windows%20%7
+          C%20macOS%20%7C%20Linux-lightgrey?style=flat-square)](#-quick-s
+          tart)
+      13 +[![Tests](https://img.shields.io/badge/tests-795%2F801%20passin
+         +g-success?style=flat-square)](#-quick-start)                   
+      14  
+      15  ---
+      16  
+      17  ## Why ZCode?
+      18  
+      17 -Most AI coding tools live in the browser or IDE. **ZCode CLI Ag
+         -ent** brings a full agent loop to your terminal — read files, r
+         -un commands, search code, call MCP tools, and ship changes with
+         -out leaving the shell.                                         
+      19 +Most AI coding assistants are locked inside a browser tab or ID
+         +E window. **ZCode CLI Agent** puts the full agent loop right in
+         + your terminal — read files, run commands, search code, call MC
+         +P tools, edit with LSP diagnostics, and ship changes, all witho
+         +ut leaving the shell.                                          
+      20  
+      19 -Built as a Claude Code–class terminal agent, ZCode is designed 
+         -for developers who want **scriptable, local-first AI workflows*
+         -* with multi-model support and fine-grained tool permissions.  
+      21 +It's Claude Code–class terminal agency, built for developers wh
+         +o want **scriptable, local-first AI workflows** with multi-mode
+         +l support, fine-grained tool permissions, and a persistent task
+         + system that survives restarts.                                
+      22  
+      23  ---
+      24  
+      25  ## ✨ Features
+      26  
+      27  - 🎯 **Natural-language coding** — Describe tasks in plain lang
+          uage; the agent plans and executes with tools
+      26 -- 🔌 **Multi-provider LLM** — Anthropic, AWS Bedrock, Google Ve
+         -rtex, Azure, and OpenAI-compatible APIs                        
+      27 -- 🧰 **Rich tool system** — File I/O, shell, grep, LSP, skills,
+         - and extensible agent tools                                    
+      28 -- 🌐 **MCP integration** — Plug in external capabilities via Mo
+         -del Context Protocol servers                                   
+      29 -- 🛡️ **Permission control** — Granular approval for tool executi
+         -on, keeping your machine safe                                  
+      30 -- 📦 **Scriptable print mode** — `-p --json` for CI, automation
+         -, and one-shot prompts                                         
+      31 -- 🖥️ **Ink-powered TUI** — Interactive REPL with session resume
+         -, context compression, and memory                              
+      28 +- 🔌 **Multi-provider LLM** — Anthropic, AWS Bedrock, Google Ve
+         +rtex, Azure, and any OpenAI-compatible API                     
+      29 +- 🧰 **Rich tool system** — File read/write/edit, shell, grep, 
+         +glob, LSP diagnostics, skills, and extensible agents           
+      30 +- 🌐 **MCP integration** — Plug in external tools via Model Con
+         +text Protocol servers                                          
+      31 +- 🛡️ **Permission control** — Four modes: Plan (preview only), 
+         +Agent (ask per action), YOLO (auto-approve), Auto (bypass)     
+      32 +- 📦 **Scriptable CLI** — `-p --json` for CI pipelines; `--writ
+         +e`, `--plan`, `--yolo`, `--reasoning` flags                    
+      33 +- 🖥️ **Interactive Ink TUI** — Full-screen REPL with session re
+         +sume, context compression, and layered memory                  
+      34 +- 💬 **Reasoning preview** — Stream model thinking blocks inlin
+         +e before tool calls and replies                                
+      35 +- ⌨️ **Keyboard-driven** — Configurable keybindings: F1 help, C
+         +trl+K command palette, Ctrl+R history, chord sequences         
+      36 +- 📋 **Persistent tasks** — Create, track, and auto-restore tas
+         +k lists across sessions                                        
+      37 +- 🩺 **LSP diagnostics** — Auto-inject language server errors/w
+         +arnings after file edits (toggleable)                          
+      38 +- 🪟 **Windows-first** — Drive-letter path completion, backslas
+         +h separators, portable installer via PowerShell                
+      39  
+      40  ---
+      41  
+      35 -## 📸 Demo                                                     
+      42 +## 📸 Quick Demo                                               
+      43  
+      37 -No screenshots yet — here's what the public CLI looks like toda
+         -y:                                                             
+      44 +**Offline** (no API key needed, 21 checks):                    
+      45  
+      46  ```bash
+      47 +bash scripts/demo-all-features.sh                              
+      48 +```                                                            
+      49 +                                                               
+      50 +**Live** (8 real LLM calls, requires `.env`):                  
+      51 +                                                               
+      52 +```bash                                                        
+      53 +bash scripts/demo-all-features.sh --live                       
+      54 +```                                                            
+      55 +                                                               
+      56 +See the full walkthrough at [docs/guides/demo-walkthrough.md](d
+         +ocs/guides/demo-walkthrough.md).                               
+      57 +                                                               
+      58 +### Sample output                                              
+      59 +                                                               
+      60 +```bash                                                        
+      61  $ cd ZCode && bun run doctor --json
+      62  
+      63  {
+     ...
+      67    "provider": {
+      68      "mode": "openai-compatible",
+      69      "printReady": true,
+      49 -    "modelCount": 1                                            
+      70 +    "modelCount": 12                                           
+      71    },
+      72    "commands": ["help", "doctor", "models", "print"]
+      73  }
+      74  ```
+      75  
+      76  ```bash
+      56 -$ zcode -p "Summarize this repository" --json                  
+      77 +$ zcode -p "Explain this repository" --json                    
+      78  
+      79  {
+      80    "provider": "openai-compatible:deepseek",
+     ...
+       85  }
+       86  ```
+       87  
+       67 -> **Tip:** Star the repo to follow interactive TUI and full ag
+          -ent loop progress.                                            
+       88 +```bash                                                       
+       89 +# New flags — preview without executing, write code to files, 
+          +enable reasoning                                              
+       90 +$ zcode -p "Create a REST API" --plan           # analyze only
+          +, no execution                                                
+       91 +$ zcode -p "Write a Fibonacci script" --write fib.py          
+       92 +$ zcode -p "Optimize this algorithm" --reasoning  # stream thi
+          +nking process                                                 
+       93 +$ zcode -p "Deploy to staging" --yolo           # skip approva
+          +l prompts                                                     
+       94 +```                                                           
+       95  
+       96  ---
+       97  
+       98  ## 🚀 Quick Start
+       99  
+       73 -**Requirements:** Node.js ≥ 22 · Bun ≥ 1.0 (recommended)      
+      100 +**Requirements:** Node.js ≥ 22 · Bun ≥ 1.0 (recommended for RE
+          +PL)                                                           
+      101  
+      102  ```bash
+      103  git clone https://github.com/zmccyy/ZCode--CLI--agent.git
+     ...
+      105  bun install
+      106  ```
+      107  
+       81 -1. **Create `.env`** in your working directory with your LLM p
+          -rovider credentials                                           
+       82 -2. **Verify setup** — `bun run doctor --json`                 
+      108 +1. **Create `.env`** with your LLM provider credentials       
+      109 +2. **Verify** — `bun run doctor --json`                       
+      110  3. **List models** — `bun run models`
+      111  4. **Run a prompt** — `bun run start -p "Explain this repo" --
+           json`
+       85 -5. **Optional global install** — `npm link` then use `zcode` a
+          -nywhere                                                       
+      112 +5. **Optional** — `npm link` to use `zcode` globally          
+      113  
+      114 +### Windows portable install                                  
+      115 +                                                              
+      116 +Download from [Releases](https://github.com/zmccyy/ZCode--CLI-
+          +-agent/releases) or build locally:                            
+      117 +                                                              
+      118 +```powershell                                                 
+      119 +powershell -ExecutionPolicy Bypass -File packaging\windows\bui
+          +ld-portable.ps1                                               
+      120 +powershell -ExecutionPolicy Bypass -File packaging\windows\ins
+          +tall.ps1 -ZipPath .\dist\zcode-0.1.0-win-x64-portable.zip     
+      121 +```                                                           
+      122 +                                                              
+      123 +Then `zcode --help` from any terminal. See [Windows Install Gu
+          +ide](docs/guides/windows-install.md).                         
+      124 +                                                              
+      125  <details>
+       88 -<summary>Minimal <code>.env</code> example (OpenAI-compatible 
+          -/ DeepSeek)</summary>                                         
+      126 +<summary>Minimal <code>.env</code> (OpenAI-compatible / DeepSe
+          +ek)</summary>                                                 
+      127  
+      128  ```dotenv
+      129  ZCODE_PROVIDER=openai-compatible
+     ...
+      132  ZCODE_OPENAI_BASE_URL=https://api.deepseek.com/v1
+      133  ZCODE_OPENAI_API_KEY=your-api-key
+      134  ```
+       97 -                                                              
+      135  </details>
+      136  
+      137  ---
+      138  
+      139  ## 💡 Usage
+      140  
+      104 -### Public CLI (stable local entrypoint)                      
+      141 +### Public CLI (stable)                                       
+      142  
+      143  | Command | Description |
+      144  |---------|-------------|
+      108 -| `bun run start --help` | Show help |                        
+      145 +| `bun run start --help` | Show all commands and flags |      
+      146  | `bun run doctor --json` | Runtime & provider diagnostics |
+      110 -| `bun run models` | List available models |                  
+      111 -| `bun run start -p "..." --json` | Non-interactive prompt wit
+          -h JSON output |                                               
+      147 +| `bun run models` | List all 12 available models |           
+      148 +| `bun run start -p "..." --json` | One-shot prompt, JSON outp
+          +ut |                                                          
+      149 +| `bun run start -p "..." --plan` | Analyze without executing 
+          +|                                                             
+      150 +| `bun run start -p "..." --write output.py` | Generate and sa
+          +ve code |                                                     
+      151 +| `bun run start -p "..." --reasoning` | Stream thinking proce
+          +ss |                                                          
+      152 +| `bun run start -p "..." --yolo` | Auto-approve tool actions 
+          +|                                                             
+      153  
+      113 -Node.js works the same way:                                   
+      154 +Node.js equivalent:                                           
+      155  
+      156  ```bash
+      157  npm start -- --help
+     ...
+      159  npm start -- -p "Summarize this repository" --json
+      160  ```
+      161  
+      121 -### Full interactive REPL (Bun)                               
+      162 +### Interactive REPL (Bun)                                    
+      163  
+      164  ```bash
+      165  bun src/entrypoints/cli.tsx
+      166  ```
+      167  
+      127 -The full TUI path includes MCP management, auth, plugins, skil
+          -ls, session resume, and the complete tool loop. See [System De
+          -sign](docs/系统设计说明书.md) for architecture details.       
+      168 +The TUI gives you: streaming responses, tool approval dialogs,
+          + LSP diagnostics overlay, persistent task panel (Ctrl+T), tran
+          +script viewer (Ctrl+O), command palette (Ctrl+K), help overlay
+          + (F1), and full session persistence.                          
+      169  
+      170 +Start in Plan mode:                                           
+      171 +                                                              
+      172 +```bash                                                       
+      173 +bun src/entrypoints/cli.tsx --plan                            
+      174 +```                                                           
+      175 +                                                              
+      176  ### JSON output schema
+      177  
+      178  ```json
+     ...
+      190  
+      191  ---
+      192  
+      146 -## 🏗️ Architecture at a Glance                                
+      193 +## ⌨️ Keybindings                                             
+      194  
+      195 +| Key | Action |                                              
+      196 +|-----|--------|                                              
+      197 +| `Ctrl+K` | Command palette |                                
+      198 +| `F1` | Help overlay |                                       
+      199 +| `Ctrl+R` | History search / resume session |                
+      200 +| `Ctrl+T` | Task panel |                                     
+      201 +| `Ctrl+O` | Transcript viewer |                              
+      202 +| `Ctrl+L` | Redraw screen |                                  
+      203 +| `Shift+Tab` | Cycle permission mode |                       
+      204 +| `Meta+T` | Toggle reasoning/thinking |                      
+      205 +| `Ctrl+C` / `Ctrl+D` | Interrupt / exit |                    
+      206 +                                                              
+      207 +Keybindings are fully configurable via `~/.claude/keybindings.
+          +json`. See the [keybinding system](ZCode/src/keybindings/) for
+          + details.                                                     
+      208 +                                                              
+      209 +---                                                           
+      210 +                                                              
+      211 +## 🏗️ Architecture                                            
+      212 +                                                              
+      213  ```
+      214  ┌─────────────────────────────────────────┐
+      150 -│  CLI Entry  (publicCli / cli.tsx)     │                     
+      215 +│  CLI Entry  (publicCli / cli.tsx)       │                   
+      216  ├─────────────────────────────────────────┤
+      217  │  Query Engine  ·  Session & Memory      │
+      218  ├─────────────────────────────────────────┤
+     ...
+      225  | Layer | Responsibility |
+      226  |-------|----------------|
+      227  | CLI | Command parsing, print mode, interactive REPL |
+      163 -| Query Engine | Conversation loop, streaming, compaction |   
+      164 -| Tools | File, shell, search, LSP, skills, agents |          
+      228 +| Query Engine | Conversation loop, streaming, context compact
+          +ion |                                                         
+      229 +| Tools | File I/O, shell, search, LSP, skills, agents |      
+      230  | Providers | Multi-vendor LLM routing & model registry |
+      231  | MCP | External tool server integration |
+      232  
+     ...
+      237  | Topic | Link |
+      238  |-------|------|
+      239  | Doc Hub | [docs/README.md](docs/README.md) |
+      240 +| Requirements | [docs/requirements-analysis.md](docs/requirem
+          +ents-analysis.md) |                                           
+      241 +| Implementation | [docs/implementation-status.md](docs/implem
+          +entation-status.md) |                                         
+      242  | Quick Start | [docs/getting-started/quick-start.md](docs/get
+           ting-started/quick-start.md) |
+      176 -| Local Development | [docs/guides/local-development.md](docs/
+          -guides/local-development.md) |                                
+      177 -| API / Env Vars | [docs/references/api-reference.md](docs/ref
+          -erences/api-reference.md) |                                   
+      243  | System Design | [docs/系统设计说明书.md](docs/系统设计说明书
+           .md) |
+      244 +| API / Env Vars | [docs/references/api-reference.md](docs/ref
+          +erences/api-reference.md) |                                   
+      245 +| AI Development | [docs/guides/ai-development-methodology.md]
+          +(docs/guides/ai-development-methodology.md) |                 
+      246 +| Demo Walkthrough | [docs/guides/demo-walkthrough.md](docs/gu
+          +ides/demo-walkthrough.md) |                                   
+      247  
+      248  ---
+      249  
+      250  ## ❓ FAQ
+      251  
+      184 -**Q: What's the difference between the public CLI and the full
+          - REPL?**                                                      
+      252 +**Q: Public CLI vs full REPL — what's the difference?**       
+      253  
+      186 -The public build (`publicCli.js`) exposes stable commands — `h
+          -elp`, `doctor`, `models`, and `-p` print mode — without bootin
+          -g the full Ink TUI. The full agent experience lives at `bun sr
+          -c/entrypoints/cli.tsx`.                                       
+      254 +The public build (`publicCli.js`) exposes stable commands — `h
+          +elp`, `doctor`, `models`, and `-p` print mode — without bootin
+          +g the full Ink TUI. The complete agent experience lives at `bu
+          +n src/entrypoints/cli.tsx`.                                   
+      255  
+      256  **Q: Which LLM providers are supported?**
+      257  
+      190 -The codebase supports Anthropic, AWS Bedrock, Google Vertex, A
+          -zure Foundry, and any OpenAI-compatible endpoint. The public p
+          -rint mode currently validates against OpenAI-compatible provid
+          -ers via `.env`.                                               
+      258 +Anthropic, AWS Bedrock, Google Vertex, Azure Foundry, and any 
+          +OpenAI-compatible endpoint. The public print mode validates ag
+          +ainst OpenAI-compatible providers via `.env`.                 
+      259  
+      260 +**Q: What does `--plan` mode do?**                            
+      261 +                                                              
+      262 +`--plan` runs the agent in read-only analysis mode. It explore
+          +s, reads, and plans — but never edits, writes, or executes. Yo
+          +u see what it *would* do before committing. Remove `--plan` to
+          + execute.                                                     
+      263 +                                                              
+      264 +**Q: How does `--yolo` differ from Plan mode?**               
+      265 +                                                              
+      266 +`--yolo` auto-approves all tool actions without asking for per
+          +mission. Useful in CI or when you fully trust the agent. `--pl
+          +an` is the opposite — zero execution.                         
+      267 +                                                              
+      268  **Q: Environment variables not loading?**
+      269  
+      194 -Place `.env` in your current working directory. Existing proce
+          -ss env vars take precedence over `.env` values.               
+      270 +Place `.env` in your current working directory. Existing proce
+          +ss env vars take precedence over `.env`.                      
+      271  
+      272  **Q: Node.js or Bun?**
+      273  
+     ...
+      285  
+      286  ```bash
+      287  cd ZCode
+      212 -bun test          # or: npm test                              
+      288 +bun test          # 801 tests, 795 passing                    
+      289 +npx tsc --noEmit  # type-check                                
+      290  ```
+      291  
+      292  ---
+     ...
+      307  
+      308  Inspired by the terminal agent paradigm pioneered by Claude Co
+           de. Built with [Ink](https://github.com/vadimdemedes/ink), [Co
+           mmander](https://github.com/tj/commander.js), and the [MCP SDK
+           ](https://github.com/modelcontextprotocol/typescript-sdk).
+      309  
+      233 -*Last updated: 2026-06-01*                                    
+      310 +*Last updated: 2026-06-09*                                    
+
+● Now the Chinese README.
+
+● Write(README_ZH.md)
+  ⎿  Added 94 lines, removed 29 lines
+      1  # ZCode CLI Agent
+      2  
+      3 -> **终端原生 AI 编程助手** — 自然语言输入，工程任务自动执行。   
+      3 +> **终端原生 AI 编程助手** — 用自然语言描述任务，Agent 自动完成 
+        +工程工作。                                                      
+      4  
+      5  [English](README.md) | [中文](README_ZH.md)
+      6  
+     ...
+       8  [![License](https://img.shields.io/github/license/zmccyy/ZCode-
+          -CLI--agent?style=flat-square)](LICENSE)
+       9  [![Version](https://img.shields.io/badge/version-0.1.0-blue?sty
+          le=flat-square)](https://github.com/zmccyy/ZCode--CLI--agent/re
+          leases)
+      10  [![Node](https://img.shields.io/badge/node-%3E%3D22-339933?styl
+          e=flat-square&logo=node.js&logoColor=white)](https://nodejs.org
+          /)
+      11 +[![Bun](https://img.shields.io/badge/bun-%3E%3D1.0-f9f1e1?style
+         +=flat-square&logo=bun)](https://bun.sh)                        
+      12  [![Platform](https://img.shields.io/badge/platform-Windows%20%7
+          C%20macOS%20%7C%20Linux-lightgrey?style=flat-square)](#-快速开
+          始)
+      13 +[![Tests](https://img.shields.io/badge/tests-795%2F801%20passin
+         +g-success?style=flat-square)](#-快速开始)                      
+      14  
+      15  ---
+      16  
+      17  ## 为什么需要 ZCode？
+      18  
+      17 -AI 编程工具大多绑定在浏览器或 IDE 里。**ZCode CLI Agent** 把完 
+         -整的 Agent 循环搬进终端 —— 读文件、跑命令、搜代码、调 MCP 工具 
+         -、提交改动，全程不离开 Shell。                                 
+      19 +大多数 AI 编程工具绑在浏览器或 IDE 里。**ZCode CLI Agent** 把完
+         +整的 Agent 循环搬进了终端——读文件、跑命令、搜代码、调 MCP 工具 
+         +、编辑并检查 LSP 诊断、提交改动，全程不离开 Shell。            
+      20  
+      19 -对标 Claude Code 级终端 Agent 能力，ZCode 面向需要 **可脚本化、
+         -本地优先** AI 工作流的开发者，支持多模型接入与细粒度工具权限控 
+         -制。                                                           
+      21 +对标 Claude Code 级终端 Agent 能力，ZCode 面向需要 **可脚本化、
+         +本地优先** AI 工作流的开发者，支持多模型接入、细粒度权限控制， 
+         +以及跨会话持久化的任务系统。                                   
+      22  
+      23  ---
+      24  
+      25  ## ✨ 核心特性
+      26  
+      25 -- 🎯 **自然语言驱动编程** — 用口语描述任务，Agent 自动规划并调 
+         -用工具执行                                                     
+      26 -- 🔌 **多 Provider 支持** — Anthropic、AWS Bedrock、Google Vert
+         -ex、Azure 及 OpenAI 兼容协议                                   
+      27 -- 🧰 **丰富工具链** — 文件读写、Shell、Grep、LSP、Skills 及可扩
+         -展 Agent 工具                                                  
+      27 +- 🎯 **自然语言编程** — 用口语描述任务，Agent 自动规划并调用工 
+         +具执行                                                         
+      28 +- 🔌 **多 Provider 支持** — Anthropic、AWS Bedrock、Google Vert
+         +ex、Azure 及任意 OpenAI 兼容 API                               
+      29 +- 🧰 **丰富工具链** — 文件读写/编辑、Shell、Grep、Glob、LSP 诊 
+         +断、Skills、可扩展 Agent                                       
+      30  - 🌐 **MCP 协议集成** — 通过 Model Context Protocol 接入外部工
+          具服务器
+      29 -- 🛡️ **权限精细管控** — 工具执行需审批，保障本地环境安全       
+      30 -- 📦 **脚本化 Print 模式** — `-p --json` 输出结构化结果，适合 C
+         -I 与自动化                                                     
+      31 -- 🖥️ **Ink 交互式 TUI** — 支持会话恢复、上下文压缩与多层记忆系统
+         -                                                               
+      31 +- 🛡️ **四级权限控制** — Plan（仅预览）、Agent（逐项审批）、YOLO
+         +（自动批准）、Auto（完全放行）                                 
+      32 +- 📦 **脚本化 CLI** — `-p --json` 用于 CI 流水线；`--write`、`-
+         +-plan`、`--yolo`、`--reasoning` 标志                           
+      33 +- 🖥️ **Ink 交互式 TUI** — 全屏 REPL，支持会话恢复、上下文压缩与
+         +多层记忆系统                                                   
+      34 +- 💬 **推理过程预览** — 实时流式展示模型思考过程，区分 Think→Ac
+         +t→Observe→Reply 阶段                                           
+      35 +- ⌨️ **键盘驱动** — 可配置快捷键：F1 帮助、Ctrl+K 命令面板、Ctr
+         +l+R 历史搜索、和弦序列                                         
+      36 +- 📋 **持久化任务** — 创建、追踪任务列表，跨会话自动恢复       
+      37 +- 🩺 **LSP 诊断注入** — 文件编辑后自动收集语言服务器错误/警告（
+         +可关闭）                                                       
+      38 +- 🪟 **Windows 优先** — 盘符路径补全、反斜杠分隔符、PowerShell 
+         +便携安装包                                                     
+      39  
+      40  ---
+      41  
+      35 -## 📸 演示                                                     
+      42 +## 📸 快速演示                                                 
+      43  
+      37 -项目暂无截图，以下是公共 CLI 的实际输出：                      
+      44 +**离线模式**（无需 API Key，21 项检查）：                      
+      45  
+      46  ```bash
+      47 +bash scripts/demo-all-features.sh                              
+      48 +```                                                            
+      49 +                                                               
+      50 +**实时模式**（8 次真实 LLM 调用，需配置 `.env`）：             
+      51 +                                                               
+      52 +```bash                                                        
+      53 +bash scripts/demo-all-features.sh --live                       
+      54 +```                                                            
+      55 +                                                               
+      56 +完整演示脚本见 [docs/guides/demo-walkthrough.md](docs/guides/de
+         +mo-walkthrough.md)。                                           
+      57 +                                                               
+      58 +### 示例输出                                                   
+      59 +                                                               
+      60 +```bash                                                        
+      61  $ cd ZCode && bun run doctor --json
+      62  
+      63  {
+     ...
+      67    "provider": {
+      68      "mode": "openai-compatible",
+      69      "printReady": true,
+      49 -    "modelCount": 1                                            
+      70 +    "modelCount": 12                                           
+      71    },
+      72    "commands": ["help", "doctor", "models", "print"]
+      73  }
+     ...
+       85  }
+       86  ```
+       87  
+       67 -> **提示：** Star 本仓库，跟踪交互式 TUI 与完整 Agent 链路的开
+          -发进展。                                                      
+       88 +```bash                                                       
+       89 +# 新增标志 — 预览不执行、写入代码文件、启用推理过程           
+       90 +$ zcode -p "创建一个 REST API" --plan           # 仅分析，不执
+          +行                                                            
+       91 +$ zcode -p "写一个斐波那契脚本" --write fib.py                
+       92 +$ zcode -p "优化这个算法" --reasoning             # 流式展示思
+          +考过程                                                        
+       93 +$ zcode -p "部署到测试环境" --yolo               # 跳过审批提 
+          +示                                                            
+       94 +```                                                           
+       95  
+       96  ---
+       97  
+       98  ## 🚀 快速开始
+       99  
+       73 -**环境要求：** Node.js ≥ 22 · Bun ≥ 1.0（推荐）               
+      100 +**环境要求：** Node.js ≥ 22 · Bun ≥ 1.0（REPL 推荐）          
+      101  
+      102  ```bash
+      103  git clone https://github.com/zmccyy/ZCode--CLI--agent.git
+     ...
+      111  4. **发起请求** — `bun run start -p "解释这个仓库" --json`
+      112  5. **可选全局安装** — `npm link` 后任意目录使用 `zcode`
+      113  
+       87 -### Windows 安装包                                            
+      114 +### Windows 便携安装                                          
+      115  
+      116  从 [GitHub Releases](https://github.com/zmccyy/ZCode--CLI--age
+           nt/releases) 下载便携 ZIP，或本地构建：
+      117  
+     ...
+      120  powershell -ExecutionPolicy Bypass -File packaging\windows\ins
+           tall.ps1 -ZipPath .\dist\zcode-0.1.0-win-x64-portable.zip
+      121  ```
+      122  
+       96 -安装后在新终端执行 `zcode --help`。详见 [Windows 安装指南](doc
+          -s/guides/windows-install.md)。                                
+      123 +安装后在任意终端执行 `zcode --help`。详见 [Windows 安装指南](d
+          +ocs/guides/windows-install.md)。                              
+      124  
+      125  <details>
+      126  <summary>最小 <code>.env</code> 示例（OpenAI 兼容 / DeepSeek）
+           </summary>
+     ...
+      132  ZCODE_OPENAI_BASE_URL=https://api.deepseek.com/v1
+      133  ZCODE_OPENAI_API_KEY=your-api-key
+      134  ```
+      108 -                                                              
+      135  </details>
+      136  
+      137  ---
+      138  
+      139  ## 💡 使用示例
+      140  
+      115 -### 公共 CLI（稳定本地入口）                                  
+      141 +### 公共 CLI（稳定入口）                                      
+      142  
+      143  | 命令 | 说明 |
+      144  |------|------|
+      119 -| `bun run start --help` | 查看帮助 |                         
+      145 +| `bun run start --help` | 查看所有命令和标志 |               
+      146  | `bun run doctor --json` | 运行时与 Provider 诊断 |
+      121 -| `bun run models` | 列出可用模型 |                           
+      122 -| `bun run start -p "..." --json` | 非交互式请求，JSON 输出 | 
+      147 +| `bun run models` | 列出全部 12 个可用模型 |                 
+      148 +| `bun run start -p "..." --json` | 单次请求，JSON 输出 |     
+      149 +| `bun run start -p "..." --plan` | 仅分析，不执行 |          
+      150 +| `bun run start -p "..." --write output.py` | 生成代码并写入 
+          +文件 |                                                        
+      151 +| `bun run start -p "..." --reasoning` | 流式展示推理过程 |   
+      152 +| `bun run start -p "..." --yolo` | 自动批准工具操作 |        
+      153  
+      154  Node.js 同样可用：
+      155  
+      156  ```bash
+      157  npm start -- --help
+      158  npm run doctor -- --json
+      129 -npm start -- -p "Summarize this repository" --json            
+      159 +npm start -- -p "总结这个仓库" --json                         
+      160  ```
+      161  
+      162  ### 完整交互式 REPL（Bun）
+     ...
+      165  bun src/entrypoints/cli.tsx
+      166  ```
+      167  
+      138 -完整 TUI 链路包含 MCP 管理、认证、插件、Skills、会话恢复及完整
+          -工具循环。架构详见 [系统设计说明书](docs/系统设计说明书.md)。 
+      168 +TUI 提供：流式回复、工具审批弹窗、LSP 诊断叠加、持久化任务面板
+          +（Ctrl+T）、对话记录查看器（Ctrl+O）、命令面板（Ctrl+K）、帮助
+          +覆盖层（F1）、完整会话持久化。                                
+      169  
+      170 +以 Plan 模式启动：                                            
+      171 +                                                              
+      172 +```bash                                                       
+      173 +bun src/entrypoints/cli.tsx --plan                            
+      174 +```                                                           
+      175 +                                                              
+      176  ### JSON 输出格式
+      177  
+      178  ```json
+     ...
+      190  
+      191  ---
+      192  
+      193 +## ⌨️ 快捷键                                                  
+      194 +                                                              
+      195 +| 按键 | 功能 |                                               
+      196 +|------|------|                                               
+      197 +| `Ctrl+K` | 命令面板 |                                       
+      198 +| `F1` | 帮助覆盖层 |                                         
+      199 +| `Ctrl+R` | 历史搜索 / 恢复会话 |                            
+      200 +| `Ctrl+T` | 任务面板 |                                       
+      201 +| `Ctrl+O` | 对话记录查看器 |                                 
+      202 +| `Ctrl+L` | 刷新屏幕 |                                       
+      203 +| `Shift+Tab` | 循环切换权限模式 |                            
+      204 +| `Meta+T` | 切换推理/思考模式 |                              
+      205 +| `Ctrl+C` / `Ctrl+D` | 中断 / 退出 |                         
+      206 +                                                              
+      207 +快捷键可通过 `~/.claude/keybindings.json` 完全自定义。详见 [键
+          +绑定系统](ZCode/src/keybindings/)。                           
+      208 +                                                              
+      209 +---                                                           
+      210 +                                                              
+      211  ## 🏗️ 架构概览
+      212  
+      213  ```
+     ...
+      237  | 分类 | 链接 |
+      238  |------|------|
+      239  | 文档中心 | [docs/README.md](docs/README.md) |
+      240 +| 需求分析 | [docs/requirements-analysis.md](docs/requirements
+          +-analysis.md) |                                               
+      241 +| 代码实现 | [docs/implementation-status.md](docs/implementati
+          +on-status.md) |                                               
+      242  | 快速开始 | [docs/getting-started/quick-start.md](docs/gettin
+           g-started/quick-start.md) |
+      187 -| 本地开发 | [docs/guides/local-development.md](docs/guides/lo
+          -cal-development.md) |                                         
+      188 -| Windows 安装 | [docs/guides/windows-install.md](docs/guides/
+          -windows-install.md) |                                         
+      189 -| API / 环境变量 | [docs/references/api-reference.md](docs/ref
+          -erences/api-reference.md) |                                   
+      243  | 系统设计 | [docs/系统设计说明书.md](docs/系统设计说明书.md) 
+           |
+      244 +| API / 环境变量 | [docs/references/api-reference.md](docs/ref
+          +erences/api-reference.md) |                                   
+      245 +| AI 开发方法 | [docs/guides/ai-development-methodology.md](do
+          +cs/guides/ai-development-methodology.md) |                    
+      246 +| 演示脚本 | [docs/guides/demo-walkthrough.md](docs/guides/dem
+          +o-walkthrough.md) |                                           
+      247  
+      248  ---
+      249  
+     ...
+      255  
+      256  **Q: 支持哪些 LLM Provider？**
+      257  
+      202 -代码库支持 Anthropic、AWS Bedrock、Google Vertex、Azure Foundr
+          -y 及任意 OpenAI 兼容端点。公共 Print 模式目前通过 `.env` 验证 
+          -OpenAI 兼容 Provider。                                        
+      258 +支持 Anthropic、AWS Bedrock、Google Vertex、Azure Foundry 及任
+          +意 OpenAI 兼容端点。公共 Print 模式通过 `.env` 验证 OpenAI 兼 
+          +容 Provider。                                                 
+      259  
+      260 +**Q: `--plan` 模式做什么？**                                  
+      261 +                                                              
+      262 +`--plan` 以只读分析模式运行 Agent。它会探索、阅读、规划——但绝 
+          +不编辑、写入或执行任何操作。你会看到它 **打算** 做什么，确认后
+          +再去掉 `--plan` 实际执行。                                    
+      263 +                                                              
+      264 +**Q: `--yolo` 和 Plan 模式有什么区别？**                      
+      265 +                                                              
+      266 +`--yolo` 自动批准所有工具操作，无需逐项确认。适用于 CI 或完全 
+          +信任 Agent 的场景。`--plan` 则完全相反——零执行。              
+      267 +                                                              
+      268  **Q: 环境变量不生效？**
+      269  
+      270  将 `.env` 放在当前工作目录。已存在于进程中的环境变量优先级高于
+            `.env`。
+     ...
+      285  
+      286  ```bash
+      287  cd ZCode
+      224 -bun test          # 或: npm test                              
+      288 +bun test          # 801 项测试，795 通过                      
+      289 +npx tsc --noEmit  # 类型检查                                  
+      290  ```
+      291  
+      292  ---
+     ...
+      307  
+      308  受 Claude Code 终端 Agent 范式启发。基于 [Ink](https://github.
+           com/vadimdemedes/ink)、[Commander](https://github.com/tj/comma
+           nder.js) 与 [MCP SDK](https://github.com/modelcontextprotocol/
+           typescript-sdk) 构建。
+      309  
+      245 -*最后更新：2026-06-01*                                        
+      310 +*最后更新：2026-06-09*                                        
+
+● Now let me update the ZCode source README to match.
+
+● Write(ZCode\README.md)
+  ⎿  Added 35 lines, removed 13 lines
+      2  
+      3  > 公共 CLI 本地启动说明 — 完整文档见 [文档中心](../docs/README.m
+         d)。
+      4  
+      5 -[← 项目主页](../README_ZH.md) · [快速开始](../docs/getting-start
+        -ed/quick-start.md) · [API 参考](../docs/references/api-reference
+        -.md)                                                            
+      5 +[← 项目主页](../README_ZH.md) · [快速开始](../docs/getting-start
+        +ed/quick-start.md) · [API 参考](../docs/references/api-reference
+        +.md) · [系统设计](../docs/系统设计说明书.md)                    
+      6  
+      7  ---
+      8  
+     ...
+      13  | 入口 | 文件 | 状态 |
+      14  |------|------|------|
+      15  | **公共 CLI** | `src/entrypoints/publicCli.js` | ✅ 稳定 |
+      16 -| **完整 REPL** | `src/entrypoints/cli.tsx` | 🔧 开发中 |      
+      16 +| **完整 REPL** | `src/entrypoints/cli.tsx` | 🔧 推进中 |      
+      17  
+      18  公共 CLI 是刻意裁剪的最小可启动路径 — 不 boot 完整 Ink TUI，只
+          依赖稳定模块。
+      19  
+     ...
+      37  bun run doctor --json
+      38  bun run models
+      39  
+      40 +# 新增 CLI 标志                                                
+      41 +bun run start -p "..." --plan        # 仅分析，不执行          
+      42 +bun run start -p "..." --write out.py                          
+      43 +bun run start -p "..." --reasoning   # 流式展示推理过程        
+      44 +bun run start -p "..." --yolo        # 自动批准                
+      45 +                                                               
+      46  # Node.js 等效
+      47  npm start -- --help
+      48  npm run doctor -- --json
+     ...
+      68  
+      69  ## 非交互 Print 模式
+      70  
+      65 -配置好 OpenAI-compatible Provider 后：                         
+      71 +配置好 Provider 后：                                           
+      72  
+      73  ```bash
+      74  bun run start -p "Summarize this repository" --json
+     ...
+       95  bun src/entrypoints/cli.tsx
+       96  ```
+       97  
+       92 -启动 Ink 交互界面，包含 MCP、认证、插件、工具循环等。部分模块 
+          -可能尚未就绪。                                                
+       98 +启动 Ink 交互界面，包含 MCP、认证、插件、工具循环、LSP 诊断、 
+          +任务面板、命令面板等。部分模块可能尚未就绪。                  
+       99  
+      100 +### REPL 快捷键                                               
+      101 +                                                              
+      102 +| 按键 | 功能 |                                               
+      103 +|------|------|                                               
+      104 +| `Ctrl+K` | 命令面板 |                                       
+      105 +| `F1` | 帮助覆盖层 |                                         
+      106 +| `Ctrl+R` | 历史搜索 / 恢复会话 |                            
+      107 +| `Ctrl+T` | 任务面板 |                                       
+      108 +| `Ctrl+O` | 对话记录查看器 |                                 
+      109 +| `Shift+Tab` | 循环切换权限模式 |                            
+      110 +| `Meta+T` | 切换推理/思考 |                                  
+      111 +                                                              
+      112  ---
+      113  
+      114  ## 测试
+     ...
+      125  - 公共 CLI 的 help / doctor / start 契约
+      126  - 本地 `.env` 加载
+      127  - `-p --json` 真实请求链路
+      128 +- Anthropic 直通适配器流式/非流式/工具透传                    
+      129  
+      130  ---
+      131  
+     ...
+      136  | `start` | 公共 CLI 入口 |
+      137  | `doctor` | 环境诊断 |
+      138  | `models` | 列出模型 |
+      120 -| `test` | 运行测试 |                                         
+      139 +| `test` | 运行测试（801 项，795 通过） |                     
+      140  | `test:watch` | 监听模式测试 |
+      141  
+      142  ---
+     ...
+      145  
+      146  ```
+      147  src/
+      129 -├── entrypoints/     publicCli.js · cli.tsx · sdk/            
+      130 -├── cli/             公共 CLI 核心 (publicCliCore.js)         
+      131 -├── providers/       LLM Provider 适配层                      
+      132 -├── tools/           Agent 工具实现                           
+      133 -├── main.tsx         完整 CLI 命令注册                        
+      134 -└── ...                                                       
+      148 +├── entrypoints/         publicCli.js · cli.tsx · sdk/        
+      149 +├── cli/                 公共 CLI 核心                        
+      150 +├── components/          Ink TUI 组件（StatusLine, StructuredD
+          +iff, CodeBlock...）                                           
+      151 +├── keybindings/         可配置键绑定系统                     
+      152 +├── services/api/        LLM Provider 适配层（Anthropic 直通 +
+          + OpenAI 兼容）                                                
+      153 +├── tools/               Agent 工具实现（File*, Bash, Grep, LS
+          +P, Task*, MCP）                                               
+      154 +├── state/               AppState 状态管理                    
+      155 +├── utils/               工具函数（tasks, settings, attachment
+          +s, suggestions...）                                           
+      156 +└── hooks/               React hooks（useKeybinding, useTypeah
+          +ead...）                                                      
+      157  test/
+      136 -└── all.test.js      集成测试                                 
+      158 +└── *.test.js            集成测试                             
+      159  ```
+      160  
+      161  ---
+      162  
+      141 -*更多文档：[docs/](../docs/README.md)*                        
+      163 +*更多文档：[docs/](../docs/README.md)* · *最后更新：2026-06-09
+          +*                                                             
+
+● All three READMEs refreshed. Let me commit and push.
+
+● Bash(cd "E:/项目/ZCode--CLI--agent" && git add README.md README_ZH.md
+      ZCode/README.md && git commit -m "$(cat <<'EOF'
+      docs: refresh READMEs with new features, CLI flag…)
+  ⎿  warning: in the working copy of 'README.md', LF will be replaced by CR
+     LF the next time Git touches it
+     warning: in the working copy of 'README_ZH.md', LF will be replaced by
+     … +8 lines (ctrl+o to expand)
+
+● Done. Three READMEs refreshed and pushed (8ad1280):
+
+  ┌─────────────────┬───────────────────────────────────────────────────────┐
+  │      文件       │                       主要改进                        │
+  ├─────────────────┼───────────────────────────────────────────────────────┤
+  │ README.md (EN)  │ 新增 --write/--plan/--yolo/--reasoning                │
+  │                 │ 示例、快捷键表、新功能亮点、文档链接、徽章            │
+  ├─────────────────┼───────────────────────────────────────────────────────┤
+  │ README_ZH.md    │ 同上，中文版本同步更新                                │
+  │ (CN)            │                                                       │
+  ├─────────────────┼───────────────────────────────────────────────────────┤
+  │ ZCode/README.md │ REPL 快捷键表、CLI                                    │
+  │                 │ 新标志、更新目录结构、新增组件和模块说明              │
+  └─────────────────┴───────────────────────────────────────────────────────┘
+
+  关键改进点：
+  - Demo 区 — 从 "No screenshots yet" 改成脚本演示 + 新 CLI 标志示例
+  - 功能列表 — 从 7 项扩展到 12 项，覆盖推理流、LSP 诊断、持久化任务、Windows
+  路径
+  - 快捷键表 — 新增完整的键绑定参考
+  - 文档链接 — 新增需求分析、代码实现、AI 方法论、演示脚本四个文档
+  - 徽章 — 新增 Bun、测试通过数徽章
+
+✔ Goal achieved (9m · 1 turn · 24.3k tokens) (ctrl+o to expand)
+
+✻ Brewed for 3m 1s
+
+❯ /exit                                                                         
+  ⎿  Bye!

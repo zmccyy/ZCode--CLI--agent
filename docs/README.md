@@ -8,19 +8,19 @@
 
 ## 文档地图
 
-| 我想… | 推荐阅读 |
-|-------|----------|
-| 5 分钟跑起来 | [快速开始](getting-started/quick-start.md) |
-| 了解功能需求 | [需求分析文档](requirements-analysis.md) |
-| 查看实现状态 | [代码实现文档](implementation-status.md) |
-| 配置开发环境 | [本地开发指南](guides/local-development.md) |
-| Windows 安装 `zcode` | [Windows 安装指南](guides/windows-install.md) |
-| 查环境变量 / CLI 契约 | [API 参考](references/api-reference.md) |
-| 了解整体架构 | [系统设计说明书](系统设计说明书.md) |
+| 我想… | 推荐阅读                                               |
+|-------|----------------------------------------------------|
+| 5 分钟跑起来 | [快速开始](getting-started/quick-start.md)             |
+| 了解功能需求 | [需求分析文档](requirements-analysis.md)                 |
+| 查看实现状态 | [代码实现文档](implementation-status.md)                 |
+| 配置开发环境 | [本地开发指南](guides/local-development.md)              |
+| Windows 安装 `zcode` | [Windows 安装指南](guides/windows-install.md)          |
+| 查环境变量 / CLI 契约 | [API 参考](references/api-reference.md)              |
+| 了解整体架构 | [系统设计说明书](系统设计说明书.md)                              |
 | 了解 AI 开发方法 | [AI 辅助开发方法论](guides/ai-development-methodology.md) |
-| 编写项目 README | [README 提示词模板](仓库readme提示词.md) |
-| 查看 AI 协作开发记录 | [AI 交互过程记录](ai-interactions/overview.md) |
-| 现场演示脚本 | [演示完整流程](guides/demo-walkthrough.md) |
+| 编写项目 README | [README 提示词模板](仓库readme提示词.md)                     |
+| 查看 AI 协作开发记录 | [AI 交互过程记录](ai-interactions/AI交互完成项目报告.md)         |
+| 现场演示脚本 | [演示完整流程](guides/demo-walkthrough.md)               |
 
 ---
 
@@ -76,8 +76,8 @@ docs/
 
 以下文档记录开发过程与阻塞分析，普通用户可跳过：
 
-- [T2.2 REPL 启动阻塞分析](T2.2-repl-startup-hang-analysis.md)
-- [T2.2 Require 阻塞说明](T2.2-require-blocker.md)
+- [T2.2 REPL 启动阻塞分析](ai-interactions/T2.2-repl-startup-hang-analysis.md)
+- [T2.2 Require 阻塞说明](ai-interactions/T2.2-require-blocker.md)
 - [详细开发计划 v2](plans/zcode-detailed-development-plan-v2.md)
 
 ---

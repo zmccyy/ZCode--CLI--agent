@@ -239,6 +239,7 @@ export function createAnthropicPassthroughClient({
             model: null as string | null,
             nextContentIndex: 0,
             activeTextIndex: null as number | null,
+            activeThinkingIndex: null as number | null,
           }
           const initialEvents: Array<Record<string, unknown>> = []
           let eventIndex = 0

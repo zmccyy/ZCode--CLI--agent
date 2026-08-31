@@ -13,6 +13,13 @@ import {
 import { resolveRunMode, RUN_MODE_LABELS, getRunModeHelpLines } from '../utils/permissions/runMode.js'
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import {
+  buildAgentSystemPrompt,
+  createInteractiveConfirm,
+  createProgressRenderer,
+  resolveGuardrailLimits,
+  runHarnessPrint,
+} from './harnessPrint.js'
 
 const DEFAULT_COMMANDS = Object.freeze(['help', 'doctor', 'models', 'print'])
 
@@ -303,6 +310,7 @@ function parseArgv(argv = []) {
     plan: false,
     yolo: false,
     reasoning: false,
+    maxTurns: null,
   }
   const positionals = []
 
@@ -374,6 +382,17 @@ function parseArgv(argv = []) {
       continue
     }
 
+    if (arg === '--max-turns') {
+      const next = argv[index + 1]
+      const parsed = Number.parseInt(next, 10)
+      if (!Number.isFinite(parsed) || parsed < 1) {
+        throw new Error(`${arg} requires a positive integer`)
+      }
+      options.maxTurns = parsed
+      index += 1
+      continue
+    }
+
     if (arg.startsWith('-')) {
       throw new Error(`Unknown option: ${arg}`)
     }
@@ -409,6 +428,11 @@ function isPrintCapableProvider(provider) {
     return true
   }
 
+  // The harness loop speaks the Anthropic dialect too.
+  if (provider.kind === 'anthropic' || readString(provider.id)?.startsWith('anthropic:')) {
+    return true
+  }
+
   return provider.supportsPrint === true
 }
 
@@ -429,19 +453,21 @@ export function renderHelp({ version = '0.0.0' } = {}) {
     '  help                 Show this help message',
     '  doctor               Inspect the local runtime and provider wiring',
     '  models               List the models exposed by the active provider',
-    '  -p, --print <prompt> Run a minimal non-interactive prompt',
+    '  -p, --print <prompt> Run the agent loop headless (tools + guardrails)',
     '',
     'Options:',
     '  -m, --model <id>     Specify the model to use',
-    '  --json               Output in JSON format',
+    '  --json               Output in JSON format (adds toolCalls/usage/stopReason)',
     '  -w, --write [path]   Write code blocks from response to file(s)',
     ...getRunModeHelpLines(),
     '  --reasoning          Show model thinking/reasoning process',
+    '  --max-turns <n>      Agent loop turn limit (default 30, env ZCODE_MAX_TURNS)',
     '',
     'Examples:',
     `  ${commandName} -p "explain this code" --reasoning`,
+    `  ${commandName} -p "fix all failing tests" --yolo`,
+    `  ${commandName} -p "explore the repo and propose a plan" --plan`,
     `  ${commandName} -p "write a hello world script" --write hello.js`,
-    `  ${commandName} -p "generate config" --write`,
     `  ${commandName} doctor --json`,
     '',
     'Notes:',
@@ -493,97 +519,6 @@ export function createDoctorReport({
   }
 }
 
-async function collectPrintResponse({
-  prompt,
-  model,
-  provider,
-  collectReasoning = false,
-}) {
-  if (!isPrintCapableProvider(provider)) {
-    throw new Error(
-      `Provider ${provider.id} is not ready for local print mode. Configure ZCODE_PROVIDER=openai-compatible and the ZCODE_OPENAI_* variables first.`,
-    )
-  }
-
-  const resolvedModel = model || getDefaultModel(provider)
-  let responseModel = resolvedModel
-  let messageId = null
-  let finishReason = null
-  let text = ''
-  let reasoning = ''
-  let usage = null
-  const toolCalls = []
-
-  for await (const chunk of provider.streamChat({
-    model: resolvedModel || undefined,
-    messages: [
-      {
-        role: 'user',
-        content: prompt,
-      },
-    ],
-  })) {
-    if (!chunk || typeof chunk !== 'object') {
-      continue
-    }
-
-    if (chunk.type === 'response_start') {
-      responseModel = readString(chunk.model) || responseModel
-      messageId = readString(chunk.messageId) || messageId
-      continue
-    }
-
-    if (chunk.type === 'reasoning_delta' && collectReasoning && typeof chunk.text === 'string') {
-      reasoning += chunk.text
-      continue
-    }
-
-    if (chunk.type === 'text_delta' && typeof chunk.text === 'string') {
-      text += chunk.text
-      continue
-    }
-
-    if (chunk.type === 'tool_call' && chunk.toolCall) {
-      toolCalls.push(chunk.toolCall)
-      continue
-    }
-
-    if (chunk.type === 'response_end') {
-      finishReason = readString(chunk.finishReason) || finishReason || 'stop'
-      if (chunk.usage && typeof chunk.usage === 'object') {
-        usage = {
-          inputTokens: chunk.usage.input_tokens || chunk.usage.inputTokens || 0,
-          outputTokens: chunk.usage.output_tokens || chunk.usage.outputTokens || 0,
-          totalTokens:
-            (chunk.usage.input_tokens || chunk.usage.inputTokens || 0) +
-            (chunk.usage.output_tokens || chunk.usage.outputTokens || 0),
-        }
-      }
-      continue
-    }
-  }
-
-  return {
-    messageId,
-    provider: provider.id,
-    model: responseModel,
-    text,
-    toolCalls,
-    finishReason: finishReason || 'stop',
-    reasoning: reasoning || undefined,
-    usage: usage || undefined,
-    cost: usage
-      ? (() => {
-          const info = estimateCost(usage, responseModel)
-          if (!info) return undefined
-          return {
-            usd: Math.round(info.cost * 1_000_000) / 1_000_000,
-            pricing: info.pricing,
-          }
-        })()
-      : undefined,
-  }
-}
 
 function renderDoctorText(report) {
   return [
@@ -616,7 +551,7 @@ function renderSep(label = '') {
   return label ? `${left} ${label} ${right}` : '─'.repeat(cols)
 }
 
-function renderPrintResult(result, { json, write, writePath, showReasoning, cwd }) {
+function renderPrintResult(result, { json, write, writePath, showReasoning, cwd, textStreamed = false }) {
   const lines = []
 
   if (json) return JSON.stringify(result, null, 2)
@@ -634,8 +569,8 @@ function renderPrintResult(result, { json, write, writePath, showReasoning, cwd 
     lines.push('')
   }
 
-  // Main text
-  if (result.text) {
+  // Main text — skipped when the progress renderer already streamed it live.
+  if (result.text && !textStreamed) {
     lines.push(result.text)
   }
 
@@ -716,6 +651,7 @@ export async function runCli(
     env = process.env,
     stdout = process.stdout,
     stderr = process.stderr,
+    stdin = process.stdin,
     version = '0.0.0',
     createProviderFromEnv = defaultCreateProviderFromEnv,
     createModelRegistryFromEnv = defaultCreateModelRegistryFromEnv,
@@ -780,33 +716,84 @@ export async function runCli(
     }
 
     if (options.printPrompt) {
-      if (runMode === 'plan') {
-        writeLine(stdout, `── ${RUN_MODE_LABELS.plan} MODE ──`)
-        writeLine(stdout, `Prompt: ${options.printPrompt}`)
-        writeLine(stdout, `Model:  ${options.model || 'auto'}`)
-        writeLine(stdout, '')
-        writeLine(stdout, 'In plan mode, suggestions would be shown without executing changes.')
-        writeLine(stdout, 'Remove --plan to execute.')
-        return 0
+      const provider = createProviderFromEnv(env)
+
+      if (!isPrintCapableProvider(provider)) {
+        throw new Error(
+          `Provider ${provider.id} is not ready for local print mode. Configure ZCODE_PROVIDER=openai-compatible and the ZCODE_OPENAI_* variables first.`,
+        )
       }
 
-      const result = await collectPrintResponse({
+      if (!options.json) {
+        if (runMode === 'plan') {
+          writeLine(stdout, `── ${RUN_MODE_LABELS.plan} MODE ──`)
+        } else if (runMode === 'yolo') {
+          writeLine(stdout, `── ${RUN_MODE_LABELS.yolo} MODE ──`)
+        }
+      }
+
+      const guardrailLimits = resolveGuardrailLimits(env)
+      const maxTurns = options.maxTurns ?? guardrailLimits.maxTurns
+
+      let reasoning = ''
+      // JSON mode must keep stdout machine-readable: no human progress lines.
+      const progressRenderer = options.json
+        ? () => {}
+        : createProgressRenderer({
+            stdout,
+            stderr,
+            showReasoning: options.reasoning,
+          })
+      const onEvent = event => {
+        if (options.reasoning && event.type === 'reasoning_delta') {
+          reasoning += event.text
+        }
+        progressRenderer(event)
+      }
+
+      const permissionMode = runMode === 'plan' ? 'plan' : runMode === 'yolo' ? 'yolo' : 'agent'
+      const confirm = createInteractiveConfirm({ stdin: stdin ?? process.stdin, stdout })
+
+      const result = await runHarnessPrint({
         prompt: options.printPrompt,
         model: options.model,
-        provider: createProviderFromEnv(env),
-        collectReasoning: options.reasoning,
+        provider,
+        permissionMode,
+        confirm,
+        cwd,
+        maxTurns,
+        budgetTokens: guardrailLimits.budgetTokens,
+        showReasoning: options.reasoning,
+        onEvent,
+        transcript: {
+          enabled: true,
+          dir: readString(env.ZCODE_TRANSCRIPT_DIR) || undefined,
+        },
+        reasoning: reasoning || undefined,
       })
 
       if (options.json) {
-        // JSON mode: include all metadata
+        // JSON envelope: backward-compatible superset of the print result.
         const blocks = result.text ? extractCodeBlocks(result.text) : []
+        const costInfo = result.usage ? estimateCost(result.usage, result.model) : null
         const output = {
           ...result,
           runMode,
-          codeBlocks: blocks.length > 0 ? blocks.map(b => ({
-            language: b.language,
-            lines: b.code.split('\n').length,
-          })) : undefined,
+          ...(costInfo
+            ? {
+                cost: {
+                  usd: Math.round(costInfo.cost * 1_000_000) / 1_000_000,
+                  pricing: costInfo.pricing,
+                },
+              }
+            : {}),
+          codeBlocks:
+            blocks.length > 0
+              ? blocks.map(b => ({
+                  language: b.language,
+                  lines: b.code.split('\n').length,
+                }))
+              : undefined,
         }
 
         if (options.write && blocks.length > 0) {
@@ -819,20 +806,19 @@ export async function runCli(
 
         writeJson(stdout, output)
       } else {
-        // Text mode: structured output
-        if (runMode === 'yolo') {
-          writeLine(stdout, `── ${RUN_MODE_LABELS.yolo} MODE ──`)
-        }
         writeLine(stdout, renderPrintResult(result, {
           json: false,
           write: options.write,
           writePath: options.writePath,
           showReasoning: options.reasoning,
           cwd,
+          textStreamed: true,
         }))
       }
 
-      return 0
+      // Exit code honesty for CI: end_turn succeeded; guardrail stops and
+      // errors mean the task did not complete.
+      return result.stopReason === 'end_turn' ? 0 : 1
     }
 
     throw new Error(`Unknown command: ${options.command}`)

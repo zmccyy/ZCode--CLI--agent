@@ -10,6 +10,9 @@
 
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import os from 'node:os'
+import path from 'node:path'
+import { mkdtempSync, rmSync } from 'node:fs'
 
 // Load under the same ESM resolution the public CLI entrypoint uses.
 // NOTE: this file exercises the public (Node.js) surface of runMode.js
@@ -166,25 +169,33 @@ describe('publicCliCore --plan / --yolo', () => {
     assert.ok(text.includes('YOLO mode'))
   })
 
-  it('--plan + -p 输出 PLAN MODE 头部', async () => {
+  it('--plan + -p 输出 Plan MODE 头部（真实只读循环，无 provider 时如实报错退出）', async () => {
     const { stdout: out, get } = captureOutput()
-    await runCli(['-p', 'hello', '--plan'], {
+    const transcriptDir = mkdtempSync(path.join(os.tmpdir(), 'zcode-runmodes-'))
+    const exitCode = await runCli(['-p', 'hello', '--plan'], {
       stdout: out,
       stderr: out,
+      env: { ZCODE_TRANSCRIPT_DIR: transcriptDir },
       version: '0.0.0',
     })
+    rmSync(transcriptDir, { recursive: true, force: true })
     const text = get()
     assert.ok(text.includes('Plan MODE'))
-    assert.ok(text.includes('In plan mode'))
+    // The old plan-mode stub is gone: the loop actually runs, and without a
+    // configured provider it reports an error stop — honest non-zero exit.
+    assert.equal(exitCode, 1)
   })
 
   it('--plan + --yolo 同时传入输出 WARNING', async () => {
     const { stdout: out, stderr: err, get, getErr } = captureOutput()
+    const transcriptDir = mkdtempSync(path.join(os.tmpdir(), 'zcode-runmodes-'))
     await runCli(['-p', 'hello', '--plan', '--yolo'], {
       stdout: out,
       stderr: err,
+      env: { ZCODE_TRANSCRIPT_DIR: transcriptDir },
       version: '0.0.0',
     })
+    rmSync(transcriptDir, { recursive: true, force: true })
     const errText = getErr()
     assert.ok(errText.includes('WARNING'))
     assert.ok(errText.includes('mutually exclusive'))

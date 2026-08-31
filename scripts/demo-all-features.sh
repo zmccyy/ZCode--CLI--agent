@@ -148,6 +148,8 @@ section "1.2 帮助系统"
   check_exact "$PUBLIC_CLI --help" "--write" "--help 包含 --write 选项"
   check_exact "$PUBLIC_CLI --help" "--plan" "--help 包含 --plan 选项"
   check_exact "$PUBLIC_CLI --help" "--reasoning" "--help 包含 --reasoning 选项"
+  check_exact "$PUBLIC_CLI --help" "--max-turns" "--help 包含 --max-turns 护栏选项"
+  check_exact "$PUBLIC_CLI --help" "agent loop" "--help 说明 -p 运行 Agent 循环"
   check_exact "$PUBLIC_CLI help" "Usage" "help 子命令等价于 --help"
 
 # 1.3 ── 环境诊断 ────────────────────────────────────────────────────────
@@ -177,13 +179,12 @@ section "1.4 模型列表 (models)"
   check_exact "$PUBLIC_CLI models" "deepseek" "models 列出可用模型"
   check_exact "$PUBLIC_CLI models --json" '"id"' "models --json 包含 model id"
 
-# 1.5 ── Plan 模式 ───────────────────────────────────────────────────────
-section "1.5 Plan 模式"
-  echo -e "${BOLD}  ▶ --plan -p (只分析不执行)${RESET}"
-  $PUBLIC_CLI --plan -p "write a function to sort an array" 2>&1
+# 1.5 ── Harness v1 离线表面 ─────────────────────────────────────────────
+section "1.5 Harness v1（Agent 循环）离线表面"
+  echo -e "${DIM}  -p 现在驱动真正的 Agent 循环（六件套工具 + 权限门 + 护栏）。${RESET}"
+  echo -e "${DIM}  循环本身需要 LLM，完整演示见 PART 2 的 --live 部分。${RESET}"
   echo ""
-  check_exact "$PUBLIC_CLI --plan -p 'hello'" "PLAN MODE" "plan 模式显示 PLAN MODE 标识"
-  check_exact "$PUBLIC_CLI --plan -p 'hello'" "Remove --plan to execute" "plan 模式提示如何执行"
+  check_exact "$PUBLIC_CLI --help" "tools + guardrails" "--help 说明 -p 运行带工具与护栏的 Agent 循环"
 
 # 1.6 ── YOLO 模式 ───────────────────────────────────────────────────────
 section "1.6 YOLO 模式"
@@ -199,17 +200,17 @@ if [ "$LIVE_MODE" != "true" ]; then
   echo -e "${YELLOW}  ⚠ 跳过实时演示。使用 --live 标志启用。${RESET}"
   echo -e "${DIM}  需要配置: ZCODE_PROVIDER=openai-compatible 和 ZCODE_OPENAI_* 环境变量${RESET}"
   echo ""
-  ((SKIP+=8))
+  ((SKIP+=11))
 else
   # 2.1 ── 基础 Print 模式 ───────────────────────────────────────────────
-  section "2.1 基础 Print 模式"
+  section "2.1 Agent 循环：基础问答（无工具）"
     run_live "$PUBLIC_CLI -p 'Say hello in exactly 3 words'" \
-      "print 模式：基础文本生成"
+      "-p 现在运行完整 Agent 循环：纯问答场景模型不调用工具"
 
   # 2.2 ── Print 模式 + JSON ─────────────────────────────────────────────
-  section "2.2 Print 模式 + JSON 输出"
-    run_live "$PUBLIC_CLI -p 'What is 1+1? Answer briefly.' --json" \
-      "print --json：结构化 JSON 输出 (含 usage 统计)"
+  section "2.2 Agent 循环 + JSON 信封（toolCalls/usage/stopReason）"
+    run_live "$PUBLIC_CLI -p 'What is 1+1? Answer briefly.' --yolo --json" \
+      "--json 信封：含 toolCalls[] / usage / stopReason（向后兼容扩展）"
 
   # 2.3 ── Print 模式 + 推理展示 ─────────────────────────────────────────
   section "2.3 Print 模式 + 推理展示"
@@ -245,6 +246,32 @@ else
   section "2.7 综合 Demo：生成完整脚本"
     run_live "$PUBLIC_CLI -p 'Write a bash script that prints system info (OS, CPU count, memory, disk usage). Output ONLY the script in a code block.' --write $TMP_DIR/sysinfo.sh" \
       "综合：生成系统信息脚本"
+
+  # 2.8 ── Plan 模式（只读 Agent 循环）───────────────────────────────────
+  section "2.8 Plan 模式：只读探索，写入被拒"
+    run_live "$PUBLIC_CLI -p 'Explore this directory and describe what you find' --plan --json" \
+      "--plan：权限门钉在只读档，任何写操作都被拒绝"
+
+  # 2.9 ── UC-03 迷你验收：Agent 修复失败的测试 ──────────────────────────
+  section "2.9 UC-03 迷你验收（Agent 循环修复失败测试）"
+    UC03_DIR="$TMP_DIR/uc03"
+    mkdir -p "$UC03_DIR"
+    cat > "$UC03_DIR/calc.js" << SHEOF
+function add(a, b) {
+  return a - b
+}
+module.exports = { add }
+SHEOF
+    cat > "$UC03_DIR/calc.test.js" << SHEOF
+const assert = require("node:assert")
+const { add } = require("./calc.js")
+assert.equal(add(2, 3), 5, "expected 5")
+console.log("all tests pass")
+SHEOF
+    echo -e "${DIM}  沙盒已就绪：calc.js 的 add 存在减法 bug，测试当前失败。${RESET}"
+    echo ""
+    run_live "cd \"$UC03_DIR\" && $PUBLIC_CLI -p '修复所有失败的测试' --yolo && node calc.test.js" \
+      "UC-03：Agent 自主 Grep→Read→Bash→Edit→Bash 直到测试通过"
 fi
 
 # ╔══════════════════════════════════════════════════════════════════════════╗
@@ -331,15 +358,14 @@ cat <<'EOF'
   │  doctor --json                       JSON 诊断     │  ✅       │
   │  models                              模型列表       │  ✅       │
   │  models --json                       JSON 模型列表 │  ✅       │
-  │  -p / --print <prompt>               非交互式查询   │  ✅       │
-  │  -p --json                           JSON 输出     │  ✅       │
-  │  -p --reasoning                      推理过程展示   │  ✅ NEW   │
-  │  -p --write <path>                   代码写入文件   │  ✅ NEW   │
-  │  -p --write                          多文件写入     │  ✅ NEW   │
-  │  -m / --model <id>                   指定模型       │  ✅       │
-  │  --plan                              只读计划模式   │  ✅ NEW   │
-  │  --yolo                              自动批准模式   │  🚧 CLI   │
-  │  交互式 REPL (Bun)                   完整 Agent 模式 │  🚧       │
+  │  -p <任务> --yolo                    Agent 循环     │  ✅ v1.0  │
+  │  六件套工具 Read/Glob/Grep/Write/Edit/Bash          │  ✅ v1.0  │
+  │  权限门 Plan/Agent/YOLO              三档           │  ✅ v1.0  │
+  │  护栏 --max-turns + token 预算       硬停线         │  ✅ v1.0  │
+  │  JSONL 会话转录                      持久化         │  ✅ v1.0  │
+  │  -p --json 信封                      toolCalls/usage/stopReason │  ✅ v1.0 │
+  │  UC-03 验收（修复失败测试）          真实通过       │  ✅ v1.0  │
+  │  交互式 REPL (Bun)                   完整 Agent 模式 │  🚧 v1 后 │
   │  MCP 协议支持                        Model Context │  ✅       │
   │  多 Provider (5 种)                  后端切换       │  ✅       │
   │  文件读取/编辑/写入                  代码操作       │  ✅       │

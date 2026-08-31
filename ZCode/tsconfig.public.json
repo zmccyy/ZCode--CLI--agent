@@ -17,6 +17,7 @@
   "include": [
     "src/entrypoints/publicCli.js",
     "src/cli/publicCliCore.js",
+    "src/harness/**/*.ts",
     "src/providers/**/*.js",
     "src/contracts/providerAdapter.js",
     "src/config/brandConfig.js",

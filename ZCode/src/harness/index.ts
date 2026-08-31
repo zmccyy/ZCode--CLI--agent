@@ -1,0 +1,46 @@
+/**
+ * ZCode Harness v1 — provider-agnostic agent runtime.
+ *
+ * Public surface: the agent loop, the core six tools, permission modes,
+ * guardrails, and the JSONL transcript.
+ */
+
+export * from './types.ts'
+export { runAgentLoop, type AgentLoopOptions, type RunningLoop } from './loop.ts'
+export {
+  createToolRegistry,
+  type ToolRegistry,
+} from './tools/registry.ts'
+export { createCoreTools } from './tools/index.ts'
+export {
+  createReadTool,
+  executeRead,
+} from './tools/read.ts'
+export { createGlobTool, executeGlob } from './tools/glob.ts'
+export { createGrepTool, executeGrep } from './tools/grep.ts'
+export { createWriteTool, executeWrite } from './tools/write.ts'
+export { createEditTool, executeEdit } from './tools/edit.ts'
+export { createBashTool, executeBash } from './tools/bash.ts'
+export {
+  createTranscriptWriter,
+  defaultTranscriptDir,
+  hashCwd,
+  type TranscriptWriter,
+} from './transcript.ts'
+export {
+  checkPermission,
+  describeMode,
+  PERMISSION_MODES,
+} from './permissions.ts'
+export {
+  evaluateGuardrails,
+  DEFAULT_MAX_TURNS,
+} from './guardrails.ts'
+export {
+  toOpenAIMessages,
+  toOpenAITools,
+  toAnthropicMessages,
+  toAnthropicTools,
+  translateRequest,
+  resolveDialect,
+} from './translate.ts'

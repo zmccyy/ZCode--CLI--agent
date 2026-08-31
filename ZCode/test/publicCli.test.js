@@ -225,7 +225,8 @@ test('createDoctorReport reports a startable default Anthropic-backed local CLI'
   assert.equal(report.startable, true)
   assert.equal(report.provider.mode, 'firstParty')
   assert.equal(report.provider.id, 'anthropic:firstParty')
-  assert.equal(report.provider.printReady, false)
+  // The harness agent loop speaks the Anthropic dialect, so print mode is ready.
+  assert.equal(report.provider.printReady, true)
   assert.equal(Array.isArray(report.commands), true)
   assert.equal(report.commands.includes('doctor'), true)
 })
@@ -236,11 +237,13 @@ test('runCli can execute a minimal print flow with an injected provider', async 
   const stdout = createMemoryWriter()
   const stderr = createMemoryWriter()
   const mockProvider = createMockProvider()
+  const transcriptDir = createTempDir('zcode-print-transcript-')
 
   const exitCode = await runCli(['-p', 'say hello', '--json'], {
     cwd: repoDir,
     env: {
       ZCODE_PROVIDER: 'openai-compatible',
+      ZCODE_TRANSCRIPT_DIR: transcriptDir,
     },
     stderr,
     stdout,
@@ -259,6 +262,13 @@ test('runCli can execute a minimal print flow with an injected provider', async 
   assert.equal(payload.model, 'deepseek-chat')
   assert.equal(payload.text, 'hello from provider')
   assert.equal(payload.finishReason, 'stop')
+  // The harness envelope extends the legacy fields.
+  assert.equal(payload.stopReason, 'end_turn')
+  assert.equal(payload.runMode, 'agent')
+  assert.deepEqual(payload.usage, { inputTokens: 10, outputTokens: 4, totalTokens: 14 })
+  assert.equal(payload.toolCalls.length, 0)
+
+  rmSync(transcriptDir, { recursive: true, force: true })
 })
 
 test('loadDotEnvFile reads local .env values without overriding existing env keys', async () => {
@@ -319,12 +329,20 @@ test('runCli can execute --print --json through the real openai-compatible provi
 
       const parsed = JSON.parse(body)
       assert.equal(parsed.model, 'deepseek-chat')
-      assert.deepEqual(parsed.messages, [
-        {
-          role: 'user',
-          content: 'hello from cli',
-        },
-      ])
+      // The harness print flow sends the agent system prompt + user prompt
+      // plus the core tool definitions.
+      assert.equal(parsed.messages.length, 2)
+      assert.equal(parsed.messages[0].role, 'system')
+      assert.match(parsed.messages[0].content, /coding agent/)
+      assert.deepEqual(parsed.messages[1], {
+        role: 'user',
+        content: 'hello from cli',
+      })
+      assert.equal(Array.isArray(parsed.tools), true)
+      assert.deepEqual(
+        parsed.tools.map(tool => tool.function.name),
+        ['Read', 'Glob', 'Grep', 'Write', 'Edit', 'Bash'],
+      )
 
       res.writeHead(200, {
         'content-type': 'text/event-stream',
@@ -354,6 +372,7 @@ test('runCli can execute --print --json through the real openai-compatible provi
         'ZCODE_OPENAI_MODEL=deepseek-chat',
         `ZCODE_OPENAI_BASE_URL=http://127.0.0.1:${port}/v1`,
         'ZCODE_OPENAI_API_KEY=test-key',
+        `ZCODE_TRANSCRIPT_DIR=${path.join(tempDir, 'transcripts')}`,
       ].join('\n'),
       'utf8',
     )

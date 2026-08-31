@@ -17,3 +17,6 @@ tmp/
 
 # release artifacts
 dist/
+
+# zcode plugin scratch
+.v2c/

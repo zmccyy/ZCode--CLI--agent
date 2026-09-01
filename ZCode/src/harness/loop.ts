@@ -8,6 +8,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import path from 'node:path'
 import type {
   AgentLoopResult,
   ChatMessage,
@@ -28,9 +29,18 @@ import { resolveDialect, translateRequest, toolCallIdFor } from './translate.ts'
 import { createTranscriptWriter, type TranscriptWriter } from './transcript.ts'
 import { checkPermission } from './permissions.ts'
 import { evaluateGuardrails } from './guardrails.ts'
+import { emptyUsage, addUsage } from './usage.ts'
+import {
+  compactConversation,
+  resolveCompactConfig,
+  type CompactOptions,
+  type ResolvedCompactConfig,
+} from './compact.ts'
 
 const DEFAULT_MAX_TURNS = 30
 const TOOL_RESULT_PREVIEW_LENGTH = 160
+/** Cap on compaction attempts per run so a failing summarizer cannot spin. */
+const MAX_COMPACTION_ATTEMPTS = 5
 
 export interface AgentLoopOptions {
   provider: LoopProvider
@@ -53,24 +63,15 @@ export interface AgentLoopOptions {
   signal?: AbortSignal
   /** Wire-dialect override (defaults from provider.kind). */
   dialect?: 'openai' | 'anthropic'
+  /** Auto context compaction; disabled when limitTokens is 0. */
+  compact?: CompactOptions
+  /** Seed the loop with a prior session's history (see resume.ts). */
+  resume?: { sessionId: string; messages: ChatMessage[] }
 }
 
 export interface RunningLoop {
   sessionId: string
   result: Promise<AgentLoopResult>
-}
-
-function emptyUsage(): UsageSummary {
-  return { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
-}
-
-function addUsage(target: UsageSummary, usage?: Partial<UsageSummary> | null): void {
-  if (!usage) return
-  const input = Number.isFinite(usage.inputTokens) ? usage.inputTokens : 0
-  const output = Number.isFinite(usage.outputTokens) ? usage.outputTokens : 0
-  target.inputTokens += input
-  target.outputTokens += output
-  target.totalTokens += Number.isFinite(usage.totalTokens) ? usage.totalTokens : input + output
 }
 
 function truncatePreview(text: string, maxLength = TOOL_RESULT_PREVIEW_LENGTH): string {
@@ -88,6 +89,8 @@ interface TurnOutcome {
   toolCalls: ToolCall[]
   finishReason: string | null
   usage: UsageSummary
+  /** Input tokens the provider reported for this request (compaction trigger). */
+  inputTokens: number
   messageId: string | null
   model: string | null
 }
@@ -108,6 +111,12 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
   const state: ToolSessionState = { readFiles: new Set() }
   const executedCalls: ExecutedToolCall[] = []
   const usage = emptyUsage()
+  const compact: ResolvedCompactConfig = resolveCompactConfig(options.compact)
+  let compactions = 0
+  let compactionAttempts = 0
+  let compactionExhausted = false
+  /** Input tokens of the latest main request, per the provider's report. */
+  let lastInputTokens = 0
 
   const emit = (event: LoopEvent): void => {
     try {
@@ -142,7 +151,27 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
     permissionMode: options.permissionMode,
     provider: options.provider.id,
     dialect,
+    ...(options.resume ? { resumedFrom: options.resume.sessionId } : {}),
   })
+  if (options.resume) {
+    messages.unshift(...options.resume.messages)
+    transcript.append({
+      type: 'resumed',
+      fromSessionId: options.resume.sessionId,
+      messages: options.resume.messages.length,
+    })
+    for (const message of options.resume.messages) {
+      rebuildReadFilesFromMessage(message, options.cwd, state)
+      // Copy the restored history into the new transcript so the session file
+      // is self-contained and can itself be resumed later.
+      transcript.append({ type: 'message', message, turn: 0, restored: true })
+    }
+  }
+  // Record the seed messages (the opening user prompt) so the transcript is a
+  // complete conversation and resume does not lose the original task.
+  for (const message of options.messages) {
+    transcript.append({ type: 'message', message, turn: 0 })
+  }
   emit({
     type: 'session_start',
     sessionId,
@@ -174,6 +203,67 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
     const turn = turns + 1
     emit({ type: 'turn_start', turn })
     transcript.append({ type: 'turn_start', turn })
+
+    // ── Auto context compaction ──
+    // Trigger on the provider-reported input tokens of the previous request.
+    // Best-effort: on failure the run continues with the history unchanged.
+    if (
+      compact.enabled &&
+      !compactionExhausted &&
+      lastInputTokens >= compact.limitTokens &&
+      compactionAttempts < MAX_COMPACTION_ATTEMPTS
+    ) {
+      compactionAttempts += 1
+      try {
+        const compaction = await compactConversation({
+          messages,
+          provider: options.provider,
+          dialect,
+          model: options.model,
+          keepRecentMessages: compact.keepRecentMessages,
+          signal: options.signal,
+        })
+        if (compaction) {
+          messages.splice(0, messages.length, ...compaction.messages)
+          addUsage(usage, compaction.usage)
+          compactions += 1
+          lastInputTokens = 0
+          transcript.append({
+            type: 'context_compact',
+            ok: true,
+            summarizedMessages: compaction.summarizedMessages,
+            keptMessages: compaction.keptMessages,
+            summary: compaction.summary,
+          })
+          emit({
+            type: 'context_compact',
+            ok: true,
+            summarizedMessages: compaction.summarizedMessages,
+            keptMessages: compaction.keptMessages,
+            message: null,
+          })
+        } else {
+          // Nothing safely summarizable left; retrying every turn is pointless.
+          compactionExhausted = true
+        }
+      } catch (error) {
+        const message = describeError(error)
+        transcript.append({
+          type: 'context_compact',
+          ok: false,
+          summarizedMessages: 0,
+          keptMessages: 0,
+          message,
+        })
+        emit({
+          type: 'context_compact',
+          ok: false,
+          summarizedMessages: 0,
+          keptMessages: 0,
+          message,
+        })
+      }
+    }
 
     const request = translateRequest({
       dialect,
@@ -214,6 +304,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
     }
 
     addUsage(usage, outcome.usage)
+    lastInputTokens = outcome.inputTokens
     lastFinishReason = outcome.finishReason
     turns = turn
 
@@ -300,8 +391,33 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
     toolCalls: executedCalls,
     usage,
     turns,
+    compactions,
     finishReason: lastFinishReason,
     error: errorMessage,
+  }
+}
+
+/**
+ * Seeds `state.readFiles` from a resumed session's messages so Edit/Write
+ * keep their read-before-edit precondition across sessions: every Read the
+ * prior session executed (visible as assistant tool calls) marks that file.
+ */
+function rebuildReadFilesFromMessage(
+  message: ChatMessage,
+  cwd: string,
+  state: ToolSessionState,
+): void {
+  if (message.role !== 'assistant' || !Array.isArray(message.toolCalls)) return
+  for (const call of message.toolCalls) {
+    if (call.name !== 'Read') continue
+    const filePath =
+      call.input && typeof call.input === 'object' && 'file_path' in call.input
+        ? (call.input as Record<string, unknown>).file_path
+        : null
+    if (typeof filePath !== 'string' || filePath.trim() === '') continue
+    state.readFiles.add(
+      path.isAbsolute(filePath) ? path.normalize(filePath) : path.resolve(cwd, filePath),
+    )
   }
 }
 
@@ -317,6 +433,7 @@ async function consumeTurn(
     toolCalls: [],
     finishReason: null,
     usage: emptyUsage(),
+    inputTokens: 0,
     messageId: null,
     model: null,
   }
@@ -360,6 +477,9 @@ async function consumeTurn(
       case 'response_end': {
         outcome.finishReason = chunk.finishReason ?? null
         addUsage(outcome.usage, chunk.usage ?? null)
+        if (chunk.usage && Number.isFinite(chunk.usage.inputTokens)) {
+          outcome.inputTokens = chunk.usage.inputTokens
+        }
         break
       }
       default:

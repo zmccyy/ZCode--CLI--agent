@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.1.0 — 2026-09-01
+
+Harness v1.1：长任务不丢上下文、断线可续 —— 自动上下文压缩与会话恢复。
+
+### Highlights
+
+- **自动上下文压缩**（`ZCode/src/harness/compact.ts`）：provider 上报的上一请求 input tokens 达到阈值（默认 100k，`ZCODE_COMPACT_TOKENS` 可调，0 关闭；`ZCODE_COMPACT_KEEP_MESSAGES` 控制保留条数，默认 6）时，用一次**无工具、无 system** 的模型请求把较早历史摘要化，替换为摘要消息 + 最近 N 条原文。压缩边界保证不产生悬空 tool_result（Anthropic 角色交替约束）；摘要 usage 计入会话总账；失败或空摘要时**不压缩继续跑**，事件与转录如实记录。`--json` 信封新增 `compactions` 字段。
+- **会话恢复**（`ZCode/src/harness/resume.ts`）：`zcode -p "…" --continue` 续接本工作区最近会话，`--resume <sessionId|path>` 指定会话，`zcode sessions` 列出历史会话（`--json` 可机读）。恢复时从转录重建消息历史与 Read 前置状态——Edit/Write 的 read-before-edit 约束在续会话中依然成立；新会话把恢复的历史写入自己的转录（自包含、可链式恢复），`session_start` 记录 `resumedFrom`。转录逐行容错解析，损坏行跳过并计数。
+- **转录完整性**：会话首条 user 提示词现在也落盘（此前未记录，恢复会丢失原始任务）；`--json` 信封在续接时新增 `resumedFrom`。
+- **Anthropic 方言加固**：紧跟 tool_result 用户轮的纯文本 user 消息（如压缩指令）并入同一用户消息，满足角色交替要求。
+- **CI 现代化**：Release 工作流升级 `actions/checkout@v5`、`actions/setup-node@v5`（Node 24）、`softprops/action-gh-release@v3`，消除 GitHub Actions 的 Node 20 运行时弃用告警。
+
+### Compatibility notes
+
+- 转录条目序列变化：`session_start` 之后现在先记录种子/恢复的消息再进入轮次条目；读取转录的脚本若假定固定序列需注意。
+- `zcode sessions` 为新增子命令；命令清单（`toCommandList`）相应扩展。
+
 ## 1.0.0 — 2026-08-31
 
 Harness v1：ZCode 从单轮问答升级为真正的终端 Agent 运行时。

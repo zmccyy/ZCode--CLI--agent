@@ -20,3 +20,6 @@ dist/
 
 # zcode plugin scratch
 .v2c/
+
+# security scan audit artifacts
+.mimosa/

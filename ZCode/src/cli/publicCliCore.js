@@ -18,10 +18,19 @@ import {
   createInteractiveConfirm,
   createProgressRenderer,
   resolveGuardrailLimits,
+  resolveCompactFromEnv,
   runHarnessPrint,
 } from './harnessPrint.js'
+import {
+  defaultTranscriptDir,
+  findLatestSession,
+  listSessions,
+  loadSessionForResume,
+  resolveSessionPath,
+  ResumeError,
+} from '../harness/index.ts'
 
-const DEFAULT_COMMANDS = Object.freeze(['help', 'doctor', 'models', 'print'])
+const DEFAULT_COMMANDS = Object.freeze(['help', 'doctor', 'models', 'sessions', 'print'])
 
 // ---------------------------------------------------------------------------
 // Lightweight cost estimation for print mode
@@ -311,6 +320,8 @@ function parseArgv(argv = []) {
     yolo: false,
     reasoning: false,
     maxTurns: null,
+    continueLatest: false,
+    resumeRef: null,
   }
   const positionals = []
 
@@ -393,11 +404,31 @@ function parseArgv(argv = []) {
       continue
     }
 
+    if (arg === '--continue') {
+      options.continueLatest = true
+      continue
+    }
+
+    if (arg === '--resume') {
+      const next = argv[index + 1]
+      const ref = readString(next)
+      if (!ref) {
+        throw new Error(`${arg} requires a session id or transcript path`)
+      }
+      options.resumeRef = ref
+      index += 1
+      continue
+    }
+
     if (arg.startsWith('-')) {
       throw new Error(`Unknown option: ${arg}`)
     }
 
     positionals.push(arg)
+  }
+
+  if (options.continueLatest && options.resumeRef) {
+    throw new Error('--continue and --resume are mutually exclusive')
   }
 
   options.command = readString(positionals[0])
@@ -453,6 +484,7 @@ export function renderHelp({ version = '0.0.0' } = {}) {
     '  help                 Show this help message',
     '  doctor               Inspect the local runtime and provider wiring',
     '  models               List the models exposed by the active provider',
+    '  sessions             List recent sessions for this workspace',
     '  -p, --print <prompt> Run the agent loop headless (tools + guardrails)',
     '',
     'Options:',
@@ -462,12 +494,16 @@ export function renderHelp({ version = '0.0.0' } = {}) {
     ...getRunModeHelpLines(),
     '  --reasoning          Show model thinking/reasoning process',
     '  --max-turns <n>      Agent loop turn limit (default 30, env ZCODE_MAX_TURNS)',
+    '  --continue           Continue the most recent session for this workspace',
+    '  --resume <id|path>   Resume a specific session transcript',
     '',
     'Examples:',
     `  ${commandName} -p "explain this code" --reasoning`,
     `  ${commandName} -p "fix all failing tests" --yolo`,
     `  ${commandName} -p "explore the repo and propose a plan" --plan`,
     `  ${commandName} -p "write a hello world script" --write hello.js`,
+    `  ${commandName} -p "keep going" --continue`,
+    `  ${commandName} sessions`,
     `  ${commandName} doctor --json`,
     '',
     'Notes:',
@@ -715,6 +751,35 @@ export async function runCli(
       return 0
     }
 
+    if (options.command === 'sessions') {
+      const dir = readString(env.ZCODE_TRANSCRIPT_DIR) || defaultTranscriptDir(cwd)
+      const sessions = await listSessions(dir)
+
+      if (options.json) {
+        writeJson(
+          stdout,
+          sessions.map(session => ({
+            sessionId: session.sessionId,
+            path: session.path,
+            modifiedAt: new Date(session.mtimeMs).toISOString(),
+            sizeBytes: session.sizeBytes,
+          })),
+        )
+      } else if (sessions.length === 0) {
+        writeLine(stdout, `No sessions recorded in ${dir}`)
+      } else {
+        for (const session of sessions) {
+          const modified = new Date(session.mtimeMs).toISOString().replace('T', ' ').slice(0, 19)
+          const sizeKb = session.sizeBytes >= 1024 ? `${(session.sizeBytes / 1024).toFixed(1)} kB` : `${session.sizeBytes} B`
+          writeLine(stdout, `${session.sessionId}  ${modified}  ${sizeKb}`)
+        }
+        writeLine(stdout, '')
+        writeLine(stdout, `Resume with: ${getCommandName()} -p "<prompt>" --continue`)
+      }
+
+      return 0
+    }
+
     if (options.printPrompt) {
       const provider = createProviderFromEnv(env)
 
@@ -734,6 +799,28 @@ export async function runCli(
 
       const guardrailLimits = resolveGuardrailLimits(env)
       const maxTurns = options.maxTurns ?? guardrailLimits.maxTurns
+
+      // Session resume: --continue picks the most recent transcript for this
+      // workspace; --resume takes a session id or transcript path.
+      const transcriptDir = readString(env.ZCODE_TRANSCRIPT_DIR) || defaultTranscriptDir(cwd)
+      let resumeSnapshot = null
+      if (options.continueLatest || options.resumeRef) {
+        const resumePath = options.continueLatest
+          ? (await findLatestSession(transcriptDir))?.path ?? null
+          : await resolveSessionPath(transcriptDir, options.resumeRef)
+        if (!resumePath) {
+          throw new ResumeError(
+            `No sessions recorded in ${transcriptDir} yet — nothing to --continue.`,
+          )
+        }
+        resumeSnapshot = await loadSessionForResume(resumePath)
+        if (!options.json) {
+          writeLine(
+            stdout,
+            `↩ Resuming session ${resumeSnapshot.sessionId} (${resumeSnapshot.messages.length} message(s))`,
+          )
+        }
+      }
 
       let reasoning = ''
       // JSON mode must keep stdout machine-readable: no human progress lines.
@@ -770,6 +857,8 @@ export async function runCli(
           dir: readString(env.ZCODE_TRANSCRIPT_DIR) || undefined,
         },
         reasoning: reasoning || undefined,
+        compact: resolveCompactFromEnv(env),
+        ...(resumeSnapshot ? { resume: resumeSnapshot } : {}),
       })
 
       if (options.json) {

@@ -9,6 +9,9 @@ import {
   runAgentLoop,
   createCoreTools,
   DEFAULT_MAX_TURNS,
+  DEFAULT_COMPACT_LIMIT_TOKENS,
+  DEFAULT_COMPACT_KEEP_MESSAGES,
+  resolveCompactConfig as resolveCompactOptions,
 } from '../harness/index.ts'
 
 const TOOL_INPUT_PREVIEW_LENGTH = 120
@@ -37,6 +40,24 @@ export function resolveGuardrailLimits(env = {}) {
     maxTurns: Number.isFinite(maxTurnsEnv) && maxTurnsEnv >= 1 ? maxTurnsEnv : DEFAULT_MAX_TURNS,
     budgetTokens: Number.isFinite(budgetEnv) && budgetEnv > 0 ? budgetEnv : null,
   }
+}
+
+/**
+ * Auto-compaction config from the environment:
+ * - ZCODE_COMPACT_TOKENS: input-token threshold that triggers compaction
+ *   (default 100000; 0 disables).
+ * - ZCODE_COMPACT_KEEP_MESSAGES: recent messages kept verbatim (default 6).
+ */
+export function resolveCompactFromEnv(env = {}) {
+  const limitEnv = Number.parseInt(env.ZCODE_COMPACT_TOKENS ?? '', 10)
+  const keepEnv = Number.parseInt(env.ZCODE_COMPACT_KEEP_MESSAGES ?? '', 10)
+
+  return resolveCompactOptions({
+    limitTokens:
+      Number.isFinite(limitEnv) && limitEnv >= 0 ? limitEnv : DEFAULT_COMPACT_LIMIT_TOKENS,
+    keepRecentMessages:
+      Number.isFinite(keepEnv) && keepEnv >= 1 ? keepEnv : DEFAULT_COMPACT_KEEP_MESSAGES,
+  })
 }
 
 function formatToolInputPreview(input) {
@@ -94,6 +115,16 @@ export function createProgressRenderer({
             ? `  ✗ ${truncateForLine(event.preview)}\n`
             : `  ✓ ${truncateForLine(event.preview)}\n`,
         )
+        break
+      case 'context_compact':
+        if (event.ok) {
+          write(
+            `\n⟳ Compacted ${event.summarizedMessages} older message(s), kept ` +
+              `${event.keptMessages} recent.\n`,
+          )
+        } else {
+          write(`\n⚠ Compaction failed (${truncateForLine(event.message)}) — continuing uncompacted.\n`)
+        }
         break
       case 'permission_denied':
         write(`  ⚠ permission denied: ${truncateForLine(event.reason)}\n`)
@@ -155,15 +186,22 @@ export async function runHarnessPrint({
   transcript = { enabled: true },
   signal,
   reasoning = undefined,
+  compact = undefined,
+  resume = null,
 }) {
   const resolvedModel = model || provider?.listModels?.()?.[0]?.id || null
+
+  // Resume: the loop prepends the prior session's messages itself; a fresh
+  // session starts from the prompt alone.
+  const messages = [{ role: 'user', content: prompt }]
+  const history = resume?.messages ?? []
 
   const result = await runAgentLoop({
     provider,
     model: resolvedModel,
     system: buildAgentSystemPrompt(cwd),
     tools: createCoreTools(),
-    messages: [{ role: 'user', content: prompt }],
+    messages,
     permissionMode,
     confirm,
     maxTurns,
@@ -172,10 +210,13 @@ export async function runHarnessPrint({
     onEvent,
     transcript,
     signal,
+    compact,
+    ...(resume ? { resume: { sessionId: resume.sessionId, messages: history } } : {}),
   })
 
   return {
     sessionId: result.sessionId,
+    ...(resume ? { resumedFrom: resume.sessionId } : {}),
     messageId: null,
     provider: provider?.id ?? 'unknown',
     model: model || resolvedModel,
@@ -191,6 +232,7 @@ export async function runHarnessPrint({
     finishReason: result.finishReason ?? 'stop',
     stopReason: result.stopReason,
     turns: result.turns,
+    compactions: result.compactions,
     usage: result.usage,
     ...(reasoning ? { reasoning } : {}),
     ...(result.error ? { error: result.error } : {}),

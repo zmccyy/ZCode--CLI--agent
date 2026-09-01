@@ -37,6 +37,26 @@ export {
   DEFAULT_MAX_TURNS,
 } from './guardrails.ts'
 export {
+  compactConversation,
+  selectCompactionBoundary,
+  buildSummaryMessage,
+  resolveCompactConfig,
+  DEFAULT_COMPACT_LIMIT_TOKENS,
+  DEFAULT_COMPACT_KEEP_MESSAGES,
+  type CompactOptions,
+  type ResolvedCompactConfig,
+  type CompactionOutcome,
+} from './compact.ts'
+export {
+  listSessions,
+  findLatestSession,
+  resolveSessionPath,
+  loadSessionForResume,
+  ResumeError,
+  type SessionSummary,
+  type ResumeSnapshot,
+} from './resume.ts'
+export {
   toOpenAIMessages,
   toOpenAITools,
   toAnthropicMessages,

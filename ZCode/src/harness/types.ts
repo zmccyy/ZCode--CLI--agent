@@ -102,6 +102,13 @@ export type LoopEvent =
       preview: string
     }
   | { type: 'turn_end'; turn: number; usage: UsageSummary }
+  | {
+      type: 'context_compact'
+      ok: boolean
+      summarizedMessages: number
+      keptMessages: number
+      message: string | null
+    }
   | { type: 'loop_end'; stopReason: StopReason; turns: number; usage: UsageSummary }
 
 /** A tool call executed during the loop, for reporting in the JSON envelope. */
@@ -124,6 +131,8 @@ export interface AgentLoopResult {
   toolCalls: ExecutedToolCall[]
   usage: UsageSummary
   turns: number
+  /** Successful auto-compactions performed during this run. */
+  compactions: number
   finishReason: string | null
   error: string | null
 }

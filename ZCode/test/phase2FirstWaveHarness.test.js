@@ -13,7 +13,7 @@ test('S01 public entry surface exposes a startable new-session command set', asy
   const report = await readNewSessionSurface()
 
   assert.equal(report.startable, true)
-  assert.deepEqual(report.commands, ['help', 'doctor', 'models', 'print'])
+  assert.deepEqual(report.commands, ['help', 'doctor', 'models', 'sessions', 'print'])
 })
 
 test('S01 doctor report uses ZCode branding, not Claude Code', async () => {

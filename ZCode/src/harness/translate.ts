@@ -101,7 +101,24 @@ export function toAnthropicMessages(
 
   for (const message of messages) {
     if (message.role === 'user') {
-      wire.push({ role: 'user', content: message.content })
+      // Anthropic requires alternating roles: a plain user message following a
+      // tool-result user turn (e.g. the compaction instruction) must ride in
+      // the same user message, after the tool_result blocks.
+      const previous = wire[wire.length - 1]
+      const previousBlocks =
+        previous &&
+        previous.role === 'user' &&
+        Array.isArray(previous.content) &&
+        previous.content.length > 0 &&
+        (previous.content[0] as Record<string, unknown>)?.type === 'tool_result'
+          ? (previous.content as Array<Record<string, unknown>>)
+          : null
+
+      if (previousBlocks) {
+        previousBlocks.push({ type: 'text', text: message.content })
+      } else {
+        wire.push({ role: 'user', content: message.content })
+      }
       continue
     }
 

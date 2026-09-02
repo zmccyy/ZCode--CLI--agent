@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import type { ToolContext, ToolDefinition, ToolResult } from '../types.ts'
-import { resolveWorkspacePath } from './read.ts'
+import { resolveWorkspacePath, toErrorResult } from './read.ts'
 
 export async function executeWrite(
   input: unknown,
@@ -16,7 +16,12 @@ export async function executeWrite(
     return { content: 'Error: content is required and must be a string', isError: true }
   }
 
-  const absolutePath = resolveWorkspacePath(context.cwd, params.file_path)
+  let absolutePath: string
+  try {
+    absolutePath = resolveWorkspacePath(context, params.file_path)
+  } catch (error) {
+    return toErrorResult(error)
+  }
 
   try {
     await fs.mkdir(path.dirname(absolutePath), { recursive: true })

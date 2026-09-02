@@ -46,6 +46,12 @@ export interface ToolContext {
   /** Session-scoped state shared between tool executions (e.g. files read). */
   state: ToolSessionState
   signal?: AbortSignal
+  /**
+   * Workspace boundary for the file tools. When present, paths outside the
+   * roots are rejected (secure-by-default: the loop always provides one
+   * unless the embedder explicitly disables it).
+   */
+  boundary?: import('./boundary.ts').WorkspaceBoundary
 }
 
 export interface ToolSessionState {

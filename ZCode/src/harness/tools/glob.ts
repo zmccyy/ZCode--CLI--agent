@@ -2,7 +2,7 @@ import path from 'node:path'
 import picomatch from 'picomatch'
 import type { ToolContext, ToolDefinition, ToolResult } from '../types.ts'
 import { walkFiles } from './fsWalk.ts'
-import { resolveWorkspacePath } from './read.ts'
+import { resolveWorkspacePath, toErrorResult } from './read.ts'
 
 const MAX_RESULTS = 1000
 
@@ -16,10 +16,15 @@ export async function executeGlob(
     return { content: 'Error: pattern is required', isError: true }
   }
 
-  const searchDir =
-    typeof params.path === 'string' && params.path.trim() !== ''
-      ? resolveWorkspacePath(context.cwd, params.path)
-      : context.cwd
+  let searchDir: string
+  try {
+    searchDir =
+      typeof params.path === 'string' && params.path.trim() !== ''
+        ? resolveWorkspacePath(context, params.path)
+        : context.cwd
+  } catch (error) {
+    return toErrorResult(error)
+  }
 
   const isMatch = picomatch(params.pattern, {
     dot: true,

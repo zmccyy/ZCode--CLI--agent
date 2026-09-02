@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs'
 import type { ToolContext, ToolDefinition, ToolResult } from '../types.ts'
-import { resolveWorkspacePath } from './read.ts'
+import { resolveWorkspacePath, toErrorResult } from './read.ts'
 
 function countOccurrences(haystack: string, needle: string): number {
   if (needle === '') return 0
@@ -42,7 +42,12 @@ export async function executeEdit(
     return { content: 'Error: new_string is required and must be a string', isError: true }
   }
 
-  const absolutePath = resolveWorkspacePath(context.cwd, params.file_path)
+  let absolutePath: string
+  try {
+    absolutePath = resolveWorkspacePath(context, params.file_path)
+  } catch (error) {
+    return toErrorResult(error)
+  }
 
   let content: string
   try {

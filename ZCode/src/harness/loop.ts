@@ -30,6 +30,8 @@ import { createTranscriptWriter, type TranscriptWriter } from './transcript.ts'
 import { checkPermission } from './permissions.ts'
 import { evaluateGuardrails } from './guardrails.ts'
 import { emptyUsage, addUsage } from './usage.ts'
+import { createWorkspaceBoundary, type WorkspaceBoundary } from './boundary.ts'
+import { resolveBashPolicy, type BashPolicy } from './bashPolicy.ts'
 import {
   compactConversation,
   resolveCompactConfig,
@@ -67,6 +69,15 @@ export interface AgentLoopOptions {
   signal?: AbortSignal
   /** Wire-dialect override (defaults from provider.kind). */
   dialect?: 'openai' | 'anthropic'
+  /**
+   * Workspace boundary for the file tools. Secure by default: when omitted,
+   * the file tools are locked to `cwd`. Pass `{ addDirs: [...] }` to extend
+   * the trusted roots (CLI --add-dir), or `false` to lift the boundary
+   * entirely (CLI --no-boundary).
+   */
+  boundary?: { enabled?: boolean; addDirs?: readonly string[] } | false
+  /** Bash command gate (allow/deny/ask). Defaults to the built-in policy. */
+  bashPolicy?: BashPolicy
   /** Auto context compaction; disabled when limitTokens is 0. */
   compact?: CompactOptions
   /** Seed the loop with a prior session's history (see resume.ts). */
@@ -166,7 +177,18 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
     sessionId,
   })
 
-  const toolContext: ToolContext = { cwd: options.cwd, state, signal: options.signal }
+  const boundaryOption = options.boundary
+  const boundary: WorkspaceBoundary =
+    boundaryOption === false
+      ? { enabled: false, roots: [] }
+      : createWorkspaceBoundary({
+          cwd: options.cwd,
+          addDirs: boundaryOption?.addDirs,
+          enabled: boundaryOption?.enabled,
+        })
+  const bashPolicy = options.bashPolicy ?? resolveBashPolicy()
+
+  const toolContext: ToolContext = { cwd: options.cwd, state, signal: options.signal, boundary }
 
   let stopReason: StopReason = 'end_turn'
   let lastFinishReason: string | null = null
@@ -182,6 +204,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
     permissionMode: options.permissionMode,
     provider: options.provider.id,
     dialect,
+    boundary: boundary.enabled ? boundary.roots : 'disabled',
     ...(options.resume ? { resumedFrom: options.resume.sessionId } : {}),
   })
   if (options.resume) {
@@ -400,6 +423,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
         toolContext,
         permissionMode: options.permissionMode,
         confirm: options.confirm,
+        bashPolicy,
         emit,
         transcript,
       })
@@ -548,10 +572,11 @@ async function executeToolCall(context: {
   toolContext: ToolContext
   permissionMode: PermissionMode
   confirm?: ConfirmHandler
+  bashPolicy: BashPolicy
   emit: (event: LoopEvent) => void
   transcript: TranscriptWriter
 }): Promise<{ executed: ExecutedToolCall }> {
-  const { call, toolCallId, registry, toolContext, permissionMode, confirm, emit, transcript } =
+  const { call, toolCallId, registry, toolContext, permissionMode, confirm, bashPolicy, emit, transcript } =
     context
 
   const startedAt = Date.now()
@@ -586,6 +611,7 @@ async function executeToolCall(context: {
     readOnly: tool.readOnly,
     input: call.input,
     confirm,
+    bashPolicy,
   })
 
   if (!decision.allowed) {

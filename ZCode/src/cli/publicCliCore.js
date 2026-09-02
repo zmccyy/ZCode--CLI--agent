@@ -20,6 +20,7 @@ import {
   resolveCompactFromEnv,
   runHarnessPrint,
 } from './harnessPrint.js'
+import { runTui } from './tui.js'
 import {
   defaultTranscriptDir,
   findLatestSession,
@@ -95,7 +96,7 @@ function lookupModelPricing(modelId) {
  * @param {string | null} model
  * @returns {{ cost: number, pricing: { input: number, output: number } } | null}
  */
-function estimateCost(usage, model) {
+export function estimateCost(usage, model) {
   const pricing = lookupModelPricing(model)
   if (!pricing) return null
 
@@ -321,6 +322,8 @@ function parseArgv(argv = []) {
     maxTurns: null,
     continueLatest: false,
     resumeRef: null,
+    addDirs: [],
+    noBoundary: false,
   }
   const positionals = []
 
@@ -419,6 +422,22 @@ function parseArgv(argv = []) {
       continue
     }
 
+    if (arg === '--add-dir') {
+      const next = argv[index + 1]
+      const dir = readString(next)
+      if (!dir) {
+        throw new Error(`${arg} requires a directory path`)
+      }
+      options.addDirs.push(dir)
+      index += 1
+      continue
+    }
+
+    if (arg === '--no-boundary') {
+      options.noBoundary = true
+      continue
+    }
+
     if (arg.startsWith('-')) {
       throw new Error(`Unknown option: ${arg}`)
     }
@@ -495,6 +514,8 @@ export function renderHelp({ version = '0.0.0' } = {}) {
     '  --max-turns <n>      Agent loop turn limit (default 30, env ZCODE_MAX_TURNS)',
     '  --continue           Continue the most recent session for this workspace',
     '  --resume <id|path>   Resume a specific session transcript',
+    '  --add-dir <dir>      Trust an extra directory for file tools (repeatable)',
+    '  --no-boundary        Lift the workspace boundary (file tools reach everywhere)',
     '',
     'Examples:',
     `  ${commandName} -p "explain this code" --reasoning`,
@@ -506,8 +527,10 @@ export function renderHelp({ version = '0.0.0' } = {}) {
     `  ${commandName} doctor --json`,
     '',
     'Notes:',
-    '  This public build does not boot the full interactive TUI path.',
-    '  The public local entrypoint is intentionally limited to stable modules.',
+    '  Bare `zcode` starts an interactive session (TTY); `-p` runs headless.',
+    '  File tools are confined to the workspace boundary by default',
+    '  (--add-dir extends it, --no-boundary lifts it). Bash is gated by an',
+    '  allow/deny policy, not by the boundary — see the docs for the trust model.',
     `  ${getLaunchCommandTip()}`,
   ].join('\n')
 }
@@ -709,7 +732,59 @@ export async function runCli(
       return 0
     }
 
-    if (options.help || (!options.command && !options.printPrompt)) {
+    const bareInvocation = !options.command && !options.printPrompt
+
+    // Bare `zcode` on a real terminal → interactive TUI. Piped stdin (CI,
+    // scripts) keeps the historic help output; headless callers use -p.
+    if (bareInvocation && !options.help && stdin?.isTTY === true) {
+      const provider = createProviderFromEnv(env)
+      if (!isPrintCapableProvider(provider)) {
+        writeLine(stderr, 'No provider configured — run `zcode doctor` and set ZCODE_PROVIDER / ZCODE_OPENAI_* first.')
+        return 1
+      }
+
+      const guardrailLimits = resolveGuardrailLimits(env)
+      const transcriptDir = readString(env.ZCODE_TRANSCRIPT_DIR) || defaultTranscriptDir(cwd)
+
+      // --continue / --resume without -p seed the interactive conversation.
+      let initialMessages = []
+      let resumedFrom = null
+      if (options.continueLatest || options.resumeRef) {
+        const resumePath = options.continueLatest
+          ? (await findLatestSession(transcriptDir))?.path ?? null
+          : await resolveSessionPath(transcriptDir, options.resumeRef)
+        if (!resumePath) {
+          writeLine(stderr, `No sessions recorded in ${transcriptDir} yet — nothing to --continue.`)
+          return 1
+        }
+        const snapshot = await loadSessionForResume(resumePath)
+        initialMessages = snapshot.messages
+        resumedFrom = snapshot.sessionId
+      }
+
+      return runTui({
+        stdin,
+        stdout,
+        stderr,
+        provider,
+        cwd,
+        env,
+        permissionMode: runMode === 'plan' ? 'plan' : runMode === 'yolo' ? 'yolo' : 'agent',
+        model: options.model,
+        boundary: options.noBoundary ? false : { enabled: true, addDirs: options.addDirs },
+        maxTurns: options.maxTurns ?? guardrailLimits.maxTurns,
+        budgetTokens: guardrailLimits.budgetTokens,
+        compact: resolveCompactFromEnv(env),
+        transcript: { enabled: true, dir: readString(env.ZCODE_TRANSCRIPT_DIR) || undefined },
+        version,
+        initialMessages,
+        resumedFrom,
+        transcriptDir,
+        estimateCost,
+      })
+    }
+
+    if (options.help || bareInvocation) {
       writeLine(stdout, renderHelp({ version }))
       return 0
     }
@@ -856,6 +931,7 @@ export async function runCli(
         },
         reasoning: reasoning || undefined,
         compact: resolveCompactFromEnv(env),
+        boundary: options.noBoundary ? false : { enabled: true, addDirs: options.addDirs },
         ...(resumeSnapshot ? { resume: resumeSnapshot } : {}),
       })
 

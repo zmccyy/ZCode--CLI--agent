@@ -9,6 +9,7 @@
  */
 
 import type { ConfirmHandler, PermissionMode } from './types.ts'
+import { classifyBashCommand, type BashPolicy } from './bashPolicy.ts'
 
 export const PERMISSION_MODES: readonly PermissionMode[] = Object.freeze([
   'plan',
@@ -38,8 +39,33 @@ export async function checkPermission(options: {
   readOnly: boolean
   input: unknown
   confirm?: ConfirmHandler
+  /** Bash command gate; enables the allow/deny/ask policy for Bash calls. */
+  bashPolicy?: BashPolicy
 }): Promise<PermissionDecision> {
-  const { mode, toolName, readOnly, input, confirm } = options
+  const { mode, toolName, readOnly, input, confirm, bashPolicy } = options
+
+  // ── Bash gate ──
+  // Deny-list hits are blocked in every mode (YOLO included). Allow-list hits
+  // run without prompting in Agent mode. Everything else falls through to the
+  // regular flow: YOLO auto-runs, Agent prompts, Plan denies (no commands).
+  if (toolName === 'Bash' && bashPolicy && input && typeof input === 'object') {
+    const command = (input as Record<string, unknown>).command
+    if (typeof command === 'string' && command.trim() !== '') {
+      const decision = classifyBashCommand(command, bashPolicy)
+      if (decision === 'deny') {
+        const preview = command.length > 120 ? `${command.slice(0, 120)}…` : command
+        return {
+          allowed: false,
+          reason:
+            `Blocked by the Bash deny list (dangerous pattern): ${preview}. ` +
+            'If this command is genuinely needed, ask the user to run it themselves.',
+        }
+      }
+      if (decision === 'allow' && mode !== 'plan') {
+        return { allowed: true, reason: 'read-only Bash allowlist' }
+      }
+    }
+  }
 
   if (mode === 'yolo') {
     return { allowed: true, reason: 'YOLO mode auto-approves all tool calls' }

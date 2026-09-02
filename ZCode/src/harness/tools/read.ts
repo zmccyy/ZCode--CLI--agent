@@ -1,16 +1,37 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import type { ToolContext, ToolDefinition, ToolResult } from '../types.ts'
+import { assertPathInsideBoundary } from '../boundary.ts'
 
 const DEFAULT_LIMIT = 2000
 const MAX_LIMIT = 2000
 const MAX_LINE_LENGTH = 2000
 
-export function resolveWorkspacePath(cwd: string, filePath: string): string {
+/**
+ * Resolves a tool-provided path against the workspace and enforces the
+ * workspace boundary when one is attached to the context. Throws a
+ * BoundaryError for paths outside the allowed roots.
+ */
+export function resolveWorkspacePath(
+  context: Pick<ToolContext, 'cwd' | 'boundary'>,
+  filePath: string,
+): string {
   if (typeof filePath !== 'string' || filePath.trim() === '') {
     throw new Error('file_path is required')
   }
-  return path.isAbsolute(filePath) ? path.normalize(filePath) : path.resolve(cwd, filePath)
+  const absolutePath = path.isAbsolute(filePath)
+    ? path.normalize(filePath)
+    : path.resolve(context.cwd, filePath)
+  assertPathInsideBoundary(context.boundary, absolutePath)
+  return absolutePath
+}
+
+/** Uniform tool-error shape for resolve/validation failures. */
+export function toErrorResult(error: unknown): ToolResult {
+  return {
+    content: `Error: ${error instanceof Error ? error.message : String(error)}`,
+    isError: true,
+  }
 }
 
 function formatReadOutput(
@@ -53,7 +74,12 @@ export async function executeRead(
     }
   }
 
-  const absolutePath = resolveWorkspacePath(context.cwd, params.file_path)
+  let absolutePath: string
+  try {
+    absolutePath = resolveWorkspacePath(context, params.file_path)
+  } catch (error) {
+    return toErrorResult(error)
+  }
 
   let stats
   try {

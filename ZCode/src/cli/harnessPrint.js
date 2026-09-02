@@ -5,6 +5,7 @@
  */
 
 import { createInterface } from 'node:readline/promises'
+import path from 'node:path'
 import {
   runAgentLoop,
   createCoreTools,
@@ -16,11 +17,32 @@ import {
 
 const TOOL_INPUT_PREVIEW_LENGTH = 120
 
-export function buildAgentSystemPrompt(cwd) {
+/**
+ * Boundary note for the system prompt: when the workspace boundary is on
+ * (the default), the model is told which roots exist so it stops reaching
+ * outside and, when needed, asks the user for --add-dir instead.
+ */
+function describeBoundaryForPrompt(cwd, boundary) {
+  if (boundary === false) {
+    return 'Workspace boundary: disabled (--no-boundary). File tools can access the whole machine.'
+  }
+  const roots = [path.resolve(cwd)]
+  for (const dir of boundary?.addDirs ?? []) {
+    if (typeof dir === 'string' && dir.trim() !== '') roots.push(path.resolve(cwd, dir.trim()))
+  }
+  return (
+    `Workspace boundary: file tools (Read/Glob/Grep/Write/Edit) can only access these ` +
+    `root(s): ${roots.join(', ')}. Paths outside resolve to an error; work inside the ` +
+    'workspace or ask the user to extend the boundary with --add-dir.'
+  )
+}
+
+export function buildAgentSystemPrompt(cwd, boundary) {
   return [
     'You are ZCode, a coding agent working directly in the user\'s workspace.',
     '',
     `Current working directory: ${cwd}`,
+    describeBoundaryForPrompt(cwd, boundary),
     '',
     'Rules of engagement:',
     '- Explore before you change: use Glob, Grep, and Read to understand the relevant code.',
@@ -60,7 +82,7 @@ export function resolveCompactFromEnv(env = {}) {
   })
 }
 
-function formatToolInputPreview(input) {
+export function formatToolInputPreview(input) {
   let text
   try {
     text = JSON.stringify(input ?? {})
@@ -192,6 +214,7 @@ export async function runHarnessPrint({
   signal,
   reasoning = undefined,
   compact = undefined,
+  boundary = undefined,
   resume = null,
 }) {
   const resolvedModel = model || provider?.listModels?.()?.[0]?.id || null
@@ -204,7 +227,7 @@ export async function runHarnessPrint({
   const result = await runAgentLoop({
     provider,
     model: resolvedModel,
-    system: buildAgentSystemPrompt(cwd),
+    system: buildAgentSystemPrompt(cwd, boundary),
     tools: createCoreTools(),
     messages,
     permissionMode,
@@ -216,6 +239,7 @@ export async function runHarnessPrint({
     transcript,
     signal,
     compact,
+    boundary,
     ...(resume
       ? {
           resume: {

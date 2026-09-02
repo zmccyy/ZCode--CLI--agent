@@ -33,6 +33,19 @@ export {
   PERMISSION_MODES,
 } from './permissions.ts'
 export {
+  createWorkspaceBoundary,
+  isPathInsideBoundary,
+  describeBoundary,
+  BoundaryError,
+  type WorkspaceBoundary,
+} from './boundary.ts'
+export {
+  resolveBashPolicy,
+  classifyBashCommand,
+  type BashPolicy,
+  type BashGateDecision,
+} from './bashPolicy.ts'
+export {
   evaluateGuardrails,
   DEFAULT_MAX_TURNS,
 } from './guardrails.ts'
@@ -64,3 +77,4 @@ export {
   translateRequest,
   resolveDialect,
 } from './translate.ts'
+export { emptyUsage, addUsage } from './usage.ts'

@@ -3,7 +3,7 @@ import path from 'node:path'
 import picomatch from 'picomatch'
 import type { ToolContext, ToolDefinition, ToolResult } from '../types.ts'
 import { walkFiles } from './fsWalk.ts'
-import { resolveWorkspacePath } from './read.ts'
+import { resolveWorkspacePath, toErrorResult } from './read.ts'
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024
 const MAX_OUTPUT_LINES = 2000
@@ -44,10 +44,15 @@ function parseParams(input: unknown, context: ToolContext): { params: GrepParams
       ? raw.output_mode
       : 'files_with_matches'
 
-  const searchDir =
-    typeof raw.path === 'string' && raw.path.trim() !== ''
-      ? resolveWorkspacePath(context.cwd, raw.path)
-      : context.cwd
+  let searchDir: string
+  try {
+    searchDir =
+      typeof raw.path === 'string' && raw.path.trim() !== ''
+        ? resolveWorkspacePath(context, raw.path)
+        : context.cwd
+  } catch (error) {
+    return { error: toErrorResult(error) }
+  }
 
   const contextBoth = Number.isFinite(raw['-C']) ? Math.min(Math.floor(raw['-C'] as number), 20) : 0
 

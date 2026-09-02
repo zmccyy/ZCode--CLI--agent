@@ -14,7 +14,6 @@ import { resolveRunMode, RUN_MODE_LABELS, getRunModeHelpLines } from '../utils/p
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import {
-  buildAgentSystemPrompt,
   createInteractiveConfirm,
   createProgressRenderer,
   resolveGuardrailLimits,
@@ -197,7 +196,7 @@ function extractCodeBlocks(text) {
  * Infer a filename from a code block's language and existing project structure.
  * Falls back to a generic name when language-specific detection fails.
  */
-function inferFilename(language, cwd = process.cwd()) {
+function inferFilename(language, _cwd = process.cwd()) {
   const extMap = {
     js: 'module.js',
     ts: 'module.ts',
@@ -850,7 +849,6 @@ export async function runCli(
         cwd,
         maxTurns,
         budgetTokens: guardrailLimits.budgetTokens,
-        showReasoning: options.reasoning,
         onEvent,
         transcript: {
           enabled: true,

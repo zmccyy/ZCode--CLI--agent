@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    # Windows is the project's primary platform (the Bash tool requires Git
+    # Bash on Windows and the portable packaging targets it); CI runs the full
+    # lint + typecheck + test matrix on every push and PR.
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: ZCode
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ZCode/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (public layer)
+        run: npm run lint
+
+      - name: Typecheck (public layer, strict)
+        run: npm run typecheck
+
+      - name: Test (full suite)
+        run: npm test

@@ -4,9 +4,10 @@
 
 [English](README.md) | [中文](README_ZH.md)
 
+[![CI](https://github.com/zmccyy/ZCode--CLI--agent/actions/workflows/ci.yml/badge.svg)](https://github.com/zmccyy/ZCode--CLI--agent/actions/workflows/ci.yml)
 [![Stars](https://img.shields.io/github/stars/zmccyy/ZCode--CLI--agent?style=flat-square&logo=github)](https://github.com/zmccyy/ZCode--CLI--agent/stargazers)
 [![License](https://img.shields.io/github/license/zmccyy/ZCode--CLI--agent?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.0-blue?style=flat-square)](https://github.com/zmccyy/ZCode--CLI--agent/releases)
+[![Version](https://img.shields.io/badge/version-1.1.1-blue?style=flat-square)](https://github.com/zmccyy/ZCode--CLI--agent/releases)
 [![Node](https://img.shields.io/badge/node-%3E%3D24-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Bun](https://img.shields.io/badge/bun-%3E%3D1.0-f9f1e1?style=flat-square&logo=bun)](https://bun.sh)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square)](#-快速开始)

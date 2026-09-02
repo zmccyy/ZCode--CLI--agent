@@ -1,6 +1,6 @@
 {
   "name": "zcode-cli-agent",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "type": "module",
   "bin": {
@@ -13,14 +13,19 @@
     "models": "node src/entrypoints/publicCli.js models",
     "start:bun": "bun run src/entrypoints/publicCli.js",
     "typecheck": "tsc --noEmit -p tsconfig.public.json",
+    "lint": "eslint src/entrypoints src/cli/publicCliCore.js src/cli/harnessPrint.js src/harness src/providers src/contracts/providerAdapter.js src/config/brandConfig.js src/config/brandText.js src/config/settingsContract.js src/config/providerEnvironment.js test/harness test/e2e test/helpers/fakeLlmServer.js test/helpers/loadModule.js test/all.test.js",
     "test": "node --experimental-strip-types --test test/all.test.js",
     "test:watch": "node --experimental-strip-types --test --watch test/all.test.js",
     "test:all": "node --experimental-strip-types --test test/all.test.js"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^25.9.1",
+    "@types/picomatch": "^4.0.3",
+    "eslint": "^10.9.1",
     "tsx": "^4.22.3",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.69.0"
   },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "^0.0.52",

@@ -41,6 +41,10 @@ const DEFAULT_MAX_TURNS = 30
 const TOOL_RESULT_PREVIEW_LENGTH = 160
 /** Cap on compaction attempts per run so a failing summarizer cannot spin. */
 const MAX_COMPACTION_ATTEMPTS = 5
+/** Total turn attempts (initial + retries) before a provider failure is terminal. */
+const DEFAULT_PROVIDER_ATTEMPTS = 3
+const DEFAULT_PROVIDER_BACKOFF_MS = 1000
+const MAX_PROVIDER_BACKOFF_MS = 8000
 
 export interface AgentLoopOptions {
   provider: LoopProvider
@@ -66,7 +70,24 @@ export interface AgentLoopOptions {
   /** Auto context compaction; disabled when limitTokens is 0. */
   compact?: CompactOptions
   /** Seed the loop with a prior session's history (see resume.ts). */
-  resume?: { sessionId: string; messages: ChatMessage[] }
+  resume?: {
+    sessionId: string
+    messages: ChatMessage[]
+    /**
+     * Directory the prior session ran in. Relative paths in the restored
+     * history (e.g. Read calls seeding the Edit precondition) resolve against
+     * it, not the current cwd — resuming from another directory must not mark
+     * files here as "already read".
+     */
+    originalCwd?: string | null
+  }
+  /**
+   * Retries for provider requests that fail before any output streamed.
+   * `attempts` is the total number of tries per turn (default 3); backoff is
+   * exponential from `backoffMs` (default 1000), capped at 8s. A turn that
+   * already streamed deltas is never replayed — that would duplicate output.
+   */
+  providerRetry?: { attempts?: number; backoffMs?: number }
 }
 
 export interface RunningLoop {
@@ -104,6 +125,16 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
     Number.isFinite(options.budgetTokens) && (options.budgetTokens as number) > 0
       ? Math.floor(options.budgetTokens as number)
       : null
+  const retryAttempts = options.providerRetry?.attempts
+  const providerAttempts =
+    typeof retryAttempts === 'number' && Number.isFinite(retryAttempts) && retryAttempts >= 1
+      ? Math.floor(retryAttempts)
+      : DEFAULT_PROVIDER_ATTEMPTS
+  const retryBackoff = options.providerRetry?.backoffMs
+  const providerBackoffMs =
+    typeof retryBackoff === 'number' && Number.isFinite(retryBackoff) && retryBackoff >= 0
+      ? retryBackoff
+      : DEFAULT_PROVIDER_BACKOFF_MS
 
   const registry: ToolRegistry = createToolRegistry(options.tools)
   const dialect = options.dialect ?? resolveDialect(options.provider)
@@ -160,8 +191,9 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
       fromSessionId: options.resume.sessionId,
       messages: options.resume.messages.length,
     })
+    const resumeCwd = options.resume.originalCwd ?? options.cwd
     for (const message of options.resume.messages) {
-      rebuildReadFilesFromMessage(message, options.cwd, state)
+      rebuildReadFilesFromMessage(message, resumeCwd, state)
       // Copy the restored history into the new transcript so the session file
       // is self-contained and can itself be resumed later.
       transcript.append({ type: 'message', message, turn: 0, restored: true })
@@ -289,19 +321,38 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
       streamInput.maxTokens = options.maxTokens
     }
 
-    let outcome: TurnOutcome
-    try {
-      outcome = await consumeTurn(options.provider, streamInput, emit, options.signal)
-    } catch (error) {
-      if (abortRequested()) {
-        stopReason = 'aborted'
-      } else {
-        stopReason = 'error'
-        errorMessage = describeError(error)
-        transcript.append({ type: 'error', message: errorMessage })
+    let outcome: TurnOutcome | null = null
+    let turnDeltas = 0
+    for (let attempt = 0; ; attempt += 1) {
+      turnDeltas = 0
+      const countingEmit = (event: LoopEvent): void => {
+        if (event.type === 'text_delta' || event.type === 'reasoning_delta') turnDeltas += 1
+        emit(event)
       }
-      break
+      try {
+        outcome = await consumeTurn(options.provider, streamInput, countingEmit, options.signal)
+        break
+      } catch (error) {
+        if (abortRequested()) {
+          stopReason = 'aborted'
+          break
+        }
+        // Retry only while nothing has streamed: replaying a partially
+        // delivered turn would duplicate deltas on the observer side.
+        if (turnDeltas > 0 || attempt + 1 >= providerAttempts) {
+          stopReason = 'error'
+          errorMessage = describeError(error)
+          transcript.append({ type: 'error', message: errorMessage })
+          break
+        }
+        const message = describeError(error)
+        transcript.append({ type: 'provider_retry', attempt: attempt + 1, message })
+        emit({ type: 'provider_retry', attempt: attempt + 1, message })
+        const delay = Math.min(providerBackoffMs * 2 ** attempt, MAX_PROVIDER_BACKOFF_MS)
+        await new Promise(resolve => setTimeout(resolve, delay))
+      }
     }
+    if (!outcome) break
 
     addUsage(usage, outcome.usage)
     lastInputTokens = outcome.inputTokens
@@ -569,7 +620,7 @@ async function executeToolCall(context: {
   transcript.append({ type: 'tool_execution_start', toolCallId, name: call.name, input: call.input })
 
   let resultText: string
-  let isError = false
+  let isError: boolean
   try {
     const output = await tool.execute(call.input, toolContext)
     resultText = output.content

@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.1.1 — 2026-09-02
+
+可靠性补丁 + 工程化基线：重试对称化、恢复安全修复、push/PR CI、strict 类型与 lint、仓库清理。
+
+### Reliability
+
+- **OpenAI 兼容 provider 重试**（`src/providers/openaiCompatible.js`）：429/5xx 与网络错误按指数退避重试（默认 2 次，`maxRetries` 可配；`retry-after` 响应头优先），与 Anthropic 侧对齐 —— 此前主力路径（DeepSeek）遇到限流直接终局。
+- **循环内 provider 重试**（`src/harness/loop.ts`）：轮次请求在**任何输出流出之前**失败时自动重试（默认共 3 次尝试，`providerRetry.attempts` / `providerRetry.backoffMs` 可调，指数退避上限 8s），重试不消耗护栏轮数；已流式输出的轮次**绝不重放**（避免重复输出），失败如实终局。新增 `provider_retry` 循环事件与转录条目，文本模式打印重试提示行。
+- **修复：跨目录恢复会话的 read-before-edit 旁路**（`src/harness/loop.ts`）：恢复历史中的相对路径 Read 此前用**当前** cwd 解析，在另一个目录 `--resume` 时会把本地同名未读文件标记为"已读"，Edit 可直接改动从未看过的内容。现在通过 `resume.originalCwd`（转录记录的原会话 cwd）解析，跨目录恢复时同名文件必须重新 Read 才能编辑。
+
+### Engineering
+
+- **push/PR CI**（`.github/workflows/ci.yml`）：Windows + Node 24，每次 push/PR 跑全量测试（874 项）+ `tsc --noEmit`（公共层 **strict: true**）+ ESLint（核心规则 + typescript-eslint recommended，仅公共层）。README 增加徽章。
+- **公共层类型收紧**：`tsconfig.public.json` 开启 `strict`；`usage.ts` 空值处理显式化；接入 `@types/picomatch`。
+- **死代码清理**：移除未使用的导入/参数/常量（`buildAgentSystemPrompt` 导入、`showReasoning` 死参数、`requireString`、`BRIDGED_PROVIDER_ENV_KEYS` 等），为有意为之的拒绝性生成器与测试桩补充 lint 豁免注释。
+
+### Repository hygiene
+
+- untrack 误提交的根目录 `node_modules/`（387 个文件，磁盘保留，.gitignore 已生效）。
+- 移除 `ZCode-作业提交.zip`（10 MB；仅从当前提交移除，历史中仍可找回）。
+- 新增 `ZCode/src/README.md`：声明公共层与遗留参考树的边界、非产品代码警告与移除时间表（v1.4）。
+- 重写 `docs/implementation-status.md`：以 harness 为主线反映 v1.1.1 真实状态（原内容停留在 6 月的参考树视角，与现状矛盾）。
+
+### Compatibility notes
+
+- `runHarnessPrint` 移除未被使用的 `showReasoning` 参数（reasoning 展示仍由 `--reasoning` + 进度渲染器处理，调用方不受影响）。
+- `providerEnvironment.js` 移除未导出的 `BRIDGED_PROVIDER_ENV_KEYS` 常量（无任何引用）。
+- 循环新增可选 `providerRetry` 选项，默认开启（3 次尝试）；需要旧行为（失败即终局）可传 `providerRetry: { attempts: 1 }`。
+
 ## 1.1.0 — 2026-09-01
 
 Harness v1.1：长任务不丢上下文、断线可续 —— 自动上下文压缩与会话恢复。

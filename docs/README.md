@@ -12,7 +12,7 @@
 |-------|----------------------------------------------------|
 | 5 分钟跑起来 | [快速开始](getting-started/quick-start.md)             |
 | 了解功能需求 | [需求分析文档](requirements-analysis.md)                 |
-| 查看实现状态 | [代码实现文档](implementation-status.md)                 |
+| 查看实现状态 | [实现状态](implementation-status.md)（以 harness 为主线）      |
 | 配置开发环境 | [本地开发指南](guides/local-development.md)              |
 | Windows 安装 `zcode` | [Windows 安装指南](guides/windows-install.md)          |
 | 查环境变量 / CLI 契约 | [API 参考](references/api-reference.md)              |

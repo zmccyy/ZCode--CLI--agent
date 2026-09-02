@@ -15,11 +15,6 @@ const OPENAI_COMPATIBLE_ENV_KEYS = Object.freeze([
   'ZCODE_OPENAI_TIMEOUT',
 ])
 
-const BRIDGED_PROVIDER_ENV_KEYS = Object.freeze([
-  'ZCODE_PROVIDER',
-  ...OPENAI_COMPATIBLE_ENV_KEYS,
-])
-
 function isTruthy(value) {
   if (!value || typeof value !== 'string') {
     return false

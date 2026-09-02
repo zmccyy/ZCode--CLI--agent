@@ -10,14 +10,6 @@ function loadModelConfigs() {
   return requireFromHere('../utils/model/configs.js')
 }
 
-function requireString(value, fieldName) {
-  if (typeof value !== 'string' || value.trim() === '') {
-    throw new Error(`${fieldName} is required`)
-  }
-
-  return value.trim()
-}
-
 function readString(value) {
   return typeof value === 'string' && value.trim() !== '' ? value.trim() : null
 }
@@ -333,7 +325,7 @@ export function createAnthropicProvider(options = {}) {
         const toolUseNames = new Map()
         const toolUseIds = new Map()
 
-        for await (const { eventType, data } of parseAnthropicSSE(response)) {
+        for await (const { data } of parseAnthropicSSE(response)) {
           let payload
           try {
             payload = JSON.parse(data)

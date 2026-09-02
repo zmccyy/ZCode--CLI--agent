@@ -117,6 +117,14 @@ function mergeAbortSignals(signals = []) {
   return controller.signal
 }
 
+function backoffDelay(attempt) {
+  return Math.min(1000 * Math.pow(2, attempt), 30000)
+}
+
+function isRetryableStatus(status) {
+  return status >= 500 || status === 429
+}
+
 async function readErrorDetails(response) {
   const contentType = response.headers.get('content-type') || ''
 
@@ -275,6 +283,8 @@ export function createOpenAICompatibleProvider(config, options = {}) {
     apiKey,
     headers: normalizeHeaders(config?.headers),
     timeout: Number.isFinite(config?.timeout) ? config.timeout : 600000,
+    maxRetries:
+      Number.isFinite(config?.maxRetries) && config.maxRetries >= 0 ? config.maxRetries : 2,
   }
 
   const useCatalog = options.useCatalog !== false
@@ -328,29 +338,69 @@ export function createOpenAICompatibleProvider(config, options = {}) {
           ? AbortSignal.timeout(normalizedConfig.timeout)
           : undefined
       const signal = mergeAbortSignals([input.signal, timeoutSignal])
+      const maxRetries =
+        Number.isFinite(input.maxRetries) && input.maxRetries >= 0
+          ? input.maxRetries
+          : normalizedConfig.maxRetries
 
       return (async function* () {
-        const response = await fetchImpl(
-          buildChatCompletionsUrl(normalizedConfig.baseUrl),
-          {
-            method: 'POST',
-            headers: {
-              Accept: 'text/event-stream',
-              Authorization: `Bearer ${normalizedConfig.apiKey}`,
-              'Content-Type': 'application/json',
-              ...normalizedConfig.headers,
-            },
-            body: JSON.stringify(requestBody),
-            ...(signal ? { signal } : {}),
+        const requestInit = {
+          method: 'POST',
+          headers: {
+            Accept: 'text/event-stream',
+            Authorization: `Bearer ${normalizedConfig.apiKey}`,
+            'Content-Type': 'application/json',
+            ...normalizedConfig.headers,
           },
-        )
+          body: JSON.stringify(requestBody),
+          ...(signal ? { signal } : {}),
+        }
 
-        if (!response.ok) {
-          const details = await readErrorDetails(response)
-          const summary = [response.status, response.statusText]
-            .filter(Boolean)
-            .join(' ')
-          throw new Error(details ? `${summary}: ${details}` : summary)
+        let response = null
+        let lastError = null
+        let attempts = 0
+
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+          attempts = attempt + 1
+          try {
+            response = await fetchImpl(
+              buildChatCompletionsUrl(normalizedConfig.baseUrl),
+              requestInit,
+            )
+
+            if (response.ok) {
+              break
+            }
+
+            if (isRetryableStatus(response.status) && attempt < maxRetries) {
+              const retryAfter = response.headers.get('retry-after')
+              const delay = retryAfter
+                ? parseInt(retryAfter, 10) * 1000
+                : backoffDelay(attempt)
+              await new Promise(resolve => setTimeout(resolve, delay))
+              continue
+            }
+
+            const details = await readErrorDetails(response)
+            const summary = [response.status, response.statusText]
+              .filter(Boolean)
+              .join(' ')
+            lastError = new Error(details ? `${summary}: ${details}` : summary)
+            break
+          } catch (err) {
+            if (attempt >= maxRetries || signal?.aborted) {
+              lastError = err
+              break
+            }
+            await new Promise(resolve => setTimeout(resolve, backoffDelay(attempt)))
+          }
+        }
+
+        if (!response || !response.ok) {
+          throw (
+            lastError ||
+            new Error(`OpenAI-compatible request failed after ${attempts} attempt(s)`)
+          )
         }
 
         let didStart = false
@@ -428,6 +478,10 @@ export function createOpenAICompatibleProvider(config, options = {}) {
         apiKey: readString(config.apiKey) || normalizedConfig.apiKey,
         headers: config?.headers && typeof config.headers === 'object' ? normalizeHeaders(config.headers) : normalizedConfig.headers,
         timeout: Number.isFinite(config?.timeout) ? config.timeout : normalizedConfig.timeout,
+        maxRetries:
+          Number.isFinite(config?.maxRetries) && config.maxRetries >= 0
+            ? config.maxRetries
+            : normalizedConfig.maxRetries,
       }
       const errors = []
       if (!resolved.provider) errors.push('provider is required')

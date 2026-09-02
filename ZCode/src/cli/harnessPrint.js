@@ -126,6 +126,12 @@ export function createProgressRenderer({
           write(`\n⚠ Compaction failed (${truncateForLine(event.message)}) — continuing uncompacted.\n`)
         }
         break
+      case 'provider_retry':
+        write(
+          `\n⟳ Provider request failed (attempt ${event.attempt}), retrying: ` +
+            `${truncateForLine(event.message)}\n`,
+        )
+        break
       case 'permission_denied':
         write(`  ⚠ permission denied: ${truncateForLine(event.reason)}\n`)
         break
@@ -181,7 +187,6 @@ export async function runHarnessPrint({
   cwd,
   maxTurns,
   budgetTokens,
-  showReasoning = false,
   onEvent,
   transcript = { enabled: true },
   signal,
@@ -211,7 +216,17 @@ export async function runHarnessPrint({
     transcript,
     signal,
     compact,
-    ...(resume ? { resume: { sessionId: resume.sessionId, messages: history } } : {}),
+    ...(resume
+      ? {
+          resume: {
+            sessionId: resume.sessionId,
+            messages: history,
+            // Relative paths in the restored history belong to the directory
+            // the prior session ran in, not the current one.
+            originalCwd: resume.cwd ?? null,
+          },
+        }
+      : {}),
   })
 
   return {

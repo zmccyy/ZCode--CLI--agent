@@ -148,7 +148,7 @@ export function createFakeLlmServer({
     req.on('data', chunk => chunks.push(chunk))
     req.on('end', () => {
       const rawBody = Buffer.concat(chunks).toString('utf8')
-      let body = null
+      let body
       try {
         body = JSON.parse(rawBody)
       } catch {

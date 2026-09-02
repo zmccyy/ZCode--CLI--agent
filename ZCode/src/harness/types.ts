@@ -109,6 +109,7 @@ export type LoopEvent =
       keptMessages: number
       message: string | null
     }
+  | { type: 'provider_retry'; attempt: number; message: string }
   | { type: 'loop_end'; stopReason: StopReason; turns: number; usage: UsageSummary }
 
 /** A tool call executed during the loop, for reporting in the JSON envelope. */

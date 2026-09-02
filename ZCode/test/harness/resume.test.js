@@ -157,6 +157,108 @@ test('a finished session can be listed, loaded, and resumed with Edit preconditi
   }
 })
 
+test('resuming in a different directory does not inherit read-before-edit for same-named relative files', async () => {
+  const server = createFakeLlmServer({
+    dialect: 'openai',
+    apiKey: FAKE_API_KEY,
+    model: 'fake-model',
+    script: [
+      // ── Session 1, recorded in workspace A ──
+      {
+        toolCalls: [{ name: 'Read', input: { file_path: 'note.txt' } }],
+        usage: { prompt_tokens: 100, completion_tokens: 5, total_tokens: 105 },
+      },
+      {
+        text: 'Read the original note.',
+        usage: { prompt_tokens: 130, completion_tokens: 5, total_tokens: 135 },
+      },
+      // ── Session 2, resumed in workspace B ──
+      {
+        toolCalls: [
+          {
+            name: 'Edit',
+            input: { file_path: 'note.txt', old_string: 'different', new_string: 'hijacked' },
+          },
+        ],
+        usage: { prompt_tokens: 200, completion_tokens: 5, total_tokens: 205 },
+      },
+      {
+        toolCalls: [{ name: 'Read', input: { file_path: 'note.txt' } }],
+        usage: { prompt_tokens: 260, completion_tokens: 5, total_tokens: 265 },
+      },
+      {
+        toolCalls: [
+          {
+            name: 'Edit',
+            input: { file_path: 'note.txt', old_string: 'different', new_string: 'updated' },
+          },
+        ],
+        usage: { prompt_tokens: 320, completion_tokens: 5, total_tokens: 325 },
+      },
+      {
+        text: 'Re-read first, then edited safely.',
+        usage: { prompt_tokens: 380, completion_tokens: 5, total_tokens: 385 },
+      },
+    ],
+  })
+  await server.listen()
+  const workspaceA = await createTempDir('zcode-resume-cwd-a-')
+  const workspaceB = await createTempDir('zcode-resume-cwd-b-')
+  const transcriptDir = path.join(workspaceA, '.transcripts')
+
+  try {
+    await fs.writeFile(path.join(workspaceA, 'note.txt'), 'original content\n', 'utf8')
+    await fs.writeFile(path.join(workspaceB, 'note.txt'), 'different content\n', 'utf8')
+
+    const first = await runFirstSession(workspaceA, transcriptDir, server)
+    assert.equal(first.stopReason, 'end_turn')
+
+    const sessions = await listSessions(transcriptDir)
+    const snapshot = await loadSessionForResume(sessions[0].path)
+    assert.equal(snapshot.cwd, workspaceA)
+
+    // Session 2 runs with cwd = workspaceB. The restored history's relative
+    // Read must resolve against workspaceA (originalCwd), so workspaceB's
+    // note.txt is NOT considered read yet — editing it sight-unseen must fail.
+    const second = await runAgentLoop({
+      provider: createFakeProvider(server),
+      model: 'fake-model',
+      system: SYSTEM_PROMPT,
+      tools: createCoreTools(),
+      messages: [{ role: 'user', content: 'Update the note.' }],
+      permissionMode: 'yolo',
+      cwd: workspaceB,
+      transcript: { enabled: false },
+      resume: {
+        sessionId: snapshot.sessionId,
+        messages: snapshot.messages,
+        originalCwd: snapshot.cwd,
+      },
+    })
+
+    assert.equal(second.stopReason, 'end_turn')
+    const deniedEdit = second.toolCalls[0]
+    assert.equal(deniedEdit.name, 'Edit')
+    assert.equal(deniedEdit.isError, true)
+    assert.match(deniedEdit.result, /has not been read yet/)
+    assert.ok(deniedEdit.result.includes(path.resolve(workspaceB, 'note.txt')))
+
+    // The model recovered by reading the file in the new workspace first.
+    assert.equal(second.toolCalls[1].name, 'Read')
+    assert.equal(second.toolCalls[1].isError, false)
+    assert.equal(second.toolCalls[2].name, 'Edit')
+    assert.equal(second.toolCalls[2].isError, false)
+    assert.equal(await fs.readFile(path.join(workspaceB, 'note.txt'), 'utf8'), 'updated content\n')
+
+    // Workspace A's file was never touched by the resumed session.
+    assert.equal(await fs.readFile(path.join(workspaceA, 'note.txt'), 'utf8'), 'original content\n')
+  } finally {
+    await server.close()
+    await fs.rm(workspaceA, { recursive: true, force: true })
+    await fs.rm(workspaceB, { recursive: true, force: true })
+  }
+})
+
 test('transcript loading skips corrupt lines and rejects message-less files', async () => {
   const workspace = await createTempDir('zcode-resume-corrupt-')
   const transcriptDir = path.join(workspace, '.transcripts')

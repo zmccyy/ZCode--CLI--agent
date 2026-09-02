@@ -187,7 +187,7 @@ e2e('E2E streamChat: abort mid-stream via signal', async () => {
   })
 
   try {
-    for await (const chunk of stream) {
+    for await (const _chunk of stream) {
       chunkCount++
       if (chunkCount >= 3) controller.abort()
     }

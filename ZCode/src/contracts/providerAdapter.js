@@ -131,9 +131,12 @@ export function createProviderAdapter(definition) {
         return definition.streamChat(input)
       }
 
-      return (async function* () {
-        throw new Error(`streamChat is not implemented for ${definition.id}`)
-      })()
+      return (
+        // eslint-disable-next-line require-yield -- intentional rejecting stub for providers without streamChat
+        (async function* () {
+          throw new Error(`streamChat is not implemented for ${definition.id}`)
+        })()
+      )
     },
     listModels() {
       return rawListModels().map(descriptor =>

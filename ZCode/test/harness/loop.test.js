@@ -351,3 +351,131 @@ test('unknown tool call is reported to the model and the loop recovers', async (
     await fs.rm(workspace, { recursive: true, force: true })
   }
 })
+
+// ── In-loop provider retries ──
+
+// eslint-disable-next-line require-yield -- a generator that rejects on first pull
+async function* failedTurn(error) {
+  throw error
+}
+
+async function* textTurn(text, usage) {
+  yield { type: 'response_start', messageId: 'stub-1', model: 'stub-model', provider: 'stub' }
+  yield { type: 'text_delta', text }
+  yield { type: 'response_end', finishReason: 'stop', usage }
+}
+
+function createStubProvider(turns) {
+  let calls = 0
+  const provider = {
+    id: 'stub',
+    kind: 'openai',
+    streamChat() {
+      const step = turns[Math.min(calls, turns.length - 1)]
+      calls += 1
+      return step()
+    },
+  }
+  return { provider, callCount: () => calls }
+}
+
+test('a provider failure before any output is retried and the turn succeeds', async () => {
+  const workspace = await createTempDir('zcode-loop-retry-')
+  const { provider, callCount } = createStubProvider([
+    () => failedTurn(new Error('ECONNRESET: socket hang up')),
+    () => textTurn('Recovered after retry.', { inputTokens: 8, outputTokens: 3, totalTokens: 11 }),
+  ])
+
+  try {
+    const events = []
+    const result = await runAgentLoop({
+      provider,
+      model: 'stub-model',
+      system: SYSTEM_PROMPT,
+      tools: createCoreTools(),
+      messages: [{ role: 'user', content: 'hello' }],
+      permissionMode: 'yolo',
+      cwd: workspace,
+      onEvent: event => events.push(event),
+      transcript: { enabled: false },
+      providerRetry: { attempts: 3, backoffMs: 1 },
+    })
+
+    assert.equal(result.stopReason, 'end_turn')
+    assert.equal(result.text, 'Recovered after retry.')
+    assert.equal(result.error, null)
+    // The retried request does not consume a turn of the guardrail budget.
+    assert.equal(result.turns, 1)
+    assert.equal(callCount(), 2)
+
+    const retries = events.filter(event => event.type === 'provider_retry')
+    assert.equal(retries.length, 1)
+    assert.equal(retries[0].attempt, 1)
+    assert.match(retries[0].message, /ECONNRESET/)
+  } finally {
+    await fs.rm(workspace, { recursive: true, force: true })
+  }
+})
+
+test('a provider failure gives up after exhausting the retry attempts', async () => {
+  const workspace = await createTempDir('zcode-loop-retry-exhaust-')
+  const { provider, callCount } = createStubProvider([
+    () => failedTurn(new Error('502 Bad Gateway')),
+  ])
+
+  try {
+    const result = await runAgentLoop({
+      provider,
+      model: 'stub-model',
+      system: SYSTEM_PROMPT,
+      tools: createCoreTools(),
+      messages: [{ role: 'user', content: 'hello' }],
+      permissionMode: 'yolo',
+      cwd: workspace,
+      transcript: { enabled: false },
+      // Default attempts (3): two retries before the failure is terminal.
+      providerRetry: { backoffMs: 1 },
+    })
+
+    assert.equal(result.stopReason, 'error')
+    assert.match(result.error, /502 Bad Gateway/)
+    assert.equal(callCount(), 3)
+  } finally {
+    await fs.rm(workspace, { recursive: true, force: true })
+  }
+})
+
+test('a turn that already streamed deltas is never replayed', async () => {
+  const workspace = await createTempDir('zcode-loop-retry-partial-')
+  const { provider, callCount } = createStubProvider([
+    async function* partialTurn() {
+      yield { type: 'text_delta', text: 'partial output ' }
+      throw new Error('stream died mid-turn')
+    },
+  ])
+
+  try {
+    const events = []
+    const result = await runAgentLoop({
+      provider,
+      model: 'stub-model',
+      system: SYSTEM_PROMPT,
+      tools: createCoreTools(),
+      messages: [{ role: 'user', content: 'hello' }],
+      permissionMode: 'yolo',
+      cwd: workspace,
+      onEvent: event => events.push(event),
+      transcript: { enabled: false },
+      providerRetry: { attempts: 3, backoffMs: 1 },
+    })
+
+    // Replaying would duplicate the already-emitted deltas, so the failure
+    // is terminal on the first attempt.
+    assert.equal(result.stopReason, 'error')
+    assert.match(result.error, /stream died mid-turn/)
+    assert.equal(callCount(), 1)
+    assert.ok(!events.some(event => event.type === 'provider_retry'))
+  } finally {
+    await fs.rm(workspace, { recursive: true, force: true })
+  }
+})

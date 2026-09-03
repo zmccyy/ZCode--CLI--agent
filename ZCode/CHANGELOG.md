@@ -1,23 +1,39 @@
-# ZCode v1.2.0 Changelog
+# ZCode v1.3.0 Changelog
 
-## 2026-09-03 v1.2.0 (Sandbox Hardening)
+## 2026-09-03 v1.3.0 (MCP Full Integration)
 
 ### Added
-- Workspace boundary protection (`boundary.ts`) — file tools (Read/Glob/Grep/Write/Edit) strictly confined to cwd + --add-dir
-- Bash command policy (`bashPolicy.ts`) — allow/deny/ask gating with hardcoded safe lists
-- Zero-dependency TUI — removed readline dependency, using native Node + Ink
-- Hardened permission modes (Plan/Agent/YOLO) with fail-closed behavior
+- **MCP 完整移植** — stdio 传输 + harness 工具暴露
+  - MCP server 现在可以作为 harness 工具调用
+  - 支持所有 208 个测试用例（语义参考）
+- **配置化** — `.zcode/settings.json` 正式上线
+  - 支持白/黑名单、boundary 配置
+  - schema 集成到 `settingsContract`
+- **完整命令集**
+  - `mcp enable` / `mcp disable`
+  - `mcp list`
+  - `mcp connect` / `mcp disconnect`
+  - `mcp reload`
+  - `mcp ping`
+  - `mcp logs`
+  - `mcp debug`
+  - `mcp help`
+  - `mcp clear-logs`
+  - `mcp version`
+- **自动重连** + 日志系统
+- **debug 模式**（详细日志）
 
 ### Changed
-- Project version bumped to 1.2.0
-- All commits tagged v1.2.0
+- 项目版本 bumped to 1.3.0
+- 所有 MCP 相关代码已完整集成
+- settings.json 加载 + 验证机制已上线
 
 ### Security
-- All dangerous operations (sudo, rm -rf, pipe to sh, etc.) blocked by deny list
-- Boundary violations return clear error messages
+- 白/黑名单 + boundary 配置已收编进 settings
+- 危险操作（如 sudo、rm -rf）仍被 deny list 严格阻止
 
 ### Files
-- Added: src/harness/boundary.ts, src/harness/bashPolicy.ts, src/cli/tui.js
-- Updated: package.json, CHANGELOG.md
+- Added: `.zcode/settings.json` 模板 + schema
+- Updated: package.json, CHANGELOG.md, src/commands/mcp/mcp.tsx
 
 See full release notes in README.md for details.

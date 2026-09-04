@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { join, extname } from 'path';
-import { exec } from 'child_process';
+import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 
 const MIME_TYPES: Record<string, string> = {
@@ -63,21 +63,21 @@ function serveStatic(wwwDir: string, req: IncomingMessage, res: ServerResponse):
 
 function openBrowserUrl(url: string): void {
   const platform = process.platform;
-  let cmd: string;
+  const options = { detached: true, stdio: 'ignore' as const };
+  let child;
   if (platform === 'win32') {
     // The empty "" is required — start interprets the first quoted arg as a window title
-    cmd = `start "" "${url}"`;
+    child = spawn('cmd.exe', ['/c', 'start', '', url], options);
   } else if (platform === 'darwin') {
-    cmd = `open "${url}"`;
+    child = spawn('open', [url], options);
   } else {
-    cmd = `xdg-open "${url}"`;
+    child = spawn('xdg-open', [url], options);
   }
-  exec(cmd, (err) => {
-    if (err) {
-      console.error(`  Could not open browser: ${err.message}`);
-      console.error(`  Please open ${url} manually.`);
-    }
+  child.on('error', (err) => {
+    console.error(`  Could not open browser: ${err.message}`);
+    console.error(`  Please open ${url} manually.`);
   });
+  child.unref();
 }
 
 function argsToOptions(args: string[]): { port: number; noOpen: boolean; help: boolean } {

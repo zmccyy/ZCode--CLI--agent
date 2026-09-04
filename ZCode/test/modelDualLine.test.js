@@ -35,7 +35,7 @@ test('openaiCompatible listModels returns all catalog models by default', async 
     provider: 'deepseek',
     model: 'deepseek-chat',
     baseUrl: 'https://api.deepseek.com/v1',
-    apiKey: 'test-key',
+    apiKey: 'test',
   })
 
   const models = provider.listModels()
@@ -61,7 +61,7 @@ test('openaiCompatible listModels falls back to single model when catalog disabl
       provider: 'deepseek',
       model: 'deepseek-chat',
       baseUrl: 'https://api.deepseek.com/v1',
-      apiKey: 'test-key',
+      apiKey: 'test',
     },
     { useCatalog: false },
   )
@@ -84,7 +84,7 @@ test('openaiCompatible listModels does not duplicate configured model', async ()
     provider: 'anthropic-proxy',
     model: 'claude-sonnet-4-6',
     baseUrl: 'https://proxy.example.com/v1',
-    apiKey: 'test-key',
+    apiKey: 'test',
   })
 
   const models = provider.listModels()
@@ -106,13 +106,13 @@ test('createProviderModelRegistry merges models from two openai-compatible provi
       provider: 'qwen',
       model: 'qwen-plus',
       baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-      apiKey: 'test-key',
+      apiKey: 'test',
     }),
     createOpenAICompatibleProvider({
       provider: 'deepseek',
       model: 'deepseek-chat',
       baseUrl: 'https://api.deepseek.com/v1',
-      apiKey: 'test-key',
+      apiKey: 'test',
     }),
   ])
 
@@ -155,7 +155,7 @@ test('createDualLineModelRegistry includes both lines when openai-compatible con
         provider: 'deepseek',
         model: 'deepseek-chat',
         baseUrl: 'https://api.deepseek.com/v1',
-        apiKey: 'test-key',
+        apiKey: 'test',
       },
     },
     {},
@@ -189,7 +189,7 @@ test('createDualLineModelRegistry with openai-compatible provider mode still inc
         provider: 'deepseek',
         model: 'deepseek-chat',
         baseUrl: 'https://api.deepseek.com/v1',
-        apiKey: 'test-key',
+        apiKey: 'test',
       },
     },
     {},
@@ -250,7 +250,7 @@ test('createDualLineModelRegistry applies modelOverrides to both lines', async (
         provider: 'deepseek',
         model: 'deepseek-chat',
         baseUrl: 'https://api.deepseek.com/v1',
-        apiKey: 'test-key',
+        apiKey: 'test',
       },
     },
     {},
@@ -302,7 +302,7 @@ test('createModelRegistryFromSettings works for single-line openai-compatible', 
         provider: 'deepseek',
         model: 'deepseek-chat',
         baseUrl: 'https://api.deepseek.com/v1',
-        apiKey: 'test-key',
+        apiKey: 'test',
       },
     },
     {},

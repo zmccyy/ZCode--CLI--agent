@@ -12,7 +12,7 @@ import { createOpenAICompatibleProvider } from '../../src/providers/openaiCompat
 import { createFakeLlmServer } from '../helpers/fakeLlmServer.js'
 
 // Fake credential accepted by the local fake LLM server; never a real secret.
-const FAKE_API_KEY = process.env.ZCODE_TEST_FAKE_KEY || ['test', 'key'].join('-')
+const FAKE_API_KEY = process.env.ZCODE_TEST_FAKE_KEY || 'test'
 
 function createCollector() {
   const chunks = []

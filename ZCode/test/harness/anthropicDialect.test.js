@@ -23,7 +23,7 @@ async function createTempDir(prefix) {
 test('anthropic dialect script: Read → Edit → Bash → final answer', async () => {
   const server = createFakeLlmServer({
     dialect: 'anthropic',
-    apiKey: 'sk-fake',
+    apiKey: 'test',
     model: 'claude-fake-4',
     script: [
       {
@@ -58,7 +58,7 @@ test('anthropic dialect script: Read → Edit → Bash → final answer', async 
 
     const provider = createAnthropicProvider({
       provider: 'firstParty',
-      apiKey: 'sk-fake',
+      apiKey: 'test',
       baseUrl: server.anthropicBaseUrl,
     })
 
@@ -95,7 +95,7 @@ test('anthropic dialect script: Read → Edit → Bash → final answer', async 
     assert.equal(server.requestCount, 4)
     const first = server.requests[0]
     assert.equal(first.url, '/v1/messages')
-    assert.equal(first.headers['x-api-key'], 'sk-fake')
+    assert.equal(first.headers['x-api-key'], 'test')
     assert.equal(first.body.system, SYSTEM_PROMPT)
     assert.deepEqual(first.body.tools[0], {
       name: 'Read',
@@ -140,7 +140,7 @@ test('anthropic dialect script: Read → Edit → Bash → final answer', async 
 test('anthropic dialect: tool errors carry is_error and the model recovers', async () => {
   const server = createFakeLlmServer({
     dialect: 'anthropic',
-    apiKey: 'sk-fake',
+    apiKey: 'test',
     model: 'claude-fake-4',
     script: [
       { toolCalls: [{ name: 'Read', input: { file_path: 'missing.txt' } }] },
@@ -153,7 +153,7 @@ test('anthropic dialect: tool errors carry is_error and the model recovers', asy
   try {
     const provider = createAnthropicProvider({
       provider: 'firstParty',
-      apiKey: 'sk-fake',
+      apiKey: 'test',
       baseUrl: server.anthropicBaseUrl,
     })
 

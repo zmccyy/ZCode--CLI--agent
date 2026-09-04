@@ -6,14 +6,14 @@
 
 **Harness（运行时骨架）**:
 本项目要交付的核心物：驱动 LLM 进行多轮 Think→Act→Observe 工具循环的运行时，含工具集、权限门与会话记录。不指 TUI，也不指评测框架。
-_Avoid_: 测试夹具（`test/helpers/phase2Harness.js` 的旧义）、eval framework
+_Avoid_: harness 公共层之外的实现细节
 
 **Agent 循环**:
 Harness 的心脏：发消息 → 流式收回复 → 执行模型请求的工具调用 → 结果回灌 → 继续，直到模型不再请求工具或触发上限。
 _Avoid_: query loop、主循环
 
 **底座树（Base Tree）**:
-ZCode/src 下从 Claude Code 发布产物还原的 TS 源码（约 18.5 万行）。只作设计与行为参考，不进产品运行时，终局从仓库移除。
+ZCode/src 下从 Claude Code 发布产物还原的 TS 源码（约 18.5 万行）。只作设计与行为参考，不进产品运行时，**已于 v1.4 从仓库整体移除**。
 _Avoid_: 上游源码、Claude Code 源码
 
 **公共层（Public Layer）**:

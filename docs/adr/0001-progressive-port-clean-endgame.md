@@ -1,6 +1,8 @@
 # 渐进搬运、终局干净：Harness 以公共层为唯一运行时
 
-**Status**: accepted（2026-08-30）
+**Status**: implemented（2026-09-03，v1.4 完成）—— 参考树已整体移出仓库，`src/` 现只含第一方公共层代码。
+
+> 完成记录：v1.4 将整棵参考树（约 18.5 万行）从仓库删除，并同步收窄 lint/typecheck/test 范围到公共层。产品运行时（harness + providers + publicCli，Node ≥ 24 零构建）不受影响。
 
 ## Context
 

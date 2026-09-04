@@ -22,7 +22,7 @@ function makeProvider(server) {
     provider: 'fake',
     model: 'fake-model',
     baseUrl: server.openaiBaseUrl,
-    apiKey: 'test-key',
+    apiKey: 'test',
   })
 }
 
@@ -31,7 +31,7 @@ function makeProvider(server) {
 test('write-side script: Write → Bash verify → final report (yolo)', async () => {
   const server = createFakeLlmServer({
     dialect: 'openai',
-    apiKey: 'test-key',
+    apiKey: 'test',
     script: [
       {
         toolCalls: [
@@ -79,7 +79,7 @@ test('write-side script: Write → Bash verify → final report (yolo)', async (
 test('UC-03-shaped script: Grep → Read → Bash → Edit → Bash until tests pass', async () => {
   const server = createFakeLlmServer({
     dialect: 'openai',
-    apiKey: 'test-key',
+    apiKey: 'test',
     script: [
       { toolCalls: [{ name: 'Grep', input: { pattern: 'expected', glob: '*.test.js' } }] },
       { toolCalls: [{ name: 'Read', input: { file_path: 'calc.js' } }] },
@@ -154,7 +154,7 @@ test('UC-03-shaped script: Grep → Read → Bash → Edit → Bash until tests 
 test('agent mode asks for confirmation; declining feeds the denial back', async () => {
   const server = createFakeLlmServer({
     dialect: 'openai',
-    apiKey: 'test-key',
+    apiKey: 'test',
     script: [
       { toolCalls: [{ name: 'Write', input: { file_path: 'declined.txt', content: 'x' } }] },
       { toolCalls: [{ name: 'Write', input: { file_path: 'approved.txt', content: 'y' } }] },
@@ -208,7 +208,7 @@ test('agent mode asks for confirmation; declining feeds the denial back', async 
 test('agent mode without an approver denies fail-closed', async () => {
   const server = createFakeLlmServer({
     dialect: 'openai',
-    apiKey: 'test-key',
+    apiKey: 'test',
     script: [
       { toolCalls: [{ name: 'Bash', input: { command: 'echo should-not-run' } }] },
       { text: 'Understood, I cannot run commands here.' },
@@ -275,7 +275,7 @@ test('checkPermission unit: plan denies, yolo allows, agent gates writes only', 
 test('max turns guardrail stops an endless tool loop and reports progress', async () => {
   const server = createFakeLlmServer({
     dialect: 'openai',
-    apiKey: 'test-key',
+    apiKey: 'test',
     script: [{ toolCalls: [{ name: 'Glob', input: { pattern: '*' } }] }],
   })
   await server.listen()
@@ -310,7 +310,7 @@ test('max turns guardrail stops an endless tool loop and reports progress', asyn
 test('budget guardrail stops the loop when cumulative tokens exceed the cap', async () => {
   const server = createFakeLlmServer({
     dialect: 'openai',
-    apiKey: 'test-key',
+    apiKey: 'test',
     script: [
       { toolCalls: [{ name: 'Glob', input: { pattern: '*' } }], usage: { prompt_tokens: 500, completion_tokens: 50, total_tokens: 550 } },
       { toolCalls: [{ name: 'Glob', input: { pattern: '*' } }], usage: { prompt_tokens: 600, completion_tokens: 60, total_tokens: 660 } },

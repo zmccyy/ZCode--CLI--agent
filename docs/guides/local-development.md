@@ -103,34 +103,29 @@ bun run doctor --json
 bun run models
 ```
 
-**完整 REPL（Bun）：**
+**交互式 TUI：**
 
 ```bash
-bun src/entrypoints/cli.tsx
+zcode
 ```
 
 ---
 
-## 两条开发链路
+## 单入口，两种表面
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  公共 CLI (publicCli.js)                                │
-│  Node ≥22 或 Bun  ·  help / doctor / models / -p       │
-│  ✅ 稳定 · 适合 CI 与脚本                                 │
-└─────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────┐
-│  完整 REPL (cli.tsx → main.tsx → REPL)                  │
-│  仅 Bun  ·  Ink TUI · MCP · 工具循环 · 会话管理         │
-│  🔧 开发中 · 部分模块可能未就绪                           │
+│  publicCli.js（Node ≥24）                                │
+│  ├─ 无头: help / doctor / models / sessions / -p        │
+│  └─ 交互: 裸 `zcode`（TTY）→ 零依赖 readline TUI         │
+│  ✅ 稳定 · 适合 CI 与脚本                                │
 └─────────────────────────────────────────────────────────┘
 ```
 
-| 链路 | 入口文件 | 运行时 | 典型用途 |
+| 表面 | 入口 | 运行时 | 典型用途 |
 |------|----------|--------|----------|
-| 公共 CLI | `src/entrypoints/publicCli.js` | Node / Bun | 诊断、自动化、`-p --json` |
-| 完整 REPL | `src/entrypoints/cli.tsx` | Bun | 交互式开发、功能验证 |
+| 无头 CLI | `src/entrypoints/publicCli.js` | Node ≥24 | 诊断、自动化、`-p --json` |
+| 交互 TUI | 裸 `zcode`（TTY）→ `cli/tui.js` | Node ≥24 | 流式输出、内联审批、斜杠命令 |
 
 ---
 
@@ -154,7 +149,7 @@ bun src/entrypoints/cli.tsx
 | `bun run doctor --json` | 诊断 |
 | `bun run models` | 列模型 |
 | `bun run start -p "..." --json` | Print 模式 |
-| `bun src/entrypoints/cli.tsx` | 完整 REPL |
+| `zcode` | 交互式 TUI（TTY） |
 
 ### 全局命令（`npm link` 后）
 
@@ -202,10 +197,10 @@ npm run test:watch
 测试验证内容：
 
 - Provider / runtime 兼容桥接
-- 公共 CLI 的 `help` / `doctor` / `start` 契约
+- 公共 CLI 的 `help` / `doctor` / `models` 契约
 - 本地 `.env` 加载行为
-- 会话管理、Hooks、MCP、权限系统、Agent、Plan Mode
-- 全量 801 测试（795 通过，5 跳过）
+- Harness 循环（真循环 + 假 LLM + 真工具）、Provider 适配、权限门、护栏、转录、压缩、恢复、TUI
+- 全量公共层套件（`npm test`）通过
 
 ---
 

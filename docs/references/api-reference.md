@@ -225,22 +225,25 @@ ZCODE_OPENAI_TIMEOUT=60000
 
 ---
 
-## 完整 REPL CLI 选项（参考）
+## CLI 选项
 
-通过 `bun src/entrypoints/cli.tsx` 启动的完整 CLI 支持更多选项，公共构建未暴露：
+`zcode`（即 `src/entrypoints/publicCli.js`）是唯一入口——无头 `-p` 与交互 TUI 共用同一套选项：
 
 | 选项 | 说明 |
 |------|------|
-| `-p, --print` | 打印模式（完整链路版） |
-| `-c, --continue` | 继续最近会话 |
-| `-r, --resume [id]` | 恢复指定会话 |
-| `--model <model>` | 选择模型 |
-| `--permission-mode <mode>` | 权限模式 |
-| `--mcp-config <configs...>` | 加载 MCP 配置 |
-| `--agent <agent>` | 指定 Agent |
-| `--ide` | 启动时连接 IDE |
+| `-m, --model <id>` | 指定模型 |
+| `--json` | 机器可读 JSON 输出（`-p`） |
+| `-w, --write [path]` | 将响应中的代码块写入文件 |
+| `--plan` | Plan 模式：只建议不执行写入 |
+| `--yolo` | YOLO 模式：自动批准全部操作 |
+| `--reasoning` | 流式展示模型推理 |
+| `--max-turns <n>` | 循环轮数上限（默认 30，`ZCODE_MAX_TURNS`） |
+| `--continue` | 续接本工作区最近会话 |
+| `--resume <id\|path>` | 恢复指定会话 |
+| `--add-dir <dir>` | 信任额外目录（文件工具，可重复） |
+| `--no-boundary` | 解除工作区边界 |
 
-子命令包括 `mcp`、`auth`、`doctor`、`update`、`plugin` 等。详见 `bun src/entrypoints/cli.tsx --help`。
+子命令：`help` · `doctor` · `models` · `sessions`。裸 `zcode`（TTY）启动交互 TUI；`zcode -p "<task>"` 跑无头 Agent 循环。详见 `zcode --help`。
 
 ---
 

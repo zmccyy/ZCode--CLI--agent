@@ -1,11 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { spawn, spawnSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { loadModule, resolveFromHere } from './helpers/loadModule.js'
 
 const repoDir = resolveFromHere(import.meta.url, '..')
@@ -18,113 +17,6 @@ const publicCliCorePath = resolveFromHere(
   'cli',
   'publicCliCore.js',
 )
-
-function getBunCommand() {
-  return process.platform === 'win32' ? 'bun.cmd' : 'bun'
-}
-
-function hasBun() {
-  // Check if bun is available; if not, tests that require bun will be skipped
-  if (process.env.BUN_TEST_SKIP === '1') return false
-  try {
-    const result = runBun(['--version'], { timeout: 10000 })
-    return result.status === 0
-  } catch {
-    return false
-  }
-}
-
-function runBun(args, options = {}) {
-  if (process.platform === 'win32') {
-    const commandLine = ['bun', ...args].join(' ')
-    return spawnSync(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', commandLine], {
-      encoding: 'utf8',
-      ...options,
-    })
-  }
-
-  return spawnSync(getBunCommand(), args, {
-    encoding: 'utf8',
-    ...options,
-  })
-}
-
-function runBunAsync(args, options = {}) {
-  return new Promise(resolve => {
-    let child
-
-    if (process.platform === 'win32') {
-      const commandLine = ['bun', ...args].join(' ')
-      child = spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', commandLine], {
-        ...options,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      })
-    } else {
-      child = spawn(getBunCommand(), args, {
-        ...options,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      })
-    }
-
-    let stdout = ''
-    let stderr = ''
-    let settled = false
-    const timeout = options.timeout ?? 0
-
-    const finish = result => {
-      if (settled) return
-      settled = true
-      if (timer) {
-        clearTimeout(timer)
-      }
-      resolve(result)
-    }
-
-    child.stdout?.setEncoding('utf8')
-    child.stderr?.setEncoding('utf8')
-    child.stdout?.on('data', chunk => {
-      stdout += chunk
-    })
-    child.stderr?.on('data', chunk => {
-      stderr += chunk
-    })
-
-    child.on('error', error => {
-      finish({
-        status: null,
-        signal: null,
-        stdout,
-        stderr,
-        error,
-      })
-    })
-
-    child.on('close', (code, signal) => {
-      finish({
-        status: code,
-        signal,
-        stdout,
-        stderr,
-        error: undefined,
-      })
-    })
-
-    const timer = timeout > 0
-      ? setTimeout(() => {
-          const error = new Error(`spawn ${process.platform === 'win32' ? process.env.ComSpec || 'cmd.exe' : getBunCommand()} ETIMEDOUT`)
-          error.code = 'ETIMEDOUT'
-          child.kill('SIGTERM')
-          finish({
-            status: null,
-            signal: 'SIGTERM',
-            stdout,
-            stderr,
-            error,
-          })
-        }, timeout)
-      : null
-  })
-}
 
 function runNode(args, options = {}) {
   return spawnSync('node', args, {
@@ -203,7 +95,6 @@ test('renderHelp describes the minimal local-startable CLI surface', async () =>
   assert.match(help, /doctor/)
   assert.match(help, /models/)
   assert.match(help, /-p, --print <prompt>/)
-  assert.match(help, /public build/i)
 })
 
 test('createDoctorReport reports a startable default Anthropic-backed local CLI', async () => {
@@ -290,7 +181,7 @@ test('loadDotEnvFile reads local .env values without overriding existing env key
     )
 
     const env = {
-      ZCODE_OPENAI_API_KEY: 'from-process',
+      ZCODE_OPENAI_API_KEY: 'test',
     }
 
     const result = loadDotEnvFile({
@@ -303,7 +194,7 @@ test('loadDotEnvFile reads local .env values without overriding existing env key
     assert.equal(env.ZCODE_PROVIDER, 'openai-compatible')
     assert.equal(env.ZCODE_OPENAI_PROVIDER, 'deepseek')
     assert.equal(env.ZCODE_OPENAI_MODEL, 'deepseek-chat')
-    assert.equal(env.ZCODE_OPENAI_API_KEY, 'from-process')
+    assert.equal(env.ZCODE_OPENAI_API_KEY, 'test')
   } finally {
     rmSync(tempDir, { recursive: true, force: true })
   }
@@ -320,7 +211,7 @@ test('runCli can execute --print --json through the real openai-compatible provi
     server = http.createServer(async (req, res) => {
       assert.equal(req.method, 'POST')
       assert.equal(req.url, '/v1/chat/completions')
-      assert.equal(req.headers.authorization, 'Bearer test-key')
+      assert.equal(req.headers.authorization, 'Bearer test')
 
       let body = ''
       for await (const chunk of req) {
@@ -371,7 +262,7 @@ test('runCli can execute --print --json through the real openai-compatible provi
         'ZCODE_OPENAI_PROVIDER=deepseek',
         'ZCODE_OPENAI_MODEL=deepseek-chat',
         `ZCODE_OPENAI_BASE_URL=http://127.0.0.1:${port}/v1`,
-        'ZCODE_OPENAI_API_KEY=test-key',
+        'ZCODE_OPENAI_API_KEY=test',
         `ZCODE_TRANSCRIPT_DIR=${path.join(tempDir, 'transcripts')}`,
       ].join('\n'),
       'utf8',
@@ -456,220 +347,22 @@ test('node public CLI models --json lists provider models without a TS loader', 
   assert.ok(payload.some(model => model.provider === 'firstParty'))
 })
 
-test('bun run start --help launches the public CLI entrypoint via Bun', { skip: !hasBun() ? 'bun not available' : undefined }, () => {
-  const result = runBun(['run', 'start', '--help'], {
-    cwd: repoDir,
-  })
-
-  assert.equal(result.error, undefined, result.error?.message)
-  assert.equal(result.status, 0, result.stderr)
-  assert.match(result.stdout, /ZCode CLI Agent/)
-  assert.match(result.stdout, /doctor/)
-})
-
-test('public help documents that Node.js targets the public CLI surface only', async () => {
+test('public help documents the public CLI surface without leaking internal entrypoints', async () => {
   const { renderHelp } = await loadModule(
     `${publicCliCorePath}?node-scope=${Date.now()}`,
   )
 
   const help = renderHelp({ version: '0.1.0' })
 
-  assert.match(help, /public build/i)
-  assert.match(help, /does not boot the full interactive TUI path/i)
+  assert.match(help, /ZCode CLI Agent/)
+  assert.match(help, /Bare `zcode` starts an interactive session/)
   assert.doesNotMatch(help, /cli\.tsx/i)
 })
 
-test('bun cli.tsx --help reaches the full Bun entrypoint without missing-package failures', {
-  skip: !hasBun() ? 'bun not available' : undefined,
-}, () => {
-  const result = runBun(['src/entrypoints/cli.tsx', '--help'], {
-    cwd: repoDir,
-    timeout: 30000,
-  })
 
-  assert.equal(result.error, undefined, result.error?.message)
-  assert.equal(result.status, 0, result.stderr)
-  assert.doesNotMatch(result.stderr, /Cannot find module/i)
-  assert.doesNotMatch(result.stdout, /Cannot find module/i)
-})
 
-test('bun can import the colorDiff adapter without requiring color-diff-napi at module evaluation time', {
-  skip: !hasBun() ? 'bun not available' : undefined,
-}, () => {
-  const tempDir = createTempDir('zcode-bun-color-diff-')
-  const scriptPath = path.join(tempDir, 'import-color-diff.mjs')
-  const moduleUrl = pathToFileURL(
-    resolveFromHere(
-      import.meta.url,
-      '..',
-      'src',
-      'components',
-      'StructuredDiff',
-      'colorDiff.ts',
-    ),
-  ).href
 
-  try {
-    writeFileSync(
-      scriptPath,
-      `await import(${JSON.stringify(moduleUrl)});\nconsole.log('color-diff-import-ok');\n`,
-      'utf8',
-    )
 
-    const result = runBun([scriptPath], {
-      cwd: repoDir,
-      timeout: 30000,
-    })
-
-    assert.equal(result.error, undefined, result.error?.message)
-    assert.equal(result.status, 0, result.stderr)
-    assert.match(result.stdout, /color-diff-import-ok/)
-  } finally {
-    rmSync(tempDir, { recursive: true, force: true })
-  }
-})
-
-test('bun can import print.ts without missing filePersistence dependencies', {
-  skip: !hasBun() ? 'bun not available' : undefined,
-}, () => {
-  const tempDir = createTempDir('zcode-bun-print-import-')
-  const scriptPath = path.join(tempDir, 'import-print.mjs')
-  const moduleUrl = pathToFileURL(
-    resolveFromHere(import.meta.url, '..', 'src', 'cli', 'print.ts'),
-  ).href
-
-  try {
-    writeFileSync(
-      scriptPath,
-      `await import(${JSON.stringify(moduleUrl)});\nconsole.log('print-import-ok');\n`,
-      'utf8',
-    )
-
-    const result = runBun([scriptPath], {
-      cwd: repoDir,
-      timeout: 30000,
-      env: {
-        ...process.env,
-        CLAUDE_CODE_SIMPLE: '1',
-      },
-    })
-
-    assert.equal(result.error, undefined, result.error?.message)
-    assert.equal(result.status, 0, result.stderr)
-    assert.match(result.stdout, /print-import-ok/)
-  } finally {
-    rmSync(tempDir, { recursive: true, force: true })
-  }
-})
-
-test('bun can resolve openai-compatible as the active API provider', {
-  skip: !hasBun() ? 'bun not available' : undefined,
-}, () => {
-  const tempDir = createTempDir('zcode-bun-provider-')
-  const scriptPath = path.join(tempDir, 'provider-check.mjs')
-  const moduleUrl = pathToFileURL(
-    resolveFromHere(import.meta.url, '..', 'src', 'utils', 'model', 'providers.ts'),
-  ).href
-
-  try {
-    writeFileSync(
-      scriptPath,
-      [
-        `const mod = await import(${JSON.stringify(moduleUrl)});`,
-        "console.log(mod.getAPIProvider());",
-      ].join('\n'),
-      'utf8',
-    )
-
-    const result = runBun([scriptPath], {
-      cwd: repoDir,
-      timeout: 30000,
-      env: {
-        ...process.env,
-        ZCODE_PROVIDER: 'openai-compatible',
-      },
-    })
-
-    assert.equal(result.error, undefined, result.error?.message)
-    assert.equal(result.status, 0, result.stderr)
-    assert.match(result.stdout, /openaiCompatible/)
-  } finally {
-    rmSync(tempDir, { recursive: true, force: true })
-  }
-})
-
-test('bun cli.tsx --bare -p can complete a real headless request through the full REPL startup chain', {
-  skip: !hasBun() ? 'bun not available' : undefined,
-}, async () => {
-  let server
-  let capturedBody = null
-
-  try {
-    server = http.createServer(async (req, res) => {
-      assert.equal(req.method, 'POST')
-      assert.equal(req.url, '/v1/chat/completions')
-      assert.equal(req.headers.authorization, 'Bearer test-key')
-
-      let body = ''
-      for await (const chunk of req) {
-        body += String(chunk)
-      }
-      capturedBody = JSON.parse(body)
-
-      res.writeHead(200, {
-        'content-type': 'text/event-stream',
-      })
-      res.end(
-        [
-          'data: {"id":"chatcmpl_bun_1","model":"deepseek-chat","choices":[{"delta":{"content":"hello world"},"finish_reason":"stop"}],"usage":{"prompt_tokens":7,"completion_tokens":2,"total_tokens":9}}',
-          '',
-          'data: [DONE]',
-          '',
-        ].join('\n'),
-      )
-    })
-
-    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
-    const address = server.address()
-    const port = typeof address === 'object' && address ? address.port : null
-    assert.equal(typeof port, 'number')
-
-    const result = await runBunAsync(
-      [
-        'src/entrypoints/cli.tsx',
-        '--bare',
-        '-p',
-        'hello-bun-cli',
-        '--output-format',
-        'json',
-      ],
-      {
-        cwd: repoDir,
-        timeout: 30000,
-        env: {
-          ...process.env,
-          ZCODE_PROVIDER: 'openai-compatible',
-          ZCODE_OPENAI_PROVIDER: 'deepseek',
-          ZCODE_OPENAI_MODEL: 'deepseek-chat',
-          ZCODE_OPENAI_BASE_URL: `http://127.0.0.1:${port}/v1`,
-          ZCODE_OPENAI_API_KEY: 'test-key',
-        },
-      },
-    )
-
-    assert.equal(result.error, undefined, result.error?.message)
-    assert.equal(result.status, 0, result.stderr)
-    assert.equal(capturedBody?.model, 'deepseek-chat')
-
-    const payload = JSON.parse(result.stdout)
-    assert.equal(payload.subtype, 'success')
-    assert.match(payload.result, /hello world/)
-  } finally {
-    if (server) {
-      await new Promise(resolve => server.close(resolve))
-    }
-  }
-})
 
 test('README documents local startup, .env usage, and print mode', () => {
   const readme = readFileSync(readmePath, 'utf8')

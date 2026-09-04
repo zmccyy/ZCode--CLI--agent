@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.4.0 — 2026-09-03
+
+终局：整体移出设计参考树（约 18.5 万行还原自 Claude Code 的 TS 源码），仓库变为 100% 第一方代码。
+
+### Changed
+
+- **移出参考树**：`ZCode/src/` 下除公共层（harness / providers / contracts / config / cli core / entrypoints / `runMode.js` / `configs.js`）外的全部源码（约 1,950 个文件）整体删除；仓库现只含第一方公共层代码（见 ADR-0001）。
+- **配置引用同步收紧**：`ZCode/package.json` 的 lint scope、`tsconfig.public.json`、`eslint.config.js` 全部收窄到公共层，移除对已删除的 `src/types/**`、`src/services/**`、`phase2*` 与参考树测试的引用；并补齐 `tui.js`、`runMode.js`、`configs.js` 的 lint/typecheck 覆盖。
+- **测试套件精简**：删除依赖参考树的过渡测试（`phase2*`、`anthropicAdapterClient`、`providerAdapterClient`、`githubAppConstants`、`productConstants`、`publicEntryBranding`、`publicCli` 的参考树用例），保留公共层测试；`npm test` 全量通过（211 项，0 失败）。
+- **文档同步**：`ZCode/src/README.md`、`docs/implementation-status.md`、`ZCode/src/harness/README.md` 更新为“仓库已 100% 第一方代码”。
+- 修复 `publicCli.test.js` 两处过期断言（TUI 已接线后的 “public build” 文案）并清理 `tui.js` 的 lint 告警。
+
+### Compatibility notes
+
+公共层运行时（doctor / models / print / TUI）不受影响；`npm run typecheck`、`npm run lint`、`npm test` 全部通过。
+
 ## 1.1.1 — 2026-09-02
 
 可靠性补丁 + 工程化基线：重试对称化、恢复安全修复、push/PR CI、strict 类型与 lint、仓库清理。

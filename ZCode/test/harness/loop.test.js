@@ -18,7 +18,7 @@ async function createTempDir(prefix) {
 test('minimal closed loop: single-turn text response through the fake server', async () => {
   const server = createFakeLlmServer({
     dialect: 'openai',
-    apiKey: 'test-key',
+    apiKey: 'test',
     script: [{ text: 'All done: nothing to fix.', usage: { prompt_tokens: 12, completion_tokens: 4, total_tokens: 16 } }],
   })
   await server.listen()
@@ -29,7 +29,7 @@ test('minimal closed loop: single-turn text response through the fake server', a
       provider: 'fake',
       model: 'fake-model',
       baseUrl: server.openaiBaseUrl,
-      apiKey: 'test-key',
+      apiKey: 'test',
     })
 
     const events = []
@@ -83,7 +83,7 @@ test('minimal closed loop: single-turn text response through the fake server', a
 test('multi-turn read-side script: Glob → Grep → Read → final answer with real tools', async () => {
   const server = createFakeLlmServer({
     dialect: 'openai',
-    apiKey: 'test-key',
+    apiKey: 'test',
     script: [
       {
         toolCalls: [{ name: 'Glob', input: { pattern: 'src/**/*.js' } }],
@@ -119,7 +119,7 @@ test('multi-turn read-side script: Glob → Grep → Read → final answer with 
       provider: 'fake',
       model: 'fake-model',
       baseUrl: server.openaiBaseUrl,
-      apiKey: 'test-key',
+      apiKey: 'test',
     })
 
     const events = []
@@ -188,7 +188,7 @@ test('multi-turn read-side script: Glob → Grep → Read → final answer with 
 test('loop persists a JSONL transcript by default', async () => {
   const server = createFakeLlmServer({
     dialect: 'openai',
-    apiKey: 'test-key',
+    apiKey: 'test',
     script: [{ text: 'done' }],
   })
   await server.listen()
@@ -200,7 +200,7 @@ test('loop persists a JSONL transcript by default', async () => {
       provider: 'fake',
       model: 'fake-model',
       baseUrl: server.openaiBaseUrl,
-      apiKey: 'test-key',
+      apiKey: 'test',
     })
 
     const result = await runAgentLoop({
@@ -240,7 +240,7 @@ test('loop persists a JSONL transcript by default', async () => {
 test('plan mode denies write tools and the model continues read-only', async () => {
   const server = createFakeLlmServer({
     dialect: 'openai',
-    apiKey: 'test-key',
+    apiKey: 'test',
     script: [
       {
         toolCalls: [{ name: 'Write', input: { file_path: 'evil.txt', content: 'nope' } }],
@@ -262,7 +262,7 @@ test('plan mode denies write tools and the model continues read-only', async () 
       provider: 'fake',
       model: 'fake-model',
       baseUrl: server.openaiBaseUrl,
-      apiKey: 'test-key',
+      apiKey: 'test',
     })
 
     const events = []
@@ -312,7 +312,7 @@ test('plan mode denies write tools and the model continues read-only', async () 
 test('unknown tool call is reported to the model and the loop recovers', async () => {
   const server = createFakeLlmServer({
     dialect: 'openai',
-    apiKey: 'test-key',
+    apiKey: 'test',
     script: [
       { toolCalls: [{ name: 'DoesNotExist', input: {} }] },
       { text: 'Recovered after the unknown tool error.' },
@@ -326,7 +326,7 @@ test('unknown tool call is reported to the model and the loop recovers', async (
       provider: 'fake',
       model: 'fake-model',
       baseUrl: server.openaiBaseUrl,
-      apiKey: 'test-key',
+      apiKey: 'test',
     })
 
     const result = await runAgentLoop({

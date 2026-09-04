@@ -179,13 +179,13 @@ Env knobs: `ZCODE_MAX_TURNS` (turn guardrail, default 30) · `ZCODE_BUDGET_TOKEN
 | `zcode doctor --json` | Runtime & provider diagnostics |
 | `zcode models` | List models exposed by the active provider |
 
-### Interactive REPL (Bun)
+### Interactive REPL (zero-dependency TUI)
 
 ```bash
-bun src/entrypoints/cli.tsx
+zcode
 ```
 
-The full-screen TUI source (tool approval dialogs, task panel, keybindings) ships with the repo and will be wired onto the harness loop after v1.
+Bare `zcode` on a real TTY boots the interactive TUI — a zero-dependency readline REPL with streaming output, inline tool approval, slash commands, and session resume. Headless runs use `zcode -p "<task>"`.
 
 ---
 
@@ -206,7 +206,7 @@ The full-screen TUI source (tool approval dialogs, task panel, keybindings) ship
 ```
 
 - **Agent loop** (`src/harness/loop.ts`) — provider-agnostic Think→Act→Observe engine; translates internal messages to either wire dialect per request.
-- **Tools** (`src/harness/tools/`) — semantics follow the reference tool set (Edit = exact unique-match replacement; Edit/Write require a prior Read; Bash = `bash -c` with timeouts).
+- **Tools** (`src/harness/tools/`) — the six core tools are implemented clean-room in the harness; Edit = exact unique-match replacement, Edit/Write require a prior Read, Bash runs with timeouts. Tool semantics are self-documented in `tools/`.
 - **Testing** — a scripted fake LLM server (both SSE dialects) drives the *real* loop, *real* provider adapters, and *real* tools in tests; live e2e skips automatically without an API key. UC-03 evidence is archived in [docs/acceptance/](docs/acceptance/).
 
 ## 📚 Documentation
@@ -231,7 +231,7 @@ The full harness agent loop: the model explores with Glob/Grep/Read, edits with 
 
 **Q: Public CLI vs full REPL — what's the difference?**
 
-The public build (`publicCli.js`) exposes the stable, headless surface — `help`, `doctor`, `models`, and the `-p` agent loop. The full interactive TUI still boots from `bun src/entrypoints/cli.tsx`.
+The public build (`publicCli.js`) exposes the stable, headless surface — `help`, `doctor`, `models`, and the `-p` agent loop. The full interactive TUI boots from bare `zcode` on a TTY (via `publicCli.js` → `tui.js`); `-p` stays headless.
 
 **Q: Which LLM providers are supported?**
 

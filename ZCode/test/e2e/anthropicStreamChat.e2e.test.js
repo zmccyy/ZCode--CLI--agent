@@ -204,7 +204,7 @@ test('E2E streamChat: invalid API key returns error', async () => {
   const { createAnthropicProvider } = await loadModule(modulePath)
 
   const provider = createAnthropicProvider({
-    apiKey: 'sk-ant-invalid-key-00000000',
+    apiKey: 'test',
     baseUrl: BASE_URL,
   })
 

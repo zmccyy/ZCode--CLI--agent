@@ -128,7 +128,7 @@ test('getCapabilities normalizes partial capabilities', async () => {
 test('validateConfig returns config as-is by default', async () => {
   const { createProviderAdapter } = await loadModule(modulePath)
 
-  const config = { apiKey: 'sk-abc', baseUrl: 'https://api.example.com' }
+  const config = { apiKey: 'test', baseUrl: 'https://api.example.com' }
   const provider = createProviderAdapter({
     id: 'test:provider',
     kind: 'test',
@@ -159,12 +159,12 @@ test('validateConfig passes explicit config to custom function', async () => {
   })
 
   const validResult = provider.validateConfig({
-    apiKey: 'sk-xyz',
+    apiKey: 'test',
     baseUrl: 'https://custom.example.com',
   })
   assert.deepEqual(validResult, {
     valid: true,
-    config: { apiKey: 'sk-xyz', baseUrl: 'https://custom.example.com' },
+    config: { apiKey: 'test', baseUrl: 'https://custom.example.com' },
   })
 
   const invalidResult = provider.validateConfig({ apiKey: '' })
@@ -179,7 +179,7 @@ test('validateConfig with custom function uses default config when called withou
   const provider = createProviderAdapter({
     id: 'capture:provider',
     kind: 'capture',
-    config: { apiKey: 'default-key', baseUrl: 'https://api.example.com' },
+    config: { apiKey: 'test', baseUrl: 'https://api.example.com' },
     validateConfig(config) {
       capturedConfig = config
       return { ...config, validated: true }
@@ -187,7 +187,7 @@ test('validateConfig with custom function uses default config when called withou
   })
 
   provider.validateConfig()
-  assert.equal(capturedConfig.apiKey, 'default-key')
+  assert.equal(capturedConfig.apiKey, 'test')
   assert.equal(capturedConfig.baseUrl, 'https://api.example.com')
 })
 

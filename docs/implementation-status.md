@@ -9,9 +9,9 @@
 
 ## 1 一句话定位
 
-`zcode -p "<task>"` 驱动一个**终端原生的 headless 编码 Agent**：多轮 Think→Act→Observe 循环 + 核心六件套工具 + 三档权限门 + 护栏 + JSONL 会话转录 + 自动上下文压缩 + 会话恢复。产品运行时只由**公共层**（约 5,000 行，见下表）构成，仓库中其余源码仅为设计参考、已列入移除计划（[ADR-0001](adr/0001-progressive-port-clean-endgame.md)）。
+`zcode -p "<task>"` 驱动一个**终端原生的 headless 编码 Agent**：多轮 Think→Act→Observe 循环 + 核心六件套工具 + 三档权限门 + 护栏 + JSONL 会话转录 + 自动上下文压缩 + 会话恢复。产品运行时由**公共层**（约 5,000 行，见下表）构成；仓库已在 v1.4 整体移出参考树，现为 100% 第一方代码（[ADR-0001](adr/0001-progressive-port-clean-endgame.md)）。
 
-## 2 公共层模块状态（v1.1.1）
+## 2 公共层模块状态（v1.4.0）
 
 | 模块 | 路径 | 状态 | 说明 |
 |------|------|------|------|
@@ -45,12 +45,12 @@
 | MCP 接入 harness | 未接线（参考树有实现） | v1.3：stdio 先行 |
 | 配置文件（`.zcode/settings.json`） | 未实现（当前仅环境变量） | v1.3 |
 | 子 Agent / LSP 诊断 / hooks | 未实现 | v1.3 之后按需 |
-| 移除遗留参考树 | 参考树仍在仓库（已声明非产品代码，见 `ZCode/src/README.md`） | v1.4 整体移出 |
+| 移除遗留参考树 | **已完成（v1.4）** | 参考树已整体移出仓库；`src/` 现只含第一方公共层代码 |
 
-## 5 遗留参考树说明
+## 5 遗留参考树已移除
 
-`ZCode/src/` 中除公共层外的源码（components/、services/、tools/ 等）**不是产品代码**：不进运行时、不参与 lint/typecheck、不作为新代码的风格参考，仅作为 v1.3 移植 MCP/TUI 时的设计参考。详见 [`ZCode/src/README.md`](../ZCode/src/README.md)。
+`ZCode/src/` 曾是设计参考树（约 18.5 万行还原自 Claude Code 的 TS 源码，仅作行为对照、不进运行时）与公共层并存。v1.4 已将该参考树整体移出仓库，`src/` 现只含第一方公共层代码。详见 [`ZCode/src/README.md`](../ZCode/src/README.md)。
 
 ---
 
-*最后更新：2026-09-02（v1.1.1）*
+*最后更新：2026-09-03（v1.4.0）*

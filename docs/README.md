@@ -55,10 +55,10 @@ docs/
 
 | 模式 | 入口 | 适用场景 | 当前状态 |
 |------|------|----------|----------|
-| **公共 CLI** | `npm start` / `bun run start` / `zcode` | 诊断、列模型、脚本化 `-p --json` | ✅ 稳定可用（801 测试，795 通过） |
-| **完整 REPL** | `bun src/entrypoints/cli.tsx` | 交互式 TUI、MCP、工具循环 | 🔧 Phase 3 推进中 |
+| **公共 CLI** | `npm start` / `zcode` | 诊断、列模型、脚本化 `-p --json` | ✅ 稳定（公共层全量套件通过） |
+| **交互式 TUI** | 裸 `zcode`（TTY） | 流式输出、内联审批、斜杠命令 | ✅ 稳定（`publicCli.js` → `cli/tui.js`） |
 
-公共 CLI 不会启动完整 Ink TUI，这是刻意设计 — 只依赖已裁剪的稳定模块。详见 [快速开始 → 两种模式](getting-started/quick-start.md#两种运行模式)。
+两种模式共享同一入口 `publicCli.js`：`-p` 走无头 Agent 循环，裸 `zcode` 在 TTY 上启动交互 TUI。详见 [快速开始 → 两种模式](getting-started/quick-start.md#两种运行模式)。
 
 ---
 

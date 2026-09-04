@@ -71,7 +71,7 @@ function toolUseStream(overrides = {}) {
 test('streamChat yields response_start text_delta response_end for basic text', async () => {
   const { createAnthropicProvider } = await loadModule(modulePath)
 
-  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const provider = createAnthropicProvider({ apiKey: 'test' })
   const stream = provider.streamChat({
     messages: [{ role: 'user', content: 'Hello' }],
     fetch: async (_url, _init) => createAnthropicSSEResponse(textStream()),
@@ -104,7 +104,7 @@ test('streamChat yields response_start text_delta response_end for basic text', 
 test('streamChat yields tool_call chunks for tool_use blocks', async () => {
   const { createAnthropicProvider } = await loadModule(modulePath)
 
-  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const provider = createAnthropicProvider({ apiKey: 'test' })
   const stream = provider.streamChat({
     messages: [{ role: 'user', content: 'List files' }],
     tools: [{ name: 'BashTool', description: 'Run a shell command', input_schema: { type: 'object', properties: { command: { type: 'string' } }, required: ['command'] } }],
@@ -147,7 +147,7 @@ test('streamChat yields tool_call per content_block_stop for multiple tool_use b
     { event: 'message_stop', data: { type: 'message_stop' } },
   ]
 
-  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const provider = createAnthropicProvider({ apiKey: 'test' })
   const stream = provider.streamChat({
     messages: [{ role: 'user', content: 'Read file and search' }],
     fetch: async (_url, _init) => createAnthropicSSEResponse(events),
@@ -183,7 +183,7 @@ test('streamChat accumulates fragmented input_json_delta across multiple deltas'
     { event: 'message_stop', data: { type: 'message_stop' } },
   ]
 
-  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const provider = createAnthropicProvider({ apiKey: 'test' })
   const stream = provider.streamChat({
     messages: [{ role: 'user', content: 'Edit file' }],
     fetch: async (_url, _init) => createAnthropicSSEResponse(events),
@@ -206,7 +206,7 @@ test('streamChat accumulates fragmented input_json_delta across multiple deltas'
 test('streamChat throws on non-2xx responses', async () => {
   const { createAnthropicProvider } = await loadModule(modulePath)
 
-  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const provider = createAnthropicProvider({ apiKey: 'test' })
   const stream = provider.streamChat({
     messages: [{ role: 'user', content: 'Hello' }],
     fetch: async (_url, _init) =>
@@ -246,7 +246,7 @@ test('streamChat throws when apiKey is missing', async () => {
 test('streamChat supports CRLF separators in SSE', async () => {
   const { createAnthropicProvider } = await loadModule(modulePath)
 
-  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const provider = createAnthropicProvider({ apiKey: 'test' })
   const stream = provider.streamChat({
     messages: [{ role: 'user', content: 'Hello' }],
     fetch: async (_url, _init) => createAnthropicSSEResponse(textStream({ text: 'CRLF works' }), { separator: '\r\n\r\n' }),
@@ -277,7 +277,7 @@ test('streamChat handles thinking content gracefully', async () => {
     { event: 'message_stop', data: { type: 'message_stop' } },
   ]
 
-  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const provider = createAnthropicProvider({ apiKey: 'test' })
   const stream = provider.streamChat({
     messages: [{ role: 'user', content: 'What is the answer?' }],
     fetch: async (_url, _init) => createAnthropicSSEResponse(events),
@@ -301,7 +301,7 @@ test('streamChat sends input model in request body', async () => {
   const { createAnthropicProvider } = await loadModule(modulePath)
 
   let capturedBody = null
-  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const provider = createAnthropicProvider({ apiKey: 'test' })
   const stream = provider.streamChat({
     messages: [{ role: 'user', content: 'Hello' }],
     model: 'claude-opus-4-6',
@@ -330,7 +330,7 @@ test('streamChat sends input model in request body', async () => {
 test('streamChat aborts when signal is already aborted', async () => {
   const { createAnthropicProvider } = await loadModule(modulePath)
 
-  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const provider = createAnthropicProvider({ apiKey: 'test' })
   const controller = new AbortController()
   controller.abort()
 
@@ -357,7 +357,7 @@ test('streamChat aborts when signal is already aborted', async () => {
 test('streamChat aborts mid-stream when signal fires during iteration', async () => {
   const { createAnthropicProvider } = await loadModule(modulePath)
 
-  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const provider = createAnthropicProvider({ apiKey: 'test' })
   const controller = new AbortController()
 
   let chunkCount = 0
@@ -412,7 +412,7 @@ test('streamChat aborts mid-stream when signal fires during iteration', async ()
 test('streamChat passes signal through to fetch (merged with timeout)', async () => {
   const { createAnthropicProvider } = await loadModule(modulePath)
 
-  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const provider = createAnthropicProvider({ apiKey: 'test' })
   const controller = new AbortController()
 
   let capturedSignal = null
@@ -467,7 +467,7 @@ test('streamChat multi-turn: tool_use parsed then tool_result submitted for fina
     }))
   }
 
-  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const provider = createAnthropicProvider({ apiKey: 'test' })
 
   // Turn 1: request with tools, receive tool_use
   const stream1 = provider.streamChat({
@@ -524,7 +524,7 @@ test('streamChat multi-turn: tool_use parsed then tool_result submitted for fina
 test('streamChat throws on timeout before response', async () => {
   const { createAnthropicProvider } = await loadModule(modulePath)
 
-  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const provider = createAnthropicProvider({ apiKey: 'test' })
   const stream = provider.streamChat({
     messages: [{ role: 'user', content: 'Hello' }],
     timeout: 50,
@@ -559,7 +559,7 @@ test('streamChat throws on timeout before response', async () => {
 test('streamChat timeout mid-stream aborts early', async () => {
   const { createAnthropicProvider } = await loadModule(modulePath)
 
-  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const provider = createAnthropicProvider({ apiKey: 'test' })
 
   function makeSignalAwareDelay(ms, signal) {
     return new Promise((resolve, reject) => {
@@ -619,7 +619,7 @@ test('streamChat timeout mid-stream aborts early', async () => {
 test('streamChat timeout and user abort signals can both trigger', async () => {
   const { createAnthropicProvider } = await loadModule(modulePath)
 
-  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const provider = createAnthropicProvider({ apiKey: 'test' })
   const controller = new AbortController()
 
   const stream = provider.streamChat({
@@ -662,7 +662,7 @@ test('streamChat timeout and user abort signals can both trigger', async () => {
 test('streamChat retries on 5xx then succeeds', async () => {
   const { createAnthropicProvider } = await loadModule(modulePath)
 
-  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const provider = createAnthropicProvider({ apiKey: 'test' })
 
   let callCount = 0
   const stream = provider.streamChat({
@@ -690,7 +690,7 @@ test('streamChat retries on 5xx then succeeds', async () => {
 test('streamChat retries on network error then succeeds', async () => {
   const { createAnthropicProvider } = await loadModule(modulePath)
 
-  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const provider = createAnthropicProvider({ apiKey: 'test' })
 
   let callCount = 0
   const stream = provider.streamChat({
@@ -718,7 +718,7 @@ test('streamChat retries on network error then succeeds', async () => {
 test('streamChat does NOT retry on 4xx client errors', async () => {
   const { createAnthropicProvider } = await loadModule(modulePath)
 
-  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const provider = createAnthropicProvider({ apiKey: 'test' })
 
   let callCount = 0
   const stream = provider.streamChat({
@@ -751,7 +751,7 @@ test('streamChat does NOT retry on 4xx client errors', async () => {
 test('streamChat respects maxRetries and gives up after exhausting retries', async () => {
   const { createAnthropicProvider } = await loadModule(modulePath)
 
-  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const provider = createAnthropicProvider({ apiKey: 'test' })
 
   let callCount = 0
   const stream = provider.streamChat({
@@ -776,7 +776,7 @@ test('streamChat respects maxRetries and gives up after exhausting retries', asy
 test('streamChat retries on 429 with retry-after header', async () => {
   const { createAnthropicProvider } = await loadModule(modulePath)
 
-  const provider = createAnthropicProvider({ apiKey: 'sk-test' })
+  const provider = createAnthropicProvider({ apiKey: 'test' })
 
   let callCount = 0
   const stream = provider.streamChat({

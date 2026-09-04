@@ -26,7 +26,7 @@ function createMemoryWriter() {
 test('CLI print mode runs the full agent loop headless (-p --yolo --json)', async () => {
   const server = createFakeLlmServer({
     dialect: 'openai',
-    apiKey: 'test-key',
+    apiKey: 'test',
     model: 'fake-model',
     script: [
       {
@@ -65,7 +65,7 @@ test('CLI print mode runs the full agent loop headless (-p --yolo --json)', asyn
         ZCODE_OPENAI_PROVIDER: 'fake',
         ZCODE_OPENAI_MODEL: 'fake-model',
         ZCODE_OPENAI_BASE_URL: server.openaiBaseUrl,
-        ZCODE_OPENAI_API_KEY: 'test-key',
+        ZCODE_OPENAI_API_KEY: 'test',
         ZCODE_TRANSCRIPT_DIR: transcriptDir,
       },
       stdout,
@@ -114,7 +114,7 @@ test('CLI print mode runs the full agent loop headless (-p --yolo --json)', asyn
 test('CLI text mode renders progress lines and the final answer', async () => {
   const server = createFakeLlmServer({
     dialect: 'openai',
-    apiKey: 'test-key',
+    apiKey: 'test',
     model: 'fake-model',
     script: [
       { toolCalls: [{ name: 'Glob', input: { pattern: '*.md' } }] },
@@ -138,7 +138,7 @@ test('CLI text mode renders progress lines and the final answer', async () => {
         ZCODE_OPENAI_PROVIDER: 'fake',
         ZCODE_OPENAI_MODEL: 'fake-model',
         ZCODE_OPENAI_BASE_URL: server.openaiBaseUrl,
-        ZCODE_OPENAI_API_KEY: 'test-key',
+        ZCODE_OPENAI_API_KEY: 'test',
         ZCODE_TRANSCRIPT_DIR: transcriptDir,
       },
       stdout,
@@ -164,7 +164,7 @@ test('CLI text mode renders progress lines and the final answer', async () => {
 test('CLI plan mode explores read-only: writes are denied, reads proceed', async () => {
   const server = createFakeLlmServer({
     dialect: 'openai',
-    apiKey: 'test-key',
+    apiKey: 'test',
     model: 'fake-model',
     script: [
       { toolCalls: [{ name: 'Write', input: { file_path: 'no.txt', content: 'x' } }] },
@@ -189,7 +189,7 @@ test('CLI plan mode explores read-only: writes are denied, reads proceed', async
         ZCODE_OPENAI_PROVIDER: 'fake',
         ZCODE_OPENAI_MODEL: 'fake-model',
         ZCODE_OPENAI_BASE_URL: server.openaiBaseUrl,
-        ZCODE_OPENAI_API_KEY: 'test-key',
+        ZCODE_OPENAI_API_KEY: 'test',
         ZCODE_TRANSCRIPT_DIR: transcriptDir,
       },
       stdout,

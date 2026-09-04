@@ -44,7 +44,7 @@ test('createProviderFromEnv can build an OpenAI-compatible provider from ZCode e
     ZCODE_OPENAI_PROVIDER: 'deepseek',
     ZCODE_OPENAI_MODEL: 'deepseek-chat',
     ZCODE_OPENAI_BASE_URL: 'https://api.deepseek.com/v1///',
-    ZCODE_OPENAI_API_KEY: 'test-key',
+    ZCODE_OPENAI_API_KEY: 'test',
     ZCODE_OPENAI_HEADERS: '{"X-Test":"1"}',
     ZCODE_OPENAI_TIMEOUT: '120000',
   }
@@ -74,7 +74,7 @@ test('createProviderFromSettings prefers normalized settings over env', async ()
       provider: 'deepseek',
       model: 'deepseek-chat',
       baseUrl: 'https://api.deepseek.com/v1///',
-      apiKey: 'test-key',
+      apiKey: 'test',
       headers: {
         'X-Test': '1',
       },
@@ -127,7 +127,7 @@ test('createModelRegistryFromSettings keeps env-selected provider when settings 
       ZCODE_OPENAI_PROVIDER: 'deepseek',
       ZCODE_OPENAI_MODEL: 'deepseek-chat',
       ZCODE_OPENAI_BASE_URL: 'https://api.deepseek.com/v1',
-      ZCODE_OPENAI_API_KEY: 'test-key',
+      ZCODE_OPENAI_API_KEY: 'test',
     },
   )
 
@@ -158,7 +158,7 @@ test('createModelRegistryFromSettings filters openai-compatible models by availa
       provider: 'deepseek',
       model: 'deepseek-chat',
       baseUrl: 'https://api.deepseek.com/v1',
-      apiKey: 'test-key',
+      apiKey: 'test',
     },
     availableModels: ['qwen-plus'],
   })

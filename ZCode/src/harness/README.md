@@ -39,7 +39,7 @@ ZCode Harness —— Agent 运行时（v1.0 交付循环/六件套/权限门/护
 ## 约定
 
 - **TypeScript + Node ≥ 24 原生类型剥离**，零构建步骤（`node --experimental-strip-types` 即可运行）。
-- **不复制底座树代码**：`src/` 下从 Claude Code 还原的源码只作设计与行为参照（工具语义、循环形态），在本目录用干净代码重新表达。
-- 工具语义以底座树同名工具为准（如 Edit = 精确字符串唯一匹配替换）。
+- **纯自有代码**：v1.4 移除了此前作设计参照的底座树（Claude Code 还原源码），本目录及整个 `src/` 均为干净重写的第一方代码。
+- 工具语义在 `tools/` 内自文档化；Edit/Write 强制 read-before-edit，Bash 走 allow/deny 策略。
 - Provider 层复用 `src/providers/`（`tool_call` 流事件），循环与工具注册表独立实现。
 - **测试**：`test/helpers/fakeLlmServer.js` 提供两种 SSE 方言的剧本式假 LLM 服务器，驱动真实循环 + 真实工具；测试位于 `test/harness/`。

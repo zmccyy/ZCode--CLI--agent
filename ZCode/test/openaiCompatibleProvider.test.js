@@ -30,7 +30,7 @@ test('createOpenAICompatibleProvider exposes normalized capabilities', async () 
     provider: 'qwen',
     model: 'qwen-plus',
     baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    apiKey: 'test-key',
+    apiKey: 'test',
   })
 
   assert.equal(provider.id, 'openai-compatible:qwen')
@@ -57,16 +57,16 @@ test('createOpenAICompatibleProvider normalizes config and tool calls', async ()
     provider: 'deepseek',
     model: 'deepseek-chat',
     baseUrl: 'https://api.deepseek.com/v1///',
-    apiKey: 'test-key',
+    apiKey: 'test',
     headers: {
-      Authorization: 'Bearer test-key',
+      Authorization: 'Bearer test',
       Empty: '   ',
     },
   })
 
   assert.equal(provider.config.baseUrl, 'https://api.deepseek.com/v1')
   assert.deepEqual(provider.config.headers, {
-    Authorization: 'Bearer test-key',
+    Authorization: 'Bearer test',
   })
   assert.equal(provider.config.timeout, 600000)
   assert.deepEqual(
@@ -123,7 +123,7 @@ test('createOpenAICompatibleProvider can stream chat completions through an Open
     provider: 'deepseek',
     model: 'deepseek-chat',
     baseUrl: 'https://api.deepseek.com/v1///',
-    apiKey: 'test-key',
+    apiKey: 'test',
     headers: {
       'X-Test': '1',
     },
@@ -243,7 +243,7 @@ test('createOpenAICompatibleProvider can stream chat completions through an Open
   assert.equal(requests[0]?.init?.method, 'POST')
   assert.deepEqual(requests[0]?.init?.headers, {
     Accept: 'text/event-stream',
-    Authorization: 'Bearer test-key',
+    Authorization: 'Bearer test',
     'Content-Type': 'application/json',
     'X-Test': '1',
   })
@@ -325,7 +325,7 @@ test('createOpenAICompatibleProvider surfaces upstream API errors when streaming
     provider: 'deepseek',
     model: 'deepseek-chat',
     baseUrl: 'https://api.deepseek.com/v1',
-    apiKey: 'test-key',
+    apiKey: 'test',
   })
 
   await assert.rejects(
@@ -366,7 +366,7 @@ test('createOpenAICompatibleProvider parses SSE streams that use CRLF separators
     provider: 'qwen',
     model: 'qwen-plus',
     baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    apiKey: 'test-key',
+    apiKey: 'test',
   })
 
   const chunks = []

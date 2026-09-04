@@ -17,7 +17,7 @@ import {
 
 const SYSTEM_PROMPT = 'You are a coding agent working in a workspace.'
 // Fake credential accepted by the local fake LLM server; never a real secret.
-const FAKE_API_KEY = process.env.ZCODE_TEST_FAKE_KEY || ['test', 'key'].join('-')
+const FAKE_API_KEY = process.env.ZCODE_TEST_FAKE_KEY || 'test'
 
 async function createTempDir(prefix) {
   return fs.mkdtemp(path.join(os.tmpdir(), prefix))
@@ -63,7 +63,7 @@ test('resolveCompactConfig applies defaults and treats 0 as disabled', () => {
 test('auto compaction fires on the input-token threshold and replaces history', async () => {
   const server = createFakeLlmServer({
     dialect: 'openai',
-    apiKey: 'test-key',
+    apiKey: 'test',
     model: 'fake-model',
     script: [
       {
@@ -97,7 +97,7 @@ test('auto compaction fires on the input-token threshold and replaces history', 
         provider: 'fake',
         model: 'fake-model',
         baseUrl: server.openaiBaseUrl,
-        apiKey: 'test-key',
+        apiKey: 'test',
       }),
       model: 'fake-model',
       system: SYSTEM_PROMPT,
@@ -156,7 +156,7 @@ test('auto compaction fires on the input-token threshold and replaces history', 
 test('an empty summary never breaks the loop: the run continues uncompacted', async () => {
   const server = createFakeLlmServer({
     dialect: 'openai',
-    apiKey: 'test-key',
+    apiKey: 'test',
     model: 'fake-model',
     script: [
       {
@@ -186,7 +186,7 @@ test('an empty summary never breaks the loop: the run continues uncompacted', as
         provider: 'fake',
         model: 'fake-model',
         baseUrl: server.openaiBaseUrl,
-        apiKey: 'test-key',
+        apiKey: 'test',
       }),
       model: 'fake-model',
       system: SYSTEM_PROMPT,
@@ -222,7 +222,7 @@ test('an empty summary never breaks the loop: the run continues uncompacted', as
 test('below the threshold no compaction request is issued', async () => {
   const server = createFakeLlmServer({
     dialect: 'openai',
-    apiKey: 'test-key',
+    apiKey: 'test',
     model: 'fake-model',
     script: [
       {
@@ -243,7 +243,7 @@ test('below the threshold no compaction request is issued', async () => {
         provider: 'fake',
         model: 'fake-model',
         baseUrl: server.openaiBaseUrl,
-        apiKey: 'test-key',
+        apiKey: 'test',
       }),
       model: 'fake-model',
       system: SYSTEM_PROMPT,
@@ -266,7 +266,7 @@ test('below the threshold no compaction request is issued', async () => {
 test('compaction speaks the Anthropic dialect too (tool-less summary request)', async () => {
   const server = createFakeLlmServer({
     dialect: 'anthropic',
-    apiKey: 'test-key',
+    apiKey: 'test',
     model: 'fake-model',
     script: [
       {

@@ -176,13 +176,13 @@ ZCODE_OPENAI_API_KEY=your-api-key
 | `zcode doctor --json` | 运行时与 provider 诊断 |
 | `zcode models` | 列出当前 provider 暴露的模型 |
 
-### 交互式 REPL（Bun）
+### 交互式 REPL（零依赖 TUI）
 
 ```bash
-bun src/entrypoints/cli.tsx
+zcode
 ```
 
-全屏 TUI 源码（工具审批对话框、任务面板、键位系统）随仓库发布，将在 v1 之后接到 Harness 循环上。
+裸 `zcode` 在真实 TTY 上启动交互式 TUI——零依赖 readline REPL，支持流式输出、内联工具审批、斜杠命令与会话恢复。无头运行用 `zcode -p "<task>"`。
 
 ---
 
@@ -228,7 +228,7 @@ bun src/entrypoints/cli.tsx
 
 **Q：公共 CLI 和完整 REPL 有什么区别？**
 
-公共构建（`publicCli.js`）暴露稳定的无头表面——`help`、`doctor`、`models` 与 `-p` Agent 循环。完整交互 TUI 仍从 `bun src/entrypoints/cli.tsx` 启动。
+公共构建（`publicCli.js`）暴露稳定的无头表面——`help`、`doctor`、`models` 与 `-p` Agent 循环。完整交互 TUI 由裸 `zcode`（TTY）启动（`publicCli.js` → `tui.js`）；`-p` 保持无头。
 
 **Q：支持哪些 LLM provider？**
 

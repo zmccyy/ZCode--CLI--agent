@@ -23,7 +23,7 @@ import { createFakeLlmServer } from '../helpers/fakeLlmServer.js'
 
 const SYSTEM_PROMPT = 'You are a coding agent working in a workspace.'
 // Fake credential accepted by the local fake LLM server; never a real secret.
-const FAKE_API_KEY = process.env.ZCODE_TEST_FAKE_KEY || ['test', 'key'].join('-')
+const FAKE_API_KEY = process.env.ZCODE_TEST_FAKE_KEY || 'test'
 
 async function createTempDir(prefix) {
   return fs.mkdtemp(path.join(os.tmpdir(), prefix))

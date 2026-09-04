@@ -103,7 +103,7 @@ test('normalizeSettings sanitizes provider-facing settings', async () => {
       provider: ' deepseek ',
       model: ' deepseek-chat ',
       baseUrl: 'https://api.deepseek.com/v1///',
-      apiKey: ' test-key ',
+      apiKey: ' test ',
       headers: {
         'X-Test': '1',
         Empty: '   ',
@@ -123,7 +123,7 @@ test('normalizeSettings sanitizes provider-facing settings', async () => {
       provider: 'deepseek',
       model: 'deepseek-chat',
       baseUrl: 'https://api.deepseek.com/v1',
-      apiKey: 'test-key',
+      apiKey: 'test',
       headers: {
         'X-Test': '1',
       },

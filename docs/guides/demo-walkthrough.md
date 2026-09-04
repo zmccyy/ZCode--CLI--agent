@@ -121,14 +121,14 @@ Part 2 将**真实调用 LLM**，依次展示：
 ### 4.1 启动 REPL
 
 ```bash
-cd ZCode && bun src/entrypoints/cli.tsx
+cd ZCode && node src/entrypoints/publicCli.js
 ```
 
 **启动后观察：**
-- 全屏 TUI 界面
-- 顶部状态栏：当前模型名称、session ID、token 消耗
-- 底部输入区支持多行输入
-- React/Ink 渲染，终端原生体验
+- 零依赖 readline REPL
+- 流式输出模型回复与推理
+- 内联工具审批，斜杠命令
+- 会话恢复（`--continue` / `--resume`）
 
 ### 4.2 场景一：工具能力概览
 
@@ -187,7 +187,7 @@ For each TODO you found, classify whether it's likely a Claude Code fork artifac
 按 `Ctrl+C` 或输入 `/exit` 退出 REPL，重新以 Plan 模式启动：
 
 ```bash
-cd ZCode && bun src/entrypoints/cli.tsx --plan
+cd ZCode && node src/entrypoints/publicCli.js --plan
 ```
 
 **输入任意文件操作请求：**
@@ -263,8 +263,8 @@ rm -rf tmp/demo-*
 **Q: `--live` 脚本报 API 错误？**
 A: 检查 `.env` 中的 `ZCODE_OPENAI_API_KEY` 是否有效，`ZCODE_OPENAI_BASE_URL` 是否正确。
 
-**Q: Bun REPL 启动失败？**
-A: 检查是否在 `ZCode/` 子目录中执行，`bun src/entrypoints/cli.tsx` 相对路径需从 `ZCode/` 目录起。
+**Q: 交互式 REPL 启动失败？**
+A: 在真实 TTY（终端）中运行裸 `zcode`（Node ≥24，`ZCode/` 目录执行），或 `node src/entrypoints/publicCli.js`；无头/脚本环境会回退到帮助输出。
 
 **Q: 终端中文乱码？**
 A: 使用 Windows Terminal（非 CMD），设置字体为支持中文等宽字体（如 Sarasa Term SC, Microsoft YaHei Mono）。

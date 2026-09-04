@@ -127,13 +127,13 @@ bun run start -p "..." --json   # 非交互请求
 
 Node.js 路径：`npm start -- --help`、`npm run doctor -- --json`。
 
-### 完整 REPL — 交互式 TUI
+### 交互式 TUI
 
 ```bash
-bun src/entrypoints/cli.tsx
+zcode
 ```
 
-包含 MCP 管理、认证、插件、Skills、会话恢复及完整工具循环。该链路仍在积极开发中，部分模块可能依赖尚未就绪的组件。
+裸 `zcode` 在真实 TTY 上启动交互式 TUI（流式输出、内联审批、斜杠命令、会话恢复）。无头运行用 `zcode -p "<task>"`。
 
 ---
 
@@ -159,7 +159,7 @@ bun test
 npm test
 ```
 
-测试覆盖：Provider 桥接、CLI 契约、`.env` 加载、会话管理、Hooks、MCP、权限系统、Agent、Plan Mode。全量 801 测试（795 通过，5 跳过，1 已知问题）。
+测试覆盖：Harness 循环（真循环 + 假 LLM + 真工具）、Provider 适配（Anthropic / OpenAI 兼容）、权限门、护栏、转录、压缩、恢复、TUI、公共 CLI 契约。全量公共层套件（`npm test`）通过。
 
 ---
 

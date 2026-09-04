@@ -293,23 +293,23 @@ fi
 
 if [ "$BUN_AVAILABLE" = "true" ] && [ "$INTERACTIVE_MODE" = "true" ]; then
   section "3.1 交互式 REPL 启动"
-    echo -e "${BOLD}  启动命令: bun src/entrypoints/cli.tsx${RESET}"
+    echo -e "${BOLD}  启动命令: node src/entrypoints/publicCli.js${RESET}"
     echo -e "${DIM}  输入你的问题，ZCode 将在终端中实时回复${RESET}"
     echo -e "${DIM}  支持: 文件读写、代码搜索、Shell 执行、Git 操作${RESET}"
     echo -e "${DIM}  快捷键: Ctrl+C 中断 | Ctrl+O 展开 | Ctrl+E 切换 transcript${RESET}"
     echo ""
-    echo -e "${YELLOW}  请手动运行: cd $ROOT/ZCode && bun src/entrypoints/cli.tsx${RESET}"
+    echo -e "${YELLOW}  请手动运行: cd $ROOT/ZCode && node src/entrypoints/publicCli.js${RESET}"
 
 elif [ "$BUN_AVAILABLE" = "true" ]; then
   section "3.1 交互式 REPL (已跳过)"
     echo -e "${DIM}  使用 --interactive 标志进入交互式演示${RESET}"
-    echo -e "${DIM}  或手动运行: cd $ROOT/ZCode && bun src/entrypoints/cli.tsx${RESET}"
+    echo -e "${DIM}  或手动运行: cd $ROOT/ZCode && node src/entrypoints/publicCli.js${RESET}"
     ((SKIP++))
 
   section "3.2 Bun REPL 入口验证"
-    check_exact "cd $ROOT/ZCode && bun src/entrypoints/cli.tsx --help 2>&1" "Usage" \
+    check_exact "cd $ROOT/ZCode && node src/entrypoints/publicCli.js --help 2>&1" "Usage" \
       "bun cli.tsx --help 可正常启动"
-    check_exact "cd $ROOT/ZCode && bun src/entrypoints/cli.tsx --version 2>&1" "ZCode\|claude\|0\." \
+    check_exact "cd $ROOT/ZCode && node src/entrypoints/publicCli.js --version 2>&1" "ZCode\|claude\|0\." \
       "bun cli.tsx --version 显示版本"
 fi
 
@@ -412,7 +412,7 @@ cat <<EOF
      ${DIM}zcode -p "explain closures" --reasoning${RESET}
 
   ${BOLD}7. 交互式 REPL (需要 Bun)${RESET}
-     ${DIM}cd ZCode && bun src/entrypoints/cli.tsx${RESET}
+     ${DIM}cd ZCode && node src/entrypoints/publicCli.js${RESET}
 
   ${BOLD}8. Plan 模式 (建议不执行)${RESET}
      ${DIM}zcode --plan -p "migrate the database schema"${RESET}

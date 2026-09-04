@@ -97,12 +97,12 @@ export async function runTui({
 
   // ── Session state ──
   let history = [...initialMessages]
-  let totalUsage = emptyUsage()
+  const totalUsage = emptyUsage()
   let abortedThisRun = false
 
   const controller = { current: null }
 
-  const askApproval = async ({ toolName, input }) => {
+  const askApproval = async ({ toolName: _toolName, input: _input }) => {
     // A queued line must never be consumed as an approval decision.
     queuedLines.length = 0
     writeLine('')

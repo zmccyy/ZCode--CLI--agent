@@ -73,7 +73,7 @@ test('createProviderModelRegistry flattens provider adapters into one registry',
       provider: 'qwen',
       model: 'qwen-plus',
       baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-      apiKey: 'test-key',
+      apiKey: 'test',
     }),
   ])
 

@@ -24,7 +24,7 @@ test('applyProviderSettingsToEnv maps unified openai-compatible settings into en
         provider: 'deepseek',
         model: 'deepseek-chat',
         baseUrl: 'https://api.deepseek.com/v1///',
-        apiKey: 'test-key',
+        apiKey: 'test',
         headers: {
           'X-Test': '1',
         },
@@ -39,7 +39,7 @@ test('applyProviderSettingsToEnv maps unified openai-compatible settings into en
     ZCODE_OPENAI_PROVIDER: 'deepseek',
     ZCODE_OPENAI_MODEL: 'deepseek-chat',
     ZCODE_OPENAI_BASE_URL: 'https://api.deepseek.com/v1',
-    ZCODE_OPENAI_API_KEY: 'test-key',
+    ZCODE_OPENAI_API_KEY: 'test',
     ZCODE_OPENAI_HEADERS: '{"X-Test":"1"}',
     ZCODE_OPENAI_TIMEOUT: '120000',
   })
@@ -53,7 +53,7 @@ test('applyProviderSettingsToEnv maps anthropic provider selections into legacy 
     ZCODE_OPENAI_PROVIDER: 'deepseek',
     ZCODE_OPENAI_MODEL: 'deepseek-chat',
     ZCODE_OPENAI_BASE_URL: 'https://api.deepseek.com/v1',
-    ZCODE_OPENAI_API_KEY: 'test-key',
+    ZCODE_OPENAI_API_KEY: 'test',
     ZCODE_OPENAI_HEADERS: '{"X-Test":"1"}',
     ZCODE_OPENAI_TIMEOUT: '120000',
   }
@@ -86,7 +86,7 @@ test('applyProviderSettingsToEnv respects host-managed provider routing', async 
         provider: 'deepseek',
         model: 'deepseek-chat',
         baseUrl: 'https://api.deepseek.com/v1',
-        apiKey: 'test-key',
+        apiKey: 'test',
       },
     },
     env,
@@ -106,7 +106,7 @@ test('applyProviderSettingsToEnv clears previously-bridged openai env when switc
     ZCODE_OPENAI_PROVIDER: 'deepseek',
     ZCODE_OPENAI_MODEL: 'deepseek-chat',
     ZCODE_OPENAI_BASE_URL: 'https://api.deepseek.com/v1',
-    ZCODE_OPENAI_API_KEY: 'test-key',
+    ZCODE_OPENAI_API_KEY: 'test',
     ZCODE_OPENAI_HEADERS: '{"X-Test":"1"}',
     ZCODE_OPENAI_TIMEOUT: '120000',
     CLAUDE_CODE_USE_VERTEX: '1',
@@ -132,7 +132,7 @@ test('applyProviderSettingsToEnv preserves explicit runtime provider env when se
     ZCODE_OPENAI_PROVIDER: 'deepseek',
     ZCODE_OPENAI_MODEL: 'deepseek-chat',
     ZCODE_OPENAI_BASE_URL: 'https://api.deepseek.com/v1',
-    ZCODE_OPENAI_API_KEY: 'test-key',
+    ZCODE_OPENAI_API_KEY: 'test',
   }
 
   applyProviderSettingsToEnv(
@@ -149,6 +149,6 @@ test('applyProviderSettingsToEnv preserves explicit runtime provider env when se
     ZCODE_OPENAI_PROVIDER: 'deepseek',
     ZCODE_OPENAI_MODEL: 'deepseek-chat',
     ZCODE_OPENAI_BASE_URL: 'https://api.deepseek.com/v1',
-    ZCODE_OPENAI_API_KEY: 'test-key',
+    ZCODE_OPENAI_API_KEY: 'test',
   })
 })

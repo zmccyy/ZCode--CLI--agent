@@ -223,7 +223,24 @@ function inferFilename(language, _cwd = process.cwd()) {
     dockerfile: 'Dockerfile',
   }
   const lang = language.toLowerCase()
-  return extMap[lang] || `output.${lang || 'txt'}`
+  // The language tag comes from model output (untrusted); keep the fallback
+  // filename free of path separators so a malicious tag cannot traverse.
+  const safeName = lang.replace(/[^a-z0-9_]/gi, '')
+  return extMap[lang] || `output.${safeName || 'txt'}`
+}
+
+/**
+ * Resolve a write target to an absolute path and refuse to write outside the
+ * workspace (the node CLI is the product runtime; out-of-workspace writes are
+ * a traversal risk, and inferred names come from untrusted model output).
+ */
+function resolveWithinWorkspace(cwd, target) {
+  const root = path.resolve(cwd)
+  const resolved = path.resolve(root, target)
+  if (resolved !== root && !resolved.startsWith(root + path.sep)) {
+    throw new Error(`Refusing to write outside the workspace: ${resolved}`)
+  }
+  return resolved
 }
 
 /**
@@ -238,7 +255,7 @@ function writeCodeBlocks(blocks, writePath, cwd = process.cwd()) {
   if (writePath) {
     // Single file mode: write first block
     const block = blocks[0]
-    const targetPath = path.resolve(cwd, writePath)
+    const targetPath = resolveWithinWorkspace(cwd, writePath)
     mkdirSync(path.dirname(targetPath), { recursive: true })
     writeFileSync(targetPath, block.code + '\n', 'utf8')
     written.push(targetPath)
@@ -246,7 +263,7 @@ function writeCodeBlocks(blocks, writePath, cwd = process.cwd()) {
     // Multi-file mode: infer filenames
     for (const block of blocks) {
       const filename = inferFilename(block.language, cwd)
-      const targetPath = path.resolve(cwd, filename)
+      const targetPath = resolveWithinWorkspace(cwd, filename)
       mkdirSync(path.dirname(targetPath), { recursive: true })
 
       // Avoid overwriting: append suffix if file exists

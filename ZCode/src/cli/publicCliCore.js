@@ -246,8 +246,9 @@ function resolveWithinWorkspace(cwd, target) {
 /**
  * Write code blocks to files. Returns an array of written file paths.
  * If a writePath is provided (single file), writes only the first code block.
+ * Exported for security regression tests.
  */
-function writeCodeBlocks(blocks, writePath, cwd = process.cwd()) {
+export function writeCodeBlocks(blocks, writePath, cwd = process.cwd()) {
   if (!blocks.length) return []
 
   const written = []

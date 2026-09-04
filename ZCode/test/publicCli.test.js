@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
@@ -372,4 +372,71 @@ test('README documents local startup, .env usage, and print mode', () => {
   assert.match(readme, /ZCODE_PROVIDER=openai-compatible/)
   assert.match(readme, /zcode -p ".*" --json|npm start -- -p ".*" --json/)
   assert.match(readme, /\.env/)
+})
+
+test('--write refuses traversal targets outside the workspace', async () => {
+  const { writeCodeBlocks } = await loadModule(
+    `${publicCliCorePath}?write-traversal=${Date.now()}`,
+  )
+  const workspace = mkdtempSync(path.join(os.tmpdir(), 'zcode-write-'))
+  const escapedName = `escaped-${path.basename(workspace)}.txt`
+
+  try {
+    const blocks = [{ language: 'js', code: 'console.log(1)' }]
+    const outsidePath = path.join(path.dirname(workspace), escapedName)
+
+    assert.throws(
+      () => writeCodeBlocks(blocks, '../' + escapedName, workspace),
+      /Refusing to write outside the workspace/,
+    )
+    assert.throws(
+      () => writeCodeBlocks(blocks, outsidePath, workspace),
+      /Refusing to write outside the workspace/,
+    )
+    assert.equal(existsSync(outsidePath), false)
+  } finally {
+    rmSync(workspace, { recursive: true, force: true })
+  }
+})
+
+test('--write inferred filenames stay inside the workspace for hostile language tags', async () => {
+  const { writeCodeBlocks } = await loadModule(
+    `${publicCliCorePath}?write-language=${Date.now()}`,
+  )
+  const workspace = mkdtempSync(path.join(os.tmpdir(), 'zcode-write-lang-'))
+
+  try {
+    const written = writeCodeBlocks(
+      [{ language: '../../evil', code: 'hostile' }],
+      null,
+      workspace,
+    )
+
+    assert.equal(written.length, 1)
+    assert.equal(path.dirname(written[0]), path.resolve(workspace))
+    assert.ok(readFileSync(written[0], 'utf8').includes('hostile'))
+  } finally {
+    rmSync(workspace, { recursive: true, force: true })
+  }
+})
+
+test('--write still writes code blocks inside the workspace', async () => {
+  const { writeCodeBlocks } = await loadModule(
+    `${publicCliCorePath}?write-ok=${Date.now()}`,
+  )
+  const workspace = mkdtempSync(path.join(os.tmpdir(), 'zcode-write-ok-'))
+
+  try {
+    const target = path.join('sub', 'out.js')
+    const written = writeCodeBlocks(
+      [{ language: 'js', code: 'console.log(1)' }],
+      target,
+      workspace,
+    )
+
+    assert.deepEqual(written, [path.join(workspace, 'sub', 'out.js')])
+    assert.match(readFileSync(written[0], 'utf8'), /console\.log\(1\)/)
+  } finally {
+    rmSync(workspace, { recursive: true, force: true })
+  }
 })

@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'http';
 import { readFileSync, existsSync } from 'fs';
-import { join, extname } from 'path';
+import { join, extname, resolve as resolvePath, sep } from 'path';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 
@@ -16,17 +16,30 @@ const MIME_TYPES: Record<string, string> = {
   '.txt': 'text/plain; charset=utf-8',
 };
 
-function serveStatic(wwwDir: string, req: IncomingMessage, res: ServerResponse): void {
+// Exported for security regression tests.
+export function serveStatic(wwwDir: string, req: IncomingMessage, res: ServerResponse): void {
   const url = req.url || '/';
-  const pathname = url.split('?')[0];
+  const rawPathname = url.split('?')[0];
 
-  // Resolve to a safe path within wwwDir
+  let pathname: string;
+  try {
+    pathname = decodeURIComponent(rawPathname);
+  } catch {
+    res.writeHead(400, { 'Content-Type': 'text/plain' });
+    res.end('[ ERR ] Bad Request');
+    return;
+  }
+
+  // join() first keeps pathnames starting with '/' anchored under wwwDir
+  // (path.resolve would treat them as drive-relative on Windows); resolvePath
+  // then normalizes any '..' segments before the containment check.
   const filePath = pathname === '/' ? join(wwwDir, 'index.html') : join(wwwDir, pathname);
+  const resolved = resolvePath(filePath);
+  const base = resolvePath(wwwDir);
 
-  // Directory traversal protection
-  const resolved = filePath.replace(/\\/g, '/');
-  const base = wwwDir.replace(/\\/g, '/');
-  if (!resolved.startsWith(base)) {
+  // Directory traversal protection: containment must be separator-bounded so
+  // a sibling directory whose name shares the base as a prefix cannot pass.
+  if (resolved !== base && !resolved.startsWith(base + sep)) {
     res.writeHead(403, { 'Content-Type': 'text/plain' });
     res.end('[ ERR ] Forbidden');
     return;

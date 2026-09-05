@@ -3,13 +3,41 @@
  *
  * Default location: ~/.zcode/projects/<cwd-hash>/<sessionId>.jsonl
  * Failure to persist is reported via the returned writer but never breaks
- * the agent loop.
+ * the agent loop (the loop surfaces it as a result warning).
+ *
+ * Sensitive values are redacted at the serialization boundary: anything that
+ * looks like an API key or an auth header is replaced with [REDACTED] before
+ * the line hits the disk.
  */
 
 import { createHash, randomUUID } from 'node:crypto'
 import { promises as fs } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+
+/**
+ * Secret shapes redacted from persisted lines. Applied to the serialized
+ * JSON so every string field (prompts, tool inputs/outputs, summaries) is
+ * covered; replacements contain no JSON-special characters, so the line
+ * stays parseable.
+ */
+const SECRET_PATTERNS: Array<[RegExp, string]> = [
+  // Common provider key prefixes (sk-…, key-…, rk-…).
+  [/\b(?:sk|key|rk)-[A-Za-z0-9_-]{8,}\b/g, '[REDACTED]'],
+  [/\bgh[pousr]_[A-Za-z0-9]{20,}\b/g, '[REDACTED]'],
+  [/\bxox[baprs]-[A-Za-z0-9-]{10,}\b/g, '[REDACTED]'],
+  // Authorization / api-key style headers and env assignments.
+  [/((?:authorization|auth)\s*["']?\s*[:=]\s*["']?(?:bearer\s+)?)[^\s"',}]{8,}/gi, '$1[REDACTED]'],
+  [/((?:x-?api-?key|api[-_]?key|anthropic[-_]?api[-_]?key|openai[-_]?api[-_]?key)\s*["']?\s*[:=]\s*["']?)[^\s"',}]{8,}/gi, '$1[REDACTED]'],
+]
+
+function redactSecrets(serialized: string): string {
+  let output = serialized
+  for (const [pattern, replacement] of SECRET_PATTERNS) {
+    output = output.replace(pattern, replacement)
+  }
+  return output
+}
 
 export interface TranscriptEntry {
   type: string
@@ -65,7 +93,7 @@ export function createTranscriptWriter(options: {
       timestamp: new Date().toISOString(),
       ...entry,
     }
-    const line = `${JSON.stringify(record)}\n`
+    const line = `${redactSecrets(JSON.stringify(record))}\n`
 
     chain = chain
       .then(async () => {

@@ -407,13 +407,28 @@ export function createOpenAICompatibleProvider(config, options = {}) {
         let resolvedModel = requestBody.model
         let responseId = null
         const toolCallAccumulator = new Map()
+        let malformedEvents = 0
 
         for await (const data of parseSSE(response)) {
           if (data === '[DONE]') {
             break
           }
 
-          const payload = JSON.parse(data)
+          // Malformed events are skipped (consistent with the Anthropic
+          // adapter); a stream that is mostly garbage is a protocol error,
+          // not a successful empty turn.
+          let payload
+          try {
+            payload = JSON.parse(data)
+          } catch {
+            malformedEvents += 1
+            if (malformedEvents >= 10) {
+              const protocolError = new Error('protocol_error: 10 or more malformed SSE events in one stream')
+              protocolError.name = 'ProtocolError'
+              throw protocolError
+            }
+            continue
+          }
           const choice = Array.isArray(payload?.choices) ? payload.choices[0] : null
           const delta = choice?.delta
 

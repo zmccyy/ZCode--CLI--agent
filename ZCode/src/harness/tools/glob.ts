@@ -20,7 +20,7 @@ export async function executeGlob(
   try {
     searchDir =
       typeof params.path === 'string' && params.path.trim() !== ''
-        ? resolveWorkspacePath(context, params.path)
+        ? await resolveWorkspacePath(context, params.path)
         : context.cwd
   } catch (error) {
     return toErrorResult(error)
@@ -34,12 +34,16 @@ export async function executeGlob(
 
   let entries
   try {
-    entries = await walkFiles(searchDir, { maxResults: 20000 })
+    entries = await walkFiles(searchDir, { maxResults: 20000, signal: context.signal })
   } catch (error) {
     return {
       content: `Error: cannot walk directory: ${error instanceof Error ? error.message : String(error)}`,
       isError: true,
     }
+  }
+
+  if (context.signal?.aborted) {
+    return { content: 'Error: aborted (cancelled) while scanning directories', isError: true }
   }
 
   const matched = entries

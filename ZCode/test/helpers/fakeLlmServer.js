@@ -202,6 +202,21 @@ export function createFakeLlmServer({
         connection: 'keep-alive',
       })
 
+      // ── Raw injection mode (protocol/abort test scenarios) ──
+      // turn.rawChunks: verbatim SSE strings; turn.keepOpenMs: hold the
+      // connection open after writing (client abort / EOF scenarios).
+      if (Array.isArray(turn.rawChunks)) {
+        for (const raw of turn.rawChunks) {
+          res.write(raw)
+        }
+        if (typeof turn.keepOpenMs === 'number') {
+          setTimeout(() => res.end(), turn.keepOpenMs).unref?.()
+        } else {
+          res.end()
+        }
+        return
+      }
+
       const writeChunk = payload => {
         res.write(sseBlock(dialect, payload))
       }
@@ -311,6 +326,13 @@ export function createFakeLlmServer({
     },
     close() {
       return new Promise((resolve, reject) => {
+        // Hanging sockets (abort scenarios) must not keep server.close()
+        // waiting; established responses have already been delivered.
+        try {
+          server.closeAllConnections?.()
+        } catch {
+          // older Node: close() alone is best-effort
+        }
         server.close(error => (error ? reject(error) : resolve()))
       })
     },

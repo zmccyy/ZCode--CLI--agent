@@ -15,6 +15,7 @@
  */
 
 import path from 'node:path'
+import { promises as fs } from 'node:fs'
 
 export interface WorkspaceBoundary {
   /** When false, no path checking happens at all (--no-boundary). */
@@ -42,11 +43,95 @@ export function createWorkspaceBoundary(options: {
 /** Containment test by lexical path comparison (symlink caveat documented). */
 export function isPathInsideBoundary(boundary: WorkspaceBoundary, absolutePath: string): boolean {
   if (!boundary.enabled) return true
-  const target = path.normalize(absolutePath)
-  return boundary.roots.some(root => {
-    const relative = path.relative(root, target)
+  return containedIn(boundary.roots, absolutePath)
+}
+
+/** Segment-aware containment; case-insensitive on Windows filesystems. */
+function containedIn(roots: readonly string[], target: string): boolean {
+  const fold = (value: string): string => (process.platform === 'win32' ? value.toLowerCase() : value)
+  const targetPath = fold(path.normalize(target))
+  return roots.some(root => {
+    const relative = path.relative(fold(path.normalize(root)), targetPath)
     return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
   })
+}
+
+/** Per-boundary cache of realpath'd roots (roots rarely change on disk). */
+const realRootsCache = new WeakMap<WorkspaceBoundary, Promise<string[]>>()
+
+function realpathRoots(boundary: WorkspaceBoundary): Promise<string[]> {
+  let cached = realRootsCache.get(boundary)
+  if (!cached) {
+    cached = Promise.all(
+      boundary.roots.map(async root => {
+        try {
+          return await fs.realpath(root)
+        } catch {
+          // Root vanished or cannot be resolved: fall back to its lexical form.
+          return path.normalize(root)
+        }
+      }),
+    )
+    realRootsCache.set(boundary, cached)
+  }
+  return cached
+}
+
+/**
+ * Resolves the deepest EXISTING ancestor of the path and returns its realpath
+ * plus the lexical tail (segments that do not exist yet — a Write into a
+ * not-yet-created directory). The tail cannot contain symlinks, so joining it
+ * onto the resolved prefix is sound.
+ */
+async function resolveRealPrefix(
+  absolutePath: string,
+): Promise<{ real: string; tail: string[] }> {
+  const tail: string[] = []
+  let current = absolutePath
+  for (;;) {
+    try {
+      const real = await fs.realpath(current)
+      return { real, tail }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        // EPERM/EACCES/etc. on the target itself: deny by containment failure
+        // rather than leaking a confusing error — lexical check already ran.
+        return { real: current, tail }
+      }
+      const parent = path.dirname(current)
+      if (parent === current) {
+        // Walked up to the filesystem root without resolving; treat the root
+        // itself as the resolved prefix.
+        return { real: current, tail }
+      }
+      tail.unshift(path.basename(current))
+      current = parent
+    }
+  }
+}
+
+/**
+ * Filesystem-truth containment: a path that is lexically inside the boundary
+ * may still resolve OUTSIDE it through a symlink/junction placed inside the
+ * workspace. This check follows the real path of the target (or its nearest
+ * existing ancestor) and compares it against the realpath'd roots.
+ *
+ * Residual race (documented): a symlink swapped in between this check and the
+ * subsequent read/write is a TOCTOU window; a true sandbox is the P2 direction.
+ */
+export async function assertRealpathInsideBoundary(
+  boundary: WorkspaceBoundary | undefined,
+  absolutePath: string,
+): Promise<void> {
+  if (!boundary || !boundary.enabled) return
+
+  const { real, tail } = await resolveRealPrefix(absolutePath)
+  const realTarget = path.normalize(path.join(real, ...tail))
+
+  const roots = await realpathRoots(boundary)
+  if (containedIn(roots, realTarget)) return
+  if (containedIn(boundary.roots, realTarget)) return
+  throw new BoundaryError(realTarget, boundary)
 }
 
 /**

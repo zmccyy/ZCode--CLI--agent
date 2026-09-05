@@ -179,6 +179,9 @@ export async function runTui({
     if (result.stopReason !== 'end_turn' && result.error) {
       writeLine(`  ✗ ${result.error}`)
     }
+    for (const warning of result.warnings ?? []) {
+      writeLine(`  ⚠ ${warning}`)
+    }
     if (abortedThisRun) {
       writeLine('  ⏹ stopped — partial progress is kept in the conversation.')
     }

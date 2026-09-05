@@ -10,25 +10,29 @@
 [![CI](https://github.com/zmccyy/ZCode--CLI--agent/actions/workflows/ci.yml/badge.svg)](https://github.com/zmccyy/ZCode--CLI--agent/actions/workflows/ci.yml)
 [![Stars](https://img.shields.io/github/stars/zmccyy/ZCode--CLI--agent?style=flat-square&logo=github)](https://github.com/zmccyy/ZCode--CLI--agent/stargazers)
 [![License](https://img.shields.io/github/license/zmccyy/ZCode--CLI--agent?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.1.1-blue?style=flat-square)](https://github.com/zmccyy/ZCode--CLI--agent/releases)
+[![Version](https://img.shields.io/badge/version-1.4.0-blue?style=flat-square)](https://github.com/zmccyy/ZCode--CLI--agent/releases)
 [![Node](https://img.shields.io/badge/node-%3E%3D24-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Bun](https://img.shields.io/badge/bun-%3E%3D1.0-f9f1e1?style=flat-square&logo=bun)](https://bun.sh)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square)](#-quick-start)
 
 ---
 
-## 📍 Current status (2026-08)
+## 📍 Current status (2026-09)
 
 | Capability | State |
 |------|------|
-| **Harness v1: real agent loop** — multi-turn Think→Act→Observe with tools | ✅ Shipped ([plan](docs/plans/harness-v1-plan.md) · [ADR-0001](docs/adr/0001-progressive-port-clean-endgame.md)) |
+| **Harness v1: real agent loop** — multi-turn Think→Act→Observe with tools | ✅ Shipped ([baseline](docs/harness/01-current-baseline.md) · [ADR-0001](docs/adr/0001-progressive-port-clean-endgame.md)) |
 | Core six tools: Read / Glob / Grep / Write / Edit / Bash | ✅ Shipped |
 | Permission modes: Plan (read-only) / Agent (per-call approval) / YOLO | ✅ Shipped |
+| Workspace boundary (file tools) incl. realpath symlink protection | ✅ Shipped |
+| Bash gate: allow / deny / ask (deny holds in YOLO too) | ✅ Shipped |
 | Guardrails: 30-turn limit (configurable) + token budget | ✅ Shipped |
-| JSONL session transcripts | ✅ Shipped |
+| JSONL session transcripts (secret redaction) + compact + resume | ✅ Shipped |
+| Cancellation & protocol integrity (abort ≠ end_turn, stream validation) | ✅ Shipped |
+| Interactive TUI (zero-dependency readline, streaming, inline approvals) | ✅ Shipped |
 | Dual-provider streaming — OpenAI-compatible (DeepSeek) + Anthropic dialect | ✅ Shipped |
 | Acceptance UC-03: *"fix all failing tests"* end-to-end, no human input | ✅ Verified live ([evidence](docs/acceptance/uc03-acceptance.md)) |
-| Full agent source tree (TUI / MCP / LSP / sub-agents) | 🧱 Reference only — wired after v1 |
+| MCP / LSP / sub-agents / workflows | 🚧 Planned — P1/P2 ([roadmap](docs/harness/roadmap.md)); the former reference tree was removed in v1.4 |
 
 ---
 
@@ -48,11 +52,10 @@ Since **v1.0**, `-p` is not a one-shot Q&A: it drives a real agent runtime. The 
 - 🚧 **Guardrails** ✅ — Max 30 turns (default) + configurable token budget; stops hard and reports progress as-is
 - 📼 **JSONL transcripts** ✅ — Every session persisted to `~/.zcode/projects/<cwd-hash>/<sessionId>.jsonl`
 - 🔌 **Dual provider line** ✅ — OpenAI-compatible APIs (DeepSeek default) and Anthropic; same loop, two wire dialects
-- 📦 **Scriptable CLI** ✅ — `-p --json` with `toolCalls[]` / `usage` / `stopReason` envelope for CI pipelines
-- 🖥️ **Interactive Ink TUI** 🧱 — Full-screen REPL source exists; wired after Harness v1
-- 🌐 **MCP integration** 🧱 — Full MCP client in the source tree, pending wiring
-- ⌨️ **Keyboard-driven** 🧱 — Configurable keybinding system in the source tree
+- 📦 **Scriptable CLI** ✅ — `-p --json` with `toolCalls[]` / `usage` / `stopReason` / `warnings` envelope for CI pipelines
+- 🖥️ **Interactive TUI** ✅ — Zero-dependency readline REPL: streaming output, inline approvals, slash commands (bare `zcode`)
 - 🪟 **Windows-first** ✅ — Portable PowerShell installer, Git Bash shell integration
+- 🔌 **MCP integration** 🚧 — Planned (P1): stdio-first MCP client behind the same permission gate
 
 ---
 
@@ -285,6 +288,6 @@ npx tsc --noEmit -p tsconfig.public.json   # type-check
 
 ## 💞 Acknowledgments
 
-Inspired by the terminal agent paradigm pioneered by Claude Code. Built with [Ink](https://github.com/vadimdemedes/ink), [Commander](https://github.com/tj/commander.js), and the [MCP SDK](https://github.com/modelcontextprotocol/typescript-sdk).
+Inspired by the terminal agent paradigm pioneered by Claude Code.
 
-*Last updated: 2026-08-31 (Harness v1.0)*
+*Last updated: 2026-09-05 (v1.4.0 + P0 reliability loop)*

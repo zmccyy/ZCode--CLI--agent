@@ -65,7 +65,13 @@ test('deny list: dangerous patterns are blocked and env overrides extend both li
   assert.equal(classifyBashCommand('npm test', extendedDeny), 'ask')
 })
 
-test('loop integration: allowlist skips approval, deny blocks, the rest asks', async () => {
+test('loop integration: allowlist skips approval, deny blocks, the rest asks', { timeout: 30000 }, async () => {
+  // The ask-bucket command must be offline-safe: `node -e` is not on the
+  // read-only allowlist (only `node --version`/`node -v` are), so it lands in
+  // "ask" — and it executes instantly without touching the network. It used to
+  // be `npm install`, which really installed packages and made this test
+  // flaky (300+s on a slow network).
+  const askCommand = 'node -e "console.log(\'bash-gate-ok\')"'
   const server = createFakeLlmServer({
     dialect: 'openai',
     apiKey: FAKE_API_KEY,
@@ -73,9 +79,9 @@ test('loop integration: allowlist skips approval, deny blocks, the rest asks', a
     script: [
       { toolCalls: [{ name: 'Bash', input: { command: 'git status' } }], usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } },
       { toolCalls: [{ name: 'Bash', input: { command: 'rm -rf /' } }], usage: { prompt_tokens: 40, completion_tokens: 5, total_tokens: 45 } },
-      { toolCalls: [{ name: 'Bash', input: { command: 'npm install' } }], usage: { prompt_tokens: 70, completion_tokens: 5, total_tokens: 75 } },
+      { toolCalls: [{ name: 'Bash', input: { command: askCommand } }], usage: { prompt_tokens: 70, completion_tokens: 5, total_tokens: 75 } },
       {
-        text: 'Done: allowlist ran, deny was blocked, install was approved.',
+        text: 'Done: allowlist ran, deny was blocked, the approved command ran.',
         usage: { prompt_tokens: 100, completion_tokens: 5, total_tokens: 105 },
       },
     ],
@@ -97,7 +103,7 @@ test('loop integration: allowlist skips approval, deny blocks, the rest asks', a
       model: 'fake-model',
       system: SYSTEM_PROMPT,
       tools: createCoreTools(),
-      messages: [{ role: 'user', content: 'run git status, then rm -rf /, then npm install' }],
+      messages: [{ role: 'user', content: 'run git status, then rm -rf /, then an echo via node' }],
       permissionMode: 'agent',
       cwd: workspace,
       transcript: { enabled: false },
@@ -115,16 +121,18 @@ test('loop integration: allowlist skips approval, deny blocks, the rest asks', a
     // rm -rf /: deny list → blocked without asking, with an actionable reason.
     assert.equal(result.toolCalls[1].isError, true)
     assert.match(result.toolCalls[1].result, /deny list/)
-    // npm install: neither list → the human was asked.
+    // ask-bucket command: the human was asked, approved, and it really ran
+    // (offline, instant) with exit 0.
     assert.equal(result.toolCalls[2].isError, false)
-    assert.deepEqual(approvals, ['npm install'])
+    assert.match(result.toolCalls[2].result, /bash-gate-ok/)
+    assert.deepEqual(approvals, [askCommand])
   } finally {
     await server.close()
     await fs.rm(workspace, { recursive: true, force: true })
   }
 })
 
-test('loop integration: the deny list holds even in YOLO mode', async () => {
+test('loop integration: the deny list holds even in YOLO mode', { timeout: 30000 }, async () => {
   const server = createFakeLlmServer({
     dialect: 'openai',
     apiKey: FAKE_API_KEY,

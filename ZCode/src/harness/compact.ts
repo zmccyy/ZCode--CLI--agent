@@ -107,7 +107,9 @@ async function summarizeConversation(options: {
       : toOpenAIMessages(null, withInstruction)
 
   // No tools on the summary request: the model must answer with text.
-  const streamInput: Record<string, unknown> = { messages: wire }
+  // The caller's signal reaches the underlying request so a cancelled run
+  // does not leave a summarization fetch running.
+  const streamInput: Record<string, unknown> = { messages: wire, signal }
   if (model) {
     streamInput.model = model
   }

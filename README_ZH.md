@@ -7,25 +7,29 @@
 [![CI](https://github.com/zmccyy/ZCode--CLI--agent/actions/workflows/ci.yml/badge.svg)](https://github.com/zmccyy/ZCode--CLI--agent/actions/workflows/ci.yml)
 [![Stars](https://img.shields.io/github/stars/zmccyy/ZCode--CLI--agent?style=flat-square&logo=github)](https://github.com/zmccyy/ZCode--CLI--agent/stargazers)
 [![License](https://img.shields.io/github/license/zmccyy/ZCode--CLI--agent?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.1.1-blue?style=flat-square)](https://github.com/zmccyy/ZCode--CLI--agent/releases)
+[![Version](https://img.shields.io/badge/version-1.4.0-blue?style=flat-square)](https://github.com/zmccyy/ZCode--CLI--agent/releases)
 [![Node](https://img.shields.io/badge/node-%3E%3D24-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Bun](https://img.shields.io/badge/bun-%3E%3D1.0-f9f1e1?style=flat-square&logo=bun)](https://bun.sh)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square)](#-快速开始)
 
 ---
 
-## 📍 当前状态（2026-08）
+## 📍 当前状态（2026-09）
 
 | 能力 | 状态 |
 |------|------|
-| **Harness v1：真正的 Agent 循环** —— 多轮 Think→Act→Observe 工具循环 | ✅ 已交付（[计划](docs/plans/harness-v1-plan.md) · [ADR-0001](docs/adr/0001-progressive-port-clean-endgame.md)） |
+| **Harness v1：真正的 Agent 循环** —— 多轮 Think→Act→Observe 工具循环 | ✅ 已交付（[基线](docs/harness/01-current-baseline.md) · [ADR-0001](docs/adr/0001-progressive-port-clean-endgame.md)） |
 | 核心六件套工具：Read / Glob / Grep / Write / Edit / Bash | ✅ 已交付 |
 | 权限门三模式：Plan（只读）/ Agent（逐项审批）/ YOLO（全自动） | ✅ 已交付 |
+| 文件工具工作区边界（含 realpath 符号链接防护） | ✅ 已交付 |
+| Bash 门控：allow / deny / ask（deny 在 YOLO 下同样拦截） | ✅ 已交付 |
 | 护栏：默认 30 轮上限（可配置）+ token 预算 | ✅ 已交付 |
-| JSONL 会话转录 | ✅ 已交付 |
+| JSONL 会话转录（密钥脱敏）+ 自动压缩 + 会话恢复 | ✅ 已交付 |
+| 取消与流协议完整性（abort ≠ end_turn、流校验） | ✅ 已交付 |
+| 交互式 TUI（零依赖 readline：流式输出、内联审批、斜杠命令） | ✅ 已交付 |
 | 双 provider 流式——OpenAI 兼容（DeepSeek）+ Anthropic 方言 | ✅ 已交付 |
 | 验收场景 UC-03：「修复所有失败的测试」端到端、无人工干预 | ✅ 真实验收通过（[留档](docs/acceptance/uc03-acceptance.md)） |
-| 完整源码树（TUI / MCP / LSP / 子 Agent） | 🧱 仅作参照 —— v1 之后接入 |
+| MCP / LSP / 子 Agent / 工作流 | 🚧 规划中 —— P1/P2（[roadmap](docs/harness/roadmap.md)）；原参考树已在 v1.4 移除 |
 
 ---
 
@@ -45,11 +49,10 @@
 - 🚧 **护栏** ✅ —— 默认最多 30 轮 + 可配置 token 预算；触发即硬停并如实汇报进度
 - 📼 **JSONL 转录** ✅ —— 每个会话落盘至 `~/.zcode/projects/<cwd-hash>/<sessionId>.jsonl`
 - 🔌 **双 provider 路线** ✅ —— OpenAI 兼容接口（默认 DeepSeek）与 Anthropic；同一循环，两种线上方言
-- 📦 **可脚本化 CLI** ✅ —— `-p --json` 信封含 `toolCalls[]` / `usage` / `stopReason`，可直接进 CI 管道
-- 🖥️ **Ink 交互式 TUI** 🧱 —— 全屏 REPL 源码已具备，v1 之后接到 Harness 循环上
-- 🌐 **MCP 协议集成** 🧱 —— 源码已具备完整 MCP 客户端，待接入
-- ⌨️ **键盘驱动** 🧱 —— 可配置键绑定系统源码已具备
+- 📦 **可脚本化 CLI** ✅ —— `-p --json` 信封含 `toolCalls[]` / `usage` / `stopReason` / `warnings`，可直接进 CI 管道
+- 🖥️ **交互式 TUI** ✅ —— 零依赖 readline REPL：流式输出、内联审批、斜杠命令（裸 `zcode` 进入）
 - 🪟 **Windows 优先** ✅ —— PowerShell 便携安装包、Git Bash 集成
+- 🔌 **MCP 协议集成** 🚧 —— 规划中（P1）：stdio 先行，纳入统一权限门
 
 ---
 
@@ -282,6 +285,6 @@ npx tsc --noEmit -p tsconfig.public.json   # 类型检查
 
 ## 💞 致谢
 
-灵感来自 Claude Code 开创的终端 Agent 范式。使用 [Ink](https://github.com/vadimdemedes/ink)、[Commander](https://github.com/tj/commander.js) 与 [MCP SDK](https://github.com/modelcontextprotocol/typescript-sdk) 构建。
+灵感来自 Claude Code 开创的终端 Agent 范式。
 
-*最后更新：2026-08-31（Harness v1.0）*
+*最后更新：2026-09-05（v1.4.0 + P0 可靠性闭环）*

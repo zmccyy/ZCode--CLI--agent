@@ -273,6 +273,7 @@ export async function runHarnessPrint({
     turns: result.turns,
     compactions: result.compactions,
     usage: result.usage,
+    ...(result.warnings?.length ? { warnings: result.warnings } : {}),
     ...(reasoning ? { reasoning } : {}),
     ...(result.error ? { error: result.error } : {}),
   }

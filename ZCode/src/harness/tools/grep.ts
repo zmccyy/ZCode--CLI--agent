@@ -20,7 +20,7 @@ interface GrepParams {
   multiline: boolean
 }
 
-function parseParams(input: unknown, context: ToolContext): { params: GrepParams } | { error: ToolResult } {
+async function parseParams(input: unknown, context: ToolContext): Promise<{ params: GrepParams } | { error: ToolResult }> {
   const raw = (input ?? {}) as Record<string, unknown>
 
   if (typeof raw.pattern !== 'string' || raw.pattern === '') {
@@ -48,7 +48,7 @@ function parseParams(input: unknown, context: ToolContext): { params: GrepParams
   try {
     searchDir =
       typeof raw.path === 'string' && raw.path.trim() !== ''
-        ? resolveWorkspacePath(context, raw.path)
+        ? await resolveWorkspacePath(context, raw.path)
         : context.cwd
   } catch (error) {
     return { error: toErrorResult(error) }
@@ -148,7 +148,7 @@ export async function executeGrep(
   input: unknown,
   context: ToolContext,
 ): Promise<ToolResult> {
-  const parsed = parseParams(input, context)
+  const parsed = await parseParams(input, context)
   if ('error' in parsed) {
     return parsed.error
   }
@@ -156,12 +156,16 @@ export async function executeGrep(
 
   let entries
   try {
-    entries = await walkFiles(params.searchDir, { maxResults: 20000 })
+    entries = await walkFiles(params.searchDir, { maxResults: 20000, signal: context.signal })
   } catch (error) {
     return {
       content: `Error: cannot walk directory: ${error instanceof Error ? error.message : String(error)}`,
       isError: true,
     }
+  }
+
+  if (context.signal?.aborted) {
+    return { content: 'Error: aborted (cancelled) while scanning directories', isError: true }
   }
 
   const globMatcher = params.glob ? picomatch(params.glob, { dot: true }) : null

@@ -214,3 +214,44 @@ test('CLI plan mode explores read-only: writes are denied, reads proceed', async
     await fs.rm(workspace, { recursive: true, force: true })
   }
 })
+
+test('CLI rejects --plan combined with --write (plan mode never writes)', async () => {
+  const stdout = createMemoryWriter()
+  const stderr = createMemoryWriter()
+
+  const exitCode = await runCli(['-p', 'make a file', '--plan', '--write'], {
+    cwd: await createTempDir('zcode-cli-plan-write-'),
+    env: {},
+    stdout,
+    stderr,
+    version: '0.1.0',
+  })
+
+  assert.equal(exitCode, 2, 'usage errors exit with code 2')
+  assert.match(stderr.read(), /--plan and --write cannot be combined/)
+  // stdout stays clean (machine-readable consumers are not polluted).
+  assert.equal(stdout.read(), '')
+})
+
+test('CLI exit codes: usage errors exit 2, unknown commands exit 2', async () => {
+  const stderr = createMemoryWriter()
+
+  const badOption = await runCli(['--nope'], {
+    cwd: await createTempDir('zcode-cli-exit-a-'),
+    env: {},
+    stdout: createMemoryWriter(),
+    stderr,
+    version: '0.1.0',
+  })
+  assert.equal(badOption, 2)
+  assert.match(stderr.read(), /Unknown option: --nope/)
+
+  const unknownCommand = await runCli(['frobnicate'], {
+    cwd: await createTempDir('zcode-cli-exit-b-'),
+    env: {},
+    stdout: createMemoryWriter(),
+    stderr: createMemoryWriter(),
+    version: '0.1.0',
+  })
+  assert.equal(unknownCommand, 2)
+})

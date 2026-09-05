@@ -60,19 +60,19 @@ test('boundary containment: cwd root, add-dir roots, parent/relative escapes, di
   assert.ok(isPathInsideBoundary(off, '/etc/passwd'))
 })
 
-test('resolveWorkspacePath enforces the boundary and reports actionable errors', () => {
+test('resolveWorkspacePath enforces the boundary and reports actionable errors', async () => {
   const cwd = path.resolve('/fake/workspace')
   const boundary = createWorkspaceBoundary({ cwd })
   const context = { cwd, boundary }
 
-  assert.equal(resolveWorkspacePath(context, 'src/app.ts'), path.join(cwd, 'src', 'app.ts'))
-  assert.throws(() => resolveWorkspacePath(context, '../outside.txt'), BoundaryError)
-  assert.throws(() => resolveWorkspacePath(context, path.resolve('/etc/passwd')), BoundaryError)
-  assert.throws(() => resolveWorkspacePath(context, ''), /file_path is required/)
+  assert.equal(await resolveWorkspacePath(context, 'src/app.ts'), path.join(cwd, 'src', 'app.ts'))
+  await assert.rejects(() => resolveWorkspacePath(context, '../outside.txt'), BoundaryError)
+  await assert.rejects(() => resolveWorkspacePath(context, path.resolve('/etc/passwd')), BoundaryError)
+  await assert.rejects(() => resolveWorkspacePath(context, ''), /file_path is required/)
 
   // Without a boundary attached, resolution stays unrestricted (raw tool use).
   assert.equal(
-    resolveWorkspacePath({ cwd }, path.resolve('/etc/passwd')),
+    await resolveWorkspacePath({ cwd }, path.resolve('/etc/passwd')),
     path.resolve('/etc/passwd'),
   )
 })

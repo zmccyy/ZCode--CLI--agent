@@ -142,6 +142,11 @@ export interface AgentLoopResult {
   compactions: number
   finishReason: string | null
   error: string | null
+  /**
+   * Non-fatal problems the caller must surface (e.g. transcript persistence
+   * failed). Empty when nothing noteworthy happened during the run.
+   */
+  warnings: string[]
 }
 
 /** Provider duck-type used by the loop (subset of the public provider adapter). */

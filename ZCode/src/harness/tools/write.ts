@@ -18,7 +18,7 @@ export async function executeWrite(
 
   let absolutePath: string
   try {
-    absolutePath = resolveWorkspacePath(context, params.file_path)
+    absolutePath = await resolveWorkspacePath(context, params.file_path)
   } catch (error) {
     return toErrorResult(error)
   }

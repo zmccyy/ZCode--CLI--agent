@@ -8,7 +8,6 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import path from 'node:path'
 import type {
   AgentLoopResult,
   ChatMessage,
@@ -38,6 +37,7 @@ import {
   type CompactOptions,
   type ResolvedCompactConfig,
 } from './compact.ts'
+import { collectReadFilesFromMessages } from './resume.ts'
 
 const DEFAULT_MAX_TURNS = 30
 const TOOL_RESULT_PREVIEW_LENGTH = 160
@@ -125,6 +125,32 @@ interface TurnOutcome {
   inputTokens: number
   messageId: string | null
   model: string | null
+  /** The request saw a provider-reported response_end (complete turn). */
+  sawResponseEnd: boolean
+  /** The run was aborted while (or before) this turn streamed. */
+  aborted: boolean
+}
+
+/**
+ * A delay that resolves early when the signal aborts — a retry backoff must
+ * never outlive the cancellation it belongs to.
+ */
+function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise(resolve => {
+    if (signal?.aborted) {
+      resolve()
+      return
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    const onAbort = (): void => {
+      clearTimeout(timer)
+      resolve()
+    }
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
 }
 
 export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoopResult> {
@@ -195,6 +221,8 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
   let finalText = ''
   let errorMessage: string | null = null
   let turns = 0
+  /** Non-fatal problems surfaced with the result (D2: persistence is visible). */
+  const warnings: string[] = []
 
   transcript.append({
     type: 'session_start',
@@ -215,10 +243,15 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
       messages: options.resume.messages.length,
     })
     const resumeCwd = options.resume.originalCwd ?? options.cwd
+    // Seed the read-before-edit precondition from execution FACTS only: a
+    // file counts as read when its Read call has a matching, non-error tool
+    // result in the restored history (see collectReadFilesFromMessages).
+    for (const file of collectReadFilesFromMessages(options.resume.messages, resumeCwd)) {
+      state.readFiles.add(file)
+    }
+    // Copy the restored history into the new transcript so the session file
+    // is self-contained and can itself be resumed later.
     for (const message of options.resume.messages) {
-      rebuildReadFilesFromMessage(message, resumeCwd, state)
-      // Copy the restored history into the new transcript so the session file
-      // is self-contained and can itself be resumed later.
       transcript.append({ type: 'message', message, turn: 0, restored: true })
     }
   }
@@ -330,6 +363,14 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
     const streamInput: Record<string, unknown> = {
       messages: request.messages,
       tools: request.tools,
+      // Cancellation must reach the HTTP request itself: without this, an
+      // aborted run keeps waiting on a stream that will never advance.
+      signal: options.signal,
+      // The loop is the single owner of turn-level retries: it knows when
+      // deltas have already streamed (no-replay invariant) and applies its
+      // own backoff. Provider-internal retries would multiply the worst-case
+      // request count (attempts × retries) — disabled for loop requests.
+      maxRetries: 0,
     }
     if (dialect === 'anthropic') {
       streamInput.system = request.system ?? undefined
@@ -354,15 +395,22 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
       }
       try {
         outcome = await consumeTurn(options.provider, streamInput, countingEmit, options.signal)
+        if (abortRequested()) {
+          stopReason = 'aborted'
+          break
+        }
         break
       } catch (error) {
         if (abortRequested()) {
           stopReason = 'aborted'
           break
         }
-        // Retry only while nothing has streamed: replaying a partially
-        // delivered turn would duplicate deltas on the observer side.
-        if (turnDeltas > 0 || attempt + 1 >= providerAttempts) {
+        // Protocol errors are terminal: replaying a malformed stream cannot
+        // make it well-formed. Deltas already streamed forbid a replay too.
+        const nonRetryable =
+          error instanceof Error &&
+          (error.name === 'ProtocolError' || error.message.startsWith('protocol_error:'))
+        if (nonRetryable || turnDeltas > 0 || attempt + 1 >= providerAttempts) {
           stopReason = 'error'
           errorMessage = describeError(error)
           transcript.append({ type: 'error', message: errorMessage })
@@ -372,10 +420,21 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
         transcript.append({ type: 'provider_retry', attempt: attempt + 1, message })
         emit({ type: 'provider_retry', attempt: attempt + 1, message })
         const delay = Math.min(providerBackoffMs * 2 ** attempt, MAX_PROVIDER_BACKOFF_MS)
-        await new Promise(resolve => setTimeout(resolve, delay))
+        await abortableDelay(delay, options.signal)
+        if (abortRequested()) {
+          stopReason = 'aborted'
+          break
+        }
       }
     }
     if (!outcome) break
+    // The turn was cancelled mid-stream (partial outcome): never record it as
+    // an assistant message — a truncated turn is not conversation history, and
+    // a partial tool-call list would violate call/result pairing.
+    if (outcome.aborted || abortRequested()) {
+      stopReason = 'aborted'
+      break
+    }
 
     addUsage(usage, outcome.usage)
     lastInputTokens = outcome.inputTokens
@@ -454,8 +513,12 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
   emit({ type: 'loop_end', stopReason, turns, usage })
   try {
     await transcript.flush()
-  } catch {
-    // Transcript persistence issues must not mask the loop result.
+  } catch (error) {
+    // Persistence issues must not mask the loop result — but they must be
+    // VISIBLE: the caller surfaces them as result warnings.
+    warnings.push(
+      `transcript write failed: ${error instanceof Error ? error.message : String(error)}`,
+    )
   }
 
   return {
@@ -469,32 +532,14 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
     compactions,
     finishReason: lastFinishReason,
     error: errorMessage,
+    warnings,
   }
 }
 
 /**
- * Seeds `state.readFiles` from a resumed session's messages so Edit/Write
- * keep their read-before-edit precondition across sessions: every Read the
- * prior session executed (visible as assistant tool calls) marks that file.
+ * (Superseded by collectReadFilesFromMessages in resume.ts, which seeds from
+ * successful execution facts rather than call intents.)
  */
-function rebuildReadFilesFromMessage(
-  message: ChatMessage,
-  cwd: string,
-  state: ToolSessionState,
-): void {
-  if (message.role !== 'assistant' || !Array.isArray(message.toolCalls)) return
-  for (const call of message.toolCalls) {
-    if (call.name !== 'Read') continue
-    const filePath =
-      call.input && typeof call.input === 'object' && 'file_path' in call.input
-        ? (call.input as Record<string, unknown>).file_path
-        : null
-    if (typeof filePath !== 'string' || filePath.trim() === '') continue
-    state.readFiles.add(
-      path.isAbsolute(filePath) ? path.normalize(filePath) : path.resolve(cwd, filePath),
-    )
-  }
-}
 
 async function consumeTurn(
   provider: LoopProvider,
@@ -511,6 +556,8 @@ async function consumeTurn(
     inputTokens: 0,
     messageId: null,
     model: null,
+    sawResponseEnd: false,
+    aborted: false,
   }
 
   for await (const chunk of provider.streamChat(streamInput)) {
@@ -551,6 +598,7 @@ async function consumeTurn(
       }
       case 'response_end': {
         outcome.finishReason = chunk.finishReason ?? null
+        outcome.sawResponseEnd = true
         addUsage(outcome.usage, chunk.usage ?? null)
         if (chunk.usage && Number.isFinite(chunk.usage.inputTokens)) {
           outcome.inputTokens = chunk.usage.inputTokens
@@ -560,6 +608,27 @@ async function consumeTurn(
       default:
         break
     }
+  }
+
+  // Cancellation is not an error: the partial outcome is flagged so the
+  // caller records `aborted` instead of an (incomplete) assistant turn.
+  if (signal?.aborted) {
+    outcome.aborted = true
+    return outcome
+  }
+
+  // A stream that ends without the provider's terminal event is a protocol
+  // violation, not a successful empty turn: recording it as `end_turn` would
+  // corrupt the transcript with a dangling assistant message.
+  if (!outcome.sawResponseEnd) {
+    const error: Error & { name: 'ProtocolError' } = Object.assign(
+      new Error(
+        `protocol_error: provider stream ended without response_end ` +
+          `(text chars: ${outcome.text.length}, toolCalls: ${outcome.toolCalls.length})`,
+      ),
+      { name: 'ProtocolError' as const },
+    )
+    throw error
   }
 
   return outcome

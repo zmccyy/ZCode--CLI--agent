@@ -10,17 +10,17 @@
 
 | 我想… | 推荐阅读                                               |
 |-------|----------------------------------------------------|
+| 开发/修改 Harness（契约与流程） | **[Harness 开发文档体系](harness/README.md)**（架构/契约/工作流/测试/安全/roadmap，唯一权威） |
+| 查看 P0–P2 计划 | [Harness roadmap](harness/roadmap.md)                       |
 | 5 分钟跑起来 | [快速开始](getting-started/quick-start.md)             |
-| 了解功能需求 | [需求分析文档](requirements-analysis.md)                 |
 | 查看实现状态 | [实现状态](implementation-status.md)（以 harness 为主线）      |
+| 查环境变量 / CLI 契约 | [API 参考](references/api-reference.md)              |
 | 配置开发环境 | [本地开发指南](guides/local-development.md)              |
 | Windows 安装 `zcode` | [Windows 安装指南](guides/windows-install.md)          |
-| 查环境变量 / CLI 契约 | [API 参考](references/api-reference.md)              |
-| 了解整体架构 | [系统设计说明书](系统设计说明书.md)                              |
 | 了解 AI 开发方法 | [AI 辅助开发方法论](guides/ai-development-methodology.md) |
-| 编写项目 README | [README 提示词模板](仓库readme提示词.md)                     |
-| 查看 AI 协作开发记录 | [AI 交互过程记录](ai-interactions/AI交互完成项目报告.md)         |
-| 现场演示脚本 | [演示完整流程](guides/demo-walkthrough.md)               |
+| 查看 AI 协作开发记录 | [AI 交互过程记录](ai-interactions/AI交互完成项目报告.md)（historical） |
+
+> **历史文档声明**：`requirements-analysis.md`、`系统设计说明书.md`、`ZCode_SRS.docx`、`plans/` 全部为 **historical**——记录历史决策与需求来源，**不作为当前实现依据**；当前事实以 [Harness 基线](harness/01-current-baseline.md) 与代码/测试为准。
 
 ---
 

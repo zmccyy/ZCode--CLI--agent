@@ -34,18 +34,22 @@
 - **Lint**：`npm run lint`，ESLint 核心规则 + typescript-eslint recommended，只覆盖公共层。
 - **真实验收**：[UC-03 验收留档](acceptance/uc03-acceptance.md) —— "修复所有失败的测试"任务在 DeepSeek 上无人工干预端到端通过，含运行日志与转录。
 
-## 4 明确不做 / 计划中
+## 4 状态矩阵与已知限制
 
-| 能力 | 状态 | 计划 |
+| 能力 | 状态 | 说明 |
 |------|------|------|
-| 交互式 TUI | 未接线 | v1.2：零依赖 readline REPL（流式输出、内联审批、斜杠命令），裸 `zcode` 进入 |
-| 文件工具工作区硬边界 | 未实现 | v1.2：默认锁 cwd，`--add-dir` 追加，`--no-boundary` 解除 |
-| Bash 白/黑名单门控 | 未实现 | v1.2：只读命令白名单 + 危险命令黑名单 + env 覆盖 |
-| 真沙箱（sandbox-runtime） | 未实现 | v2 方向；v1.2 先在文档中诚实声明信任模型边界 |
-| MCP 接入 harness | 未接线（参考树有实现） | v1.3：stdio 先行 |
-| 配置文件（`.zcode/settings.json`） | 未实现（当前仅环境变量） | v1.3 |
-| 子 Agent / LSP 诊断 / hooks | 未实现 | v1.3 之后按需 |
-| 移除遗留参考树 | **已完成（v1.4）** | 参考树已整体移出仓库；`src/` 现只含第一方公共层代码 |
+| 交互式 TUI | ✅ v1.2 | 零依赖 readline（`src/cli/tui.js`）：流式输出、内联审批、斜杠命令，裸 `zcode` 进入 |
+| 文件工具工作区边界 | ✅ v1.2 + P0 | 默认锁 cwd；`--add-dir` 追加；`--no-boundary` 显式解除；含 realpath 符号链接/junction 防护（boundaryRealpath 回归） |
+| Bash 门控 | ✅ v1.2 | allow/deny/ask（`bashPolicy.ts`）；deny 在含 YOLO 在内的所有模式拦截；**诚实声明：不是 sandbox** |
+| 取消与流协议 | ✅ P0-B | abort 贯穿 provider 请求/工具/退避；abort 永不误报 `end_turn`；流缺 `response_end` 判协议错误；Bash 进程树终止；loop 收编 provider 内建重试 |
+| 会话恢复可信化 | ✅ P0-D | read-before-edit 只从**成功执行**的 Read 播种；transcript 敏感值脱敏；写失败以 `warnings[]` 可见 |
+| 真沙箱（sandbox-runtime） | 未实现 | v2 方向；当前文档诚实声明信任模型（Bash 权限=用户权限） |
+| MCP 接入 harness | 未实现 | ⚠️ 历史 CHANGELOG 的 v1.3「MCP Full Integration」声明与当前代码不符（参考树已随 v1.4 移除）；计划见 [roadmap](harness/roadmap.md) P1（stdio 最小子集，默认关闭） |
+| 配置文件接线 | 部分 | `settingsContract.js`/`providerEnvironment.js` 契约与单测已存在；CLI 启动链接线排在 P1 |
+| 子 Agent / LSP 诊断 / hooks / 工作流 | 未实现 | P2 方向（[roadmap](harness/roadmap.md)） |
+| 移除遗留参考树 | ✅ v1.4 | 参考树已整体移出仓库；`src/` 只含第一方公共层代码 |
+
+开发指导与完整契约见 [`docs/harness/`](harness/README.md)（架构、契约、工作流、测试、安全、roadmap）。
 
 ## 5 遗留参考树已移除
 
@@ -53,4 +57,4 @@
 
 ---
 
-*最后更新：2026-09-03（v1.4.0）*
+*最后更新：2026-09-05（v1.4.0 + P0 可靠性闭环；开发契约以 [docs/harness/](harness/README.md) 为准）*

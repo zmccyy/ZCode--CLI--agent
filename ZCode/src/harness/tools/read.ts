@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import type { ToolContext, ToolDefinition, ToolResult } from '../types.ts'
-import { assertPathInsideBoundary } from '../boundary.ts'
+import { assertPathInsideBoundary, assertRealpathInsideBoundary } from '../boundary.ts'
 
 const DEFAULT_LIMIT = 2000
 const MAX_LIMIT = 2000
@@ -9,13 +9,14 @@ const MAX_LINE_LENGTH = 2000
 
 /**
  * Resolves a tool-provided path against the workspace and enforces the
- * workspace boundary when one is attached to the context. Throws a
- * BoundaryError for paths outside the allowed roots.
+ * workspace boundary when one is attached to the context — both lexically
+ * and against the filesystem truth (a symlink inside the workspace may not
+ * resolve outside it). Throws a BoundaryError for paths outside the roots.
  */
-export function resolveWorkspacePath(
+export async function resolveWorkspacePath(
   context: Pick<ToolContext, 'cwd' | 'boundary'>,
   filePath: string,
-): string {
+): Promise<string> {
   if (typeof filePath !== 'string' || filePath.trim() === '') {
     throw new Error('file_path is required')
   }
@@ -23,6 +24,7 @@ export function resolveWorkspacePath(
     ? path.normalize(filePath)
     : path.resolve(context.cwd, filePath)
   assertPathInsideBoundary(context.boundary, absolutePath)
+  await assertRealpathInsideBoundary(context.boundary, absolutePath)
   return absolutePath
 }
 
@@ -76,7 +78,7 @@ export async function executeRead(
 
   let absolutePath: string
   try {
-    absolutePath = resolveWorkspacePath(context, params.file_path)
+    absolutePath = await resolveWorkspacePath(context, params.file_path)
   } catch (error) {
     return toErrorResult(error)
   }

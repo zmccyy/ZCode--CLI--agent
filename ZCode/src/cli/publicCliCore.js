@@ -32,6 +32,14 @@ import {
 
 const DEFAULT_COMMANDS = Object.freeze(['help', 'doctor', 'models', 'sessions', 'print'])
 
+/** Command-line usage failure — exits with code 2 (distinct from runtime errors). */
+export class UsageError extends Error {
+  constructor(message) {
+    super(message)
+    this.name = 'UsageError'
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Lightweight cost estimation for print mode
 // ---------------------------------------------------------------------------
@@ -325,8 +333,7 @@ export function loadDotEnvFile({
 }
 
 function parseArgv(argv = []) {
-  const options = {
-    help: false,
+  const options = {    help: false,
     json: false,
     version: false,
     model: null,
@@ -367,7 +374,7 @@ function parseArgv(argv = []) {
       const next = argv[index + 1]
       const model = readString(next)
       if (!model) {
-        throw new Error(`${arg} requires a model id`)
+        throw new UsageError(`${arg} requires a model id`)
       }
       options.model = model
       index += 1
@@ -378,7 +385,7 @@ function parseArgv(argv = []) {
       const next = argv[index + 1]
       const prompt = readString(next)
       if (!prompt) {
-        throw new Error(`${arg} requires a prompt`)
+        throw new UsageError(`${arg} requires a prompt`)
       }
       options.printPrompt = prompt
       index += 1
@@ -417,7 +424,7 @@ function parseArgv(argv = []) {
       const next = argv[index + 1]
       const parsed = Number.parseInt(next, 10)
       if (!Number.isFinite(parsed) || parsed < 1) {
-        throw new Error(`${arg} requires a positive integer`)
+        throw new UsageError(`${arg} requires a positive integer`)
       }
       options.maxTurns = parsed
       index += 1
@@ -433,7 +440,7 @@ function parseArgv(argv = []) {
       const next = argv[index + 1]
       const ref = readString(next)
       if (!ref) {
-        throw new Error(`${arg} requires a session id or transcript path`)
+        throw new UsageError(`${arg} requires a session id or transcript path`)
       }
       options.resumeRef = ref
       index += 1
@@ -444,7 +451,7 @@ function parseArgv(argv = []) {
       const next = argv[index + 1]
       const dir = readString(next)
       if (!dir) {
-        throw new Error(`${arg} requires a directory path`)
+        throw new UsageError(`${arg} requires a directory path`)
       }
       options.addDirs.push(dir)
       index += 1
@@ -457,14 +464,21 @@ function parseArgv(argv = []) {
     }
 
     if (arg.startsWith('-')) {
-      throw new Error(`Unknown option: ${arg}`)
+      throw new UsageError(`Unknown option: ${arg}`)
     }
 
     positionals.push(arg)
   }
 
   if (options.continueLatest && options.resumeRef) {
-    throw new Error('--continue and --resume are mutually exclusive')
+    throw new UsageError('--continue and --resume are mutually exclusive')
+  }
+
+  // Plan mode promises ZERO write side effects — including the CLI's own
+  // post-processing that persists Markdown code blocks. The combination is
+  // rejected up front instead of silently breaking the promise.
+  if (options.plan && options.write) {
+    throw new UsageError('--plan and --write cannot be combined: plan mode never writes files')
   }
 
   options.command = readString(positionals[0])
@@ -953,6 +967,12 @@ export async function runCli(
         ...(resumeSnapshot ? { resume: resumeSnapshot } : {}),
       })
 
+      // Non-fatal problems (e.g. transcript persistence) must reach the user;
+      // stderr keeps stdout machine-readable in --json mode.
+      for (const warning of result.warnings ?? []) {
+        writeLine(stderr, `WARNING: ${warning}`)
+      }
+
       if (options.json) {
         // JSON envelope: backward-compatible superset of the print result.
         const blocks = result.text ? extractCodeBlocks(result.text) : []
@@ -997,17 +1017,28 @@ export async function runCli(
         }))
       }
 
-      // Exit code honesty for CI: end_turn succeeded; guardrail stops and
-      // errors mean the task did not complete.
-      return result.stopReason === 'end_turn' ? 0 : 1
+      // Exit code honesty for CI (contracts/23): end_turn succeeded;
+      // cancellation is distinct from failure; guardrail stops mean the task
+      // did not complete.
+      switch (result.stopReason) {
+        case 'end_turn':
+          return 0
+        case 'aborted':
+          return 130
+        case 'max_turns':
+        case 'budget_exceeded':
+          return 3
+        default:
+          return 1
+      }
     }
 
-    throw new Error(`Unknown command: ${options.command}`)
+    throw new UsageError(`Unknown command: ${options.command}`)
   } catch (error) {
     writeLine(
       stderr,
       error instanceof Error ? error.message : 'Unknown CLI failure',
     )
-    return 1
+    return error instanceof UsageError ? 2 : 1
   }
 }

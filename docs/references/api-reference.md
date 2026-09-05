@@ -23,7 +23,8 @@ zcode -p, --print <prompt> [options]
 | `help` | 显示帮助（默认行为） |
 | `doctor` | 检查运行时、Provider 与模型注册 |
 | `models` | 列出当前 Provider 暴露的模型 |
-| `-p, --print <prompt>` | 非交互式提问并输出结果 |
+| `sessions` | 列出本工作区最近的会话转录 |
+| `-p, --print <prompt>` | 非交互式 Agent 循环：探索、修改、验证、汇报 |
 
 ### 全局选项
 
@@ -54,10 +55,18 @@ zcode -p "Hello" -m deepseek-chat --json
 {
   "provider": "openai-compatible:deepseek",
   "model": "deepseek-chat",
-  "messageId": "msg_abc123",
+  "messageId": null,
   "text": "模型回复的完整文本",
-  "toolCalls": [],
-  "finishReason": "stop"
+  "toolCalls": [
+    { "id": "call_1", "name": "Read", "input": {}, "result": "…", "isError": false, "durationMs": 12 }
+  ],
+  "finishReason": "stop",
+  "stopReason": "end_turn",
+  "turns": 3,
+  "compactions": 0,
+  "usage": { "inputTokens": 0, "outputTokens": 0, "totalTokens": 0 },
+  "runMode": "agent",
+  "resumedFrom": null
 }
 ```
 
@@ -65,45 +74,48 @@ zcode -p "Hello" -m deepseek-chat --json
 |------|------|------|
 | `provider` | string | Provider 标识 |
 | `model` | string | 实际使用的模型 |
-| `messageId` | string \| null | 消息 ID（Provider 返回时填充） |
+| `messageId` | null | 当前恒为 null（非 provider 响应 ID，使用方不得依赖） |
 | `text` | string | 模型文本回复 |
-| `toolCalls` | array | 工具调用列表（Print 模式通常为空） |
-| `finishReason` | string | 结束原因：`stop` · `tool_call` · `error` |
+| `toolCalls` | array | 全部执行过的工具调用（含失败与被拒） |
+| `finishReason` | string | Provider 侧结束原因：`stop` · `tool_call` · `error` |
+| `stopReason` | string | 循环停止原因：`end_turn` · `max_turns` · `budget_exceeded` · `aborted` · `error` |
+| `turns` | number | 循环轮数 |
+| `compactions` | number | 自动上下文压缩次数 |
+| `usage` | object | 累计 token（含压缩请求） |
+| `runMode` | string | `plan` · `agent` · `yolo` |
+| `resumedFrom` | string \| null | `--continue`/`--resume` 时的来源会话 |
+| `warnings` | array（可选） | 非致命问题（如 transcript 写失败）；仅存在时出现 |
 
-非 JSON 模式下，`-p` 仅输出 `text` 或 `toolCalls` 的字符串形式。
+非 JSON 模式下，`-p` 输出进度行 + 最终文本 + usage 概要。
 
 ### Doctor 模式 (`doctor --json`)
 
 ```json
 {
   "productName": "ZCode",
-  "version": "0.1.0",
-  "cwd": "/path/to/cwd",
+  "version": "1.4.0",
+  "cwd": "E:\\path\\to\\cwd",
   "startable": true,
   "runtime": {
-    "engine": "bun",
-    "node": "v22.0.0",
-    "bun": "1.2.0"
+    "engine": "node",
+    "node": "v24.14.0",
+    "bun": null
   },
   "provider": {
-    "mode": "openai-compatible",
-    "id": "openai-compatible:deepseek",
-    "kind": "openai-compatible",
+    "mode": "firstParty",
+    "id": "anthropic:firstParty",
+    "kind": "anthropic",
     "printReady": true,
-    "defaultModel": "deepseek-chat",
-    "modelCount": 1
+    "defaultModel": "claude-3-5-haiku-20241022",
+    "modelCount": 11
   },
-  "commands": ["help", "doctor", "models", "print"],
+  "commands": ["help", "doctor", "models", "sessions", "print"],
   "notes": [
     "Legacy interactive startup is not wired in this public build.",
     "Use doctor, models, or --print to validate the local public entrypoint."
   ],
   "models": [
-    {
-      "id": "deepseek-chat",
-      "provider": "openai-compatible:deepseek",
-      "displayName": "deepseek-chat"
-    }
+    { "id": "claude-3-5-haiku-20241022", "provider": "firstParty", "displayName": "claude-3-5-haiku-20241022" }
   ]
 }
 ```
@@ -152,11 +164,9 @@ zcode -p "Hello" -m deepseek-chat --json
 
 | 值 | 说明 | 公共 CLI Print |
 |----|------|----------------|
-| `openai-compatible` | OpenAI 兼容 API | ✅ 支持 |
-| `firstParty` | Anthropic 第一方 API | ❌ 需完整 REPL |
-| `bedrock` | AWS Bedrock | ❌ 需完整 REPL |
-| `vertex` | Google Vertex AI | ❌ 需完整 REPL |
-| `foundry` | Azure Foundry | ❌ 需完整 REPL |
+| `openai-compatible` | OpenAI 兼容 API（DeepSeek/Ollama 等） | ✅ 支持 |
+| `firstParty` | Anthropic 第一方 API（默认） | ✅ 支持（v1.4 双方言循环） |
+| `bedrock` / `vertex` / `foundry` | 历史开关值，无第一方适配器 | ❌ 未实现 |
 
 完整 REPL 还识别以下旧版开关（无 `ZCODE_PROVIDER` 时，仅向后兼容）：
 
@@ -247,16 +257,17 @@ ZCODE_OPENAI_TIMEOUT=60000
 
 ---
 
-## 错误处理
+## 错误处理与退出码
 
 公共 CLI 错误写入 stderr 并以非零退出码退出：
 
-| 场景 | 典型错误信息 |
-|------|-------------|
-| 未知选项 | `Unknown option: --foo` |
-| Print 未配置 Provider | `Provider ... is not ready for local print mode. Configure ZCODE_PROVIDER=openai-compatible...` |
-| 未知子命令 | `Unknown command: foo` |
-| 缺少 prompt | `-p requires a prompt` |
+| 场景 | 退出码 | 典型错误信息 |
+|------|--------|-------------|
+| 成功（`stopReason=end_turn`） | 0 | — |
+| Provider/循环运行错误（`stopReason=error`） | 1 | `OpenAI-compatible request failed…` |
+| 用法/参数错误 | 2 | `Unknown option: --foo` · `--plan and --write cannot be combined` · `-p requires a prompt` |
+| 护栏终止（`max_turns`/`budget_exceeded`） | 3 | — |
+| 用户取消（`stopReason=aborted`） | 130 | — |
 
 ---
 
@@ -264,6 +275,6 @@ ZCODE_OPENAI_TIMEOUT=60000
 
 - [快速开始](../getting-started/quick-start.md)
 - [本地开发指南](../guides/local-development.md)
-- [系统设计说明书 — 接口设计](../系统设计说明书.md#6-接口设计)
+- [Harness 契约（CLI/JSON/配置）](../harness/contracts/23-cli-json-config-contract.md)
 
-*最后更新：2026-06-01*
+*最后更新：2026-09-05（v1.4.0 + P0 可靠性闭环）*

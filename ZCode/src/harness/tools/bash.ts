@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { spawn, type ChildProcess } from 'node:child_process'
 import type { ToolContext, ToolDefinition, ToolResult } from '../types.ts'
 
 const DEFAULT_TIMEOUT_MS = 120_000
@@ -38,17 +38,62 @@ interface RunOutcome {
   stderr: string
   exitCode: number | null
   timedOut: boolean
+  aborted: boolean
   spawnError: string | null
+}
+
+/**
+ * Kills the shell AND its descendants. `child.kill()` only reaches the shell
+ * itself; `bash -c 'sleep 30 & wait'` would leave orphans behind. On Windows
+ * `taskkill /T` walks the tree; on POSIX the child is spawned detached (its
+ * own process group), so a negative-pid signal reaches the whole group.
+ */
+function killTree(child: ChildProcess): void {
+  if (child.pid === undefined) return
+  if (process.platform === 'win32') {
+    try {
+      const killer = spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+        stdio: 'ignore',
+        windowsHide: true,
+      })
+      killer.unref()
+    } catch {
+      try {
+        child.kill('SIGKILL')
+      } catch {
+        // already gone
+      }
+    }
+    return
+  }
+  try {
+    process.kill(-child.pid, 'SIGKILL')
+  } catch {
+    try {
+      child.kill('SIGKILL')
+    } catch {
+      // already gone
+    }
+  }
 }
 
 function runBash(command: string, timeoutMs: number, context: ToolContext): Promise<RunOutcome> {
   return new Promise(resolve => {
+    const abortedAlready = context.signal?.aborted === true
+    if (abortedAlready) {
+      resolve({ stdout: '', stderr: '', exitCode: null, timedOut: false, aborted: true, spawnError: null })
+      return
+    }
+
     let child
     try {
       child = spawn('bash', ['-c', command], {
         cwd: context.cwd,
         env: process.env,
         windowsHide: true,
+        // POSIX only: makes the shell a process-group leader so the whole
+        // tree can be signalled. On Windows the tree is killed via taskkill.
+        detached: process.platform !== 'win32',
         stdio: ['ignore', 'pipe', 'pipe'],
       })
     } catch (error) {
@@ -57,6 +102,7 @@ function runBash(command: string, timeoutMs: number, context: ToolContext): Prom
         stderr: '',
         exitCode: null,
         timedOut: false,
+        aborted: false,
         spawnError: error instanceof Error ? error.message : String(error),
       })
       return
@@ -65,16 +111,20 @@ function runBash(command: string, timeoutMs: number, context: ToolContext): Prom
     let stdout = ''
     let stderr = ''
     let timedOut = false
+    let aborted = false
     let settled = false
 
     const timer = setTimeout(() => {
       timedOut = true
-      try {
-        child.kill('SIGKILL')
-      } catch {
-        // process may already be gone
-      }
+      killTree(child)
     }, timeoutMs)
+
+    const onAbort = (): void => {
+      if (settled) return
+      aborted = true
+      killTree(child)
+    }
+    context.signal?.addEventListener('abort', onAbort, { once: true })
 
     child.stdout?.on('data', chunk => {
       if (stdout.length < MAX_OUTPUT_CHARS * 2) stdout += String(chunk)
@@ -87,7 +137,8 @@ function runBash(command: string, timeoutMs: number, context: ToolContext): Prom
       if (settled) return
       settled = true
       clearTimeout(timer)
-      resolve({ stdout, stderr, exitCode, timedOut, spawnError })
+      context.signal?.removeEventListener('abort', onAbort)
+      resolve({ stdout, stderr, exitCode, timedOut, aborted, spawnError })
     }
 
     child.on('error', error => {
@@ -114,6 +165,16 @@ export async function executeBash(
   if (outcome.spawnError !== null) {
     return {
       content: `Error: failed to start bash (is Git Bash installed and on PATH?): ${outcome.spawnError}`,
+      isError: true,
+    }
+  }
+
+  if (outcome.aborted) {
+    return {
+      content:
+        `Error: command aborted (cancelled) before completion.\n` +
+        `stdout: ${outcome.stdout.trim() || '(empty)'}\n` +
+        `stderr: ${outcome.stderr.trim() || '(empty)'}`,
       isError: true,
     }
   }

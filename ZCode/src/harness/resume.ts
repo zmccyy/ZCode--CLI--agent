@@ -119,6 +119,51 @@ function resolveWorkspacePath(cwd: string | null, filePath: string): string | nu
   return cwd ? path.resolve(cwd, filePath) : null
 }
 
+/**
+ * Collects the files that were SUCCESSFULLY Read during a session, for the
+ * read-before-edit precondition.
+ *
+ * Only execution facts count: a Read call seeds a file only when its tool
+ * result message exists AND reports no error. A Read the model *requested*
+ * but that failed, was denied, or never executed (interrupted turn) must not
+ * mark the file as read — otherwise a resumed session could edit a file it
+ * never actually saw. Calls and results are paired in transcript order
+ * (the loop executes tool calls sequentially and appends in order).
+ */
+export function collectReadFilesFromMessages(
+  messages: readonly ChatMessage[],
+  cwd: string | null,
+): Set<string> {
+  const pending: Array<{ id: string | null; file: string }> = []
+  const readFiles = new Set<string>()
+
+  for (const message of messages) {
+    if (message.role === 'assistant') {
+      for (const call of message.toolCalls ?? []) {
+        if (call.name !== 'Read') continue
+        const input =
+          call.input && typeof call.input === 'object'
+            ? (call.input as Record<string, unknown>)
+            : {}
+        const resolved = resolveWorkspacePath(cwd, String(input.file_path ?? ''))
+        if (resolved) pending.push({ id: call.id ?? null, file: resolved })
+      }
+      continue
+    }
+    if (message.role !== 'tool' || message.toolName !== 'Read') continue
+
+    const index = pending.findIndex(
+      candidate => candidate.id === null || candidate.id === message.toolCallId,
+    )
+    if (index === -1) continue
+    const [matched] = pending.splice(index, 1)
+    if (message.isError === true) continue
+    readFiles.add(matched.file)
+  }
+
+  return readFiles
+}
+
 export async function loadSessionForResume(filePath: string): Promise<ResumeSnapshot> {
   let raw: string
   try {
@@ -144,6 +189,8 @@ export async function loadSessionForResume(filePath: string): Promise<ResumeSnap
 
   const readFiles = new Set<string>()
   const lines = raw.split('\n')
+  /** Messages in transcript order, for fact-based Read seeding. */
+  const scannedMessages: ChatMessage[] = []
 
   for (const line of lines) {
     const trimmedLine = line.trim()
@@ -171,17 +218,7 @@ export async function loadSessionForResume(filePath: string): Promise<ResumeSnap
         const message = entry.message
         if (isValidMessage(message)) {
           snapshot.messages.push(message)
-          if (message.role === 'assistant') {
-            for (const call of message.toolCalls ?? []) {
-              if (call.name !== 'Read') continue
-              const input =
-                call.input && typeof call.input === 'object'
-                  ? (call.input as Record<string, unknown>)
-                  : {}
-              const resolved = resolveWorkspacePath(snapshot.cwd, String(input.file_path ?? ''))
-              if (resolved) readFiles.add(resolved)
-            }
-          }
+          scannedMessages.push(message)
         } else {
           snapshot.skippedLines += 1
         }
@@ -202,6 +239,9 @@ export async function loadSessionForResume(filePath: string): Promise<ResumeSnap
     throw new ResumeError(`Transcript ${filePath} contains no messages to resume from.`)
   }
 
+  for (const file of collectReadFilesFromMessages(scannedMessages, snapshot.cwd)) {
+    readFiles.add(file)
+  }
   snapshot.readFiles = [...readFiles]
   return snapshot
 }

@@ -218,7 +218,7 @@ test('TUI: Shift+Tab cycles permission modes when idle', async () => {
       boundary: { enabled: true, addDirs: [] },
       transcript: { enabled: false },
     })
-    await waitFor(out, /mode: agent/)
+    await waitFor(out, /esc interrupts/)
 
     stdin.emit('keypress', '', { name: 'tab', shift: true })
     await waitFor(out, /mode: plan/)
@@ -304,7 +304,7 @@ test('TUI: trailing backslash continues input across lines', async () => {
     })
 
     stdin.write('fix the bug in \\\n')
-    await waitFor(out, /You >/)
+    await waitFor(out, /❯/)
     stdin.write('src/app.ts\n')
     await waitFor(out, /ok/)
 
@@ -386,9 +386,8 @@ test('TUI: status line renders on a TTY and is erased on first event', async () 
     // label, so accept either.
     assert.match(
       out.text(),
-      /(reading workspace state|working) — Esc \/ Ctrl\+C to interrupt/,
+      /(reading workspace state|thinking…) · \d+s · agent mode · esc to interrupt/,
     )
-    assert.match(out.text(), /agent mode · \d+s/)
     assert.ok(out.text().includes(ERASE_LINE), 'status line was erased')
     // Colored tool/status output must include ANSI when TTY.
     assert.ok(out.text().includes('\u001b[2m'))

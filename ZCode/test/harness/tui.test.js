@@ -107,20 +107,25 @@ test('interactive flow: prompt → approval → tool → streamed answer → /co
     assert.equal(exitCode, 0)
 
     const output = out.text()
+    // Styled output splits labels/values and tool names/args with color
+    // codes; strip them so structural assertions stay readable.
+    const esc = String.fromCharCode(27)
+    const plain = output.replace(new RegExp(`${esc}\\[[0-9;]*m`, 'g'), '')
     // Banner shows the interactive identity and the boundary.
-    assert.match(output, /interactive session/)
-    assert.match(output, /mode: agent/)
-    assert.match(output, /boundary \(file tools\): /)
+    assert.match(plain, /ZCode v1\.2\.0/)
+    assert.match(plain, /model\s+fake-model/)
+    assert.match(plain, /mode\s+agent/)
+    assert.match(plain, /boundary \(file tools\): /)
     // The tool execution rendered and its result preview line.
-    assert.match(output, /● Read\(/)
-    assert.match(output, /✓ /)
+    assert.match(plain, /● Read\(/)
+    assert.match(plain, /✓ /)
     // The streamed answer and the per-turn usage footer (2 loop turns:
     // tool-call turn + final-answer turn).
-    assert.match(output, /The note says hello\./)
+    assert.match(plain, /The note says hello\./)
     // Footer includes the turn number, duration, optional metrics notes
     // (TTFT / tool-call count), and per-turn usage.
-    assert.match(output, /turn 2 · \d+(\.\d+)?(ms|s)( · ttft \d+(\.\d+)?(ms|s))?( · \d+ tool calls?)? · in /)
-    assert.match(output, /session total in /)
+    assert.match(plain, /turn 2 · time \d+(\.\d+)?(ms|s)( · ttft \d+(\.\d+)?(ms|s))?( · tools \d+)? · in /)
+    assert.match(plain, /· session /)
     // /cost reported the injected pricing.
     assert.match(output, /estimated cost: \$0\.000042/)
     assert.match(output, /bye — session usage/)
@@ -186,7 +191,7 @@ test('declining an approval feeds the denial back; a later write can be approved
     })
 
     stdin.write('write evil.txt\n')
-    await waitFor(out, /\? Allow Write\(/)
+    await waitFor(out, /\? Allow Write/)
     stdin.write('n\n')
     await waitFor(out, /Understood, I will not write that file\./)
 
@@ -334,7 +339,7 @@ test('bare `zcode` with a TTY stdin enters the TUI; piped stdin keeps help', asy
       version: '1.2.0',
     })
 
-    await waitFor(ttyStdout, /interactive session/)
+    await waitFor(ttyStdout, /esc interrupts/)
     ttyStdin.write('/exit\n')
 
     assert.equal(await exitPromise, 0)

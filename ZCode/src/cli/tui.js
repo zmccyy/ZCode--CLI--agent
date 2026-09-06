@@ -57,6 +57,18 @@ const MODE_CYCLE = ['plan', 'yolo', 'agent']
 const SPINNER_FRAMES_UTF = Object.freeze(['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'])
 const SPINNER_FRAMES_ASCII = Object.freeze(['|', '/', '-', '\\'])
 const SPINNER_INTERVAL_MS = 120
+// Soft verb rotation (Claude-Code-style): the work word changes every few
+// seconds so a long turn feels alive without extra noise.
+const SPINNER_VERBS = Object.freeze([
+  'thinking',
+  'exploring',
+  'forging',
+  'polishing',
+  'weaving',
+  'crafting',
+  'distilling',
+  'considering',
+])
 
 function formatTokens(n) {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`
@@ -403,7 +415,8 @@ export async function runTui({
     ? createMarkdownStream({
         onLine: lineEvent => {
           if (lineEvent.kind === 'fence-open') {
-            writeLine(styler.dim('┌─ code ────────'))
+            const label = lineEvent.lang || 'code'
+            writeLine(styler.dim(`┌─ ${label} ${'─'.repeat(Math.max(4, 40 - label.length))}`))
             return
           }
           if (lineEvent.kind === 'fence-close') {
@@ -447,10 +460,14 @@ export async function runTui({
         const elapsedSeconds = Math.floor((Date.now() - turnStartedAt) / 1000)
         const frame = spinnerFrames[spinnerFrame % spinnerFrames.length]
         spinnerFrame += 1
+        // Phase 1 (env/memory probes) keeps the plain label; once the turn is
+        // actually working, a soft verb rotates every ~3 seconds.
+        const verb = SPINNER_VERBS[Math.floor(elapsedSeconds / 3) % SPINNER_VERBS.length]
+        const label = statusLabel === 'working' ? `${verb}…` : statusLabel
         write(
           ERASE_LINE +
             styler.dim(
-              `${frame} ${statusLabel} — Esc / Ctrl+C to interrupt · ${currentPermissionMode} mode · ${elapsedSeconds}s`,
+              `${frame} ${label} · ${elapsedSeconds}s · ${currentPermissionMode} mode · esc to interrupt`,
             ),
         )
       }
@@ -491,7 +508,9 @@ export async function runTui({
     // TodoWrite events carry the full new list in `input.todos` (raw input);
   // render it as a colored checklist instead of the truncated JSON preview.
   const renderTodoChecklist = todos => {
-    writeLine(`\n${styler.cyan('● TodoWrite')} ${styler.dim(`(${todos.length} step${todos.length === 1 ? '' : 's'})`)}`)
+    writeLine(
+      `\n${styler.cyan('●')} ${styler.bold('TodoWrite')} ${styler.dim(`(${todos.length} step${todos.length === 1 ? '' : 's'})`)}`,
+    )
     for (const todo of todos) {
       const content = typeof todo?.content === 'string' ? todo.content : String(todo?.content ?? '')
       if (todo?.status === 'completed') {
@@ -514,7 +533,10 @@ export async function runTui({
   const onEvent = event => {
       if (event.type === 'permission_request') {
         clearStatus()
-        write(`  ? Allow ${event.name}(${formatToolInputPreview(event.input)})? [y/N] `)
+        write(
+          `  ? ${styler.bold(`Allow ${event.name}`)} ${styler.dim(`(${formatToolInputPreview(event.input)})`)} ` +
+            `${styler.bold('[y/N]')} `,
+        )
         return
       }
       if (event.type === 'tool_execution_start' && event.name === 'TodoWrite') {
@@ -605,18 +627,34 @@ export async function runTui({
     const metrics = result.metrics
     const lastTurnMetrics = metrics?.turns?.[metrics.turns.length - 1] ?? null
     const toolCallCount = metrics?.tools?.reduce((sum, tool) => sum + tool.count, 0) ?? 0
-    const metricsNote =
-      (lastTurnMetrics?.ttftMs != null ? ` · ttft ${formatDuration(lastTurnMetrics.ttftMs)}` : '') +
-      (toolCallCount > 0 ? ` · ${toolCallCount} tool call${toolCallCount === 1 ? '' : 's'}` : '')
-    writeLine(
-      `\n${BANNER_LINE}\n` +
-        `  turn ${result.turns} · ${formatDuration(Date.now() - turnStartedAt)}${metricsNote}` +
-        (result.usage
-          ? ` · in ${formatTokens(result.usage.inputTokens)} / ` +
-            `out ${formatTokens(result.usage.outputTokens)} tok · ` +
-            `session total in ${formatTokens(totalUsage.inputTokens)} / out ${formatTokens(totalUsage.outputTokens)} tok`
-          : ` · (provider did not report usage) · session total in ${formatTokens(totalUsage.inputTokens)} / out ${formatTokens(totalUsage.outputTokens)} tok`),
-    )
+    // Turn summary: chrome dims, numbers speak — dim labels, normal values,
+    // thin separators. The status line and teaching hint follow.
+    const summary = [
+      `${styler.dim('turn')} ${result.turns}`,
+      `${styler.dim('time')} ${formatDuration(Date.now() - turnStartedAt)}`,
+      ...(lastTurnMetrics?.ttftMs != null
+        ? [`${styler.dim('ttft')} ${formatDuration(lastTurnMetrics.ttftMs)}`]
+        : []),
+      ...(toolCallCount > 0
+        ? [`${styler.dim('tools')} ${toolCallCount}`]
+        : []),
+      result.usage
+        ? `${styler.dim('in')} ${formatTokens(result.usage.inputTokens)} ${styler.dim('· out')} ${formatTokens(result.usage.outputTokens)} ${styler.dim('· session')} ${formatTokens(totalUsage.inputTokens)}/${formatTokens(totalUsage.outputTokens)}`
+        : `${styler.dim('(provider did not report usage)')}`,
+    ].join(` ${styler.dim('·')} `)
+    writeLine(`\n${styler.dim(BANNER_LINE)}\n  ${summary}`)
+    if (result.stopReason !== 'end_turn' && result.error) {
+      writeLine(`  ${styler.red(`✗ ${result.error}`)}`)
+    }
+    for (const warning of result.warnings ?? []) {
+      writeLine(`  ${styler.yellow(`⚠ ${warning}`)}`)
+    }
+    if (abortedThisRun) {
+      writeLine(`  ${styler.dim('⏹ stopped — partial progress is kept in the conversation.')}`)
+    }
+    if (queuedLines.length > 0) {
+      writeLine(`  ${styler.dim(`${queuedLines.length} line(s) typed during the run — sending next.`)}`)
+    }
     // Claude-Code-style status line: model | dir git:(branch*) | Context bar.
     // The limit is a model-family guess, so the bar is explicitly labelled
     // an estimate.
@@ -630,6 +668,10 @@ export async function runTui({
       unicode: runtime.unicode,
     })
     writeLine(`  ${styler.dim(statusLine)}`)
+    // Teach the review affordance once tools have actually run.
+    if (toolCallCount > 0) {
+      writeLine(`  ${styler.dim('↳ ctrl+o expands the last tool result')}`)
+    }
     if (result.stopReason !== 'end_turn' && result.error) {
       writeLine(`  ${styler.red(`✗ ${result.error}`)}`)
     }
@@ -935,15 +977,24 @@ export async function runTui({
   })
   const logoWidth = Math.max(...bannerRows.map(row => row.logo.length)) + 2
   for (const row of bannerRows) {
-    const logo = row.logo.padEnd(logoWidth, ' ')
-    writeLine(`${styler.cyan(logo)}${row.text}`.trimEnd())
+    const logo = styler.cyan(row.logo.padEnd(logoWidth, ' '))
+    // Aligned dim label column; the product line (empty label) is the only
+    // bold row — chrome dims, the name speaks.
+    const label = row.label === '' ? '' : `${styler.dim(row.label.padEnd(6))} `
+    const value =
+      row.label === ''
+        ? `${styler.bold(row.value)}`
+        : row.value
+    writeLine(`${logo}${label}${value}`.trimEnd())
   }
-  writeLine(`boundary (file tools): ${boundaryLine}`)
+  writeLine(styler.dim(`boundary (file tools): ${boundaryLine}`))
   if (resumedFrom) writeLine(`↩ resumed session ${resumedFrom} (${history.length} message(s))`)
   writeLine(
-    'Type a task, or /help for commands. Esc interrupts · Shift+Tab switches mode · Ctrl+D exits.',
+    styler.dim(
+      'Type a task, or /help for commands. Esc interrupts · Shift+Tab switches mode · Ctrl+D exits.',
+    ),
   )
-  writeLine(BANNER_LINE)
+  writeLine(styler.dim(BANNER_LINE))
 
   rl.on('SIGINT', () => {
     // Ctrl+C: abort the running turn, or leave if idle.
@@ -964,8 +1015,9 @@ export async function runTui({
   })
 
   try {
+    const promptGlyph = runtime.unicode ? styler.cyan('❯') : styler.cyan('>')
     for (;;) {
-      write('\nYou > ')
+      write(`\n${promptGlyph} `)
       let line = await takeLine()
       // A trailing backslash continues input on the next line (multi-line
       // prompts without leaving the line-based REPL).

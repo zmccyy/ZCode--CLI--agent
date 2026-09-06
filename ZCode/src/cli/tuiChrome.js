@@ -3,6 +3,12 @@
  *
  * Pure string builders — no colors, no output. Callers style the returned
  * lines with the styler and write them; tests assert on plain text.
+ *
+ * Design language (v1.7 chrome): one accent color (cyan) for brand and
+ * interactive elements; green/red/yellow reserved for outcomes; dim for all
+ * structural chrome (rules, labels, hints) so content speaks and chrome
+ * whispers. Glyph vocabulary: ❯ prompt · ● running · ✓/✗/⚠ outcomes ·
+ * ↳ detail hint · ▸ expandable · · separator.
  */
 
 const PIXEL_LOGO = Object.freeze([
@@ -60,24 +66,27 @@ export function guessContextLimit(modelId) {
 }
 
 /**
- * Renders the pixel-art banner. Returns rows of { logo, text } where logo is
- * the pixel block (possibly empty) and text the info part — callers colorize
- * the logo and print text plainly. `unicode: false` swaps the blocks for '#'
- * (legacy conhost).
+ * Renders the pixel-art banner as aligned { logo, label, value } rows — the
+ * caller colors the logo, dims the label column, and prints the value. The
+ * first row (empty label) is the product line; `unicode: false` swaps the
+ * blocks for '#' (legacy conhost).
  */
 export function renderBanner({ productName, version, model, mode, cwd, unicode = true }) {
   const logo = unicode ? PIXEL_LOGO : PIXEL_LOGO_ASCII
-  const infoLines = [
-    `${productName} ${version ? `v${version}` : ''} — interactive session`,
-    `model: ${model ?? '(provider default)'} · mode: ${mode}`,
-    `cwd: ${cwd}`,
+  const infoRows = [
+    { label: '', value: `${productName}${version ? ` v${version}` : ''}` },
+    { label: 'model', value: model ?? '(provider default)' },
+    { label: 'mode', value: `${mode} · esc interrupts · /help for everything` },
+    { label: 'dir', value: cwd },
   ]
-  const rows = Math.max(logo.length, infoLines.length)
+  const rows = Math.max(logo.length, infoRows.length)
   const output = []
   for (let index = 0; index < rows; index += 1) {
+    const info = infoRows[index] ?? null
     output.push({
       logo: logo[index] ?? '',
-      text: infoLines[index] ?? '',
+      label: info?.label ?? '',
+      value: info?.value ?? '',
     })
   }
   return output

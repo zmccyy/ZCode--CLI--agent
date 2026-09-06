@@ -233,3 +233,21 @@ Gate：fake MCP 全链路稳定、工具名零冲突、主 loop 不被 server �
 - [x] 测试：`cliPolish.test.js` 3 用例（/history 列表+重跑+越界、空会话、stream-json 全流解析——每行合法 JSON、事件序、result 信封字段）。
 
 - **Gate ✅（2026-09-06）**：typecheck + lint 0 错；全量 **438 tests / 430 pass / 0 fail / 8 skip**。
+
+## v1.7.1 TUI chrome 设计统一（2026-09-06，Loop D1/D2）
+
+> 只动渲染层（行为零改动）；设计语言定稿：单一强调色（青）+ 暗色作全部结构件、字形词汇表（❯ 提示符 · ● 运行 · ✓/✗/⚠ 结果 · ↳ 提示 · ▸ 可展开 · · 分隔）、细规则线留白、标签暗/值亮。调研：Charm/Lip Gloss 与 Starship 的定位页无具体规则，落地以 Claude Code 交互约定为锚。降级不变：NO_COLOR/非 TTY/legacy conhost（ASCII banner、无 ❯）。
+
+### Loop D1 · chrome 重构 ✅
+- [x] **banner 结构化**：`renderBanner` 改为对齐的 {logo, label, value} 行——`model/mode/dir` 暗标签列 + 值列，产品行加粗；boundary 行与提示行转暗。
+- [x] **提示符**：`You > ` → 青色 `❯`（Unicode 探测，legacy 回退 `>`）。
+- [x] **规则线变暗**：banner 下与 turn 摘要上的 64 字符横线由白转暗。
+- [x] **turn 摘要重排**：暗标签 + 亮值（`turn 1 · time 1.2s · ttft 5ms · tools 2 · in 3.2k · out 358 · session 5.1k/902`），状态行之后追加 `↳ ctrl+o expands the last tool result` 教学提示（仅本回合有工具调用时）。
+- [x] **工具行字形拆分**：`● Glob(args)` 整行青色 → 点青/名粗/参暗；结果行 `✓` 着色、正文转暗（错误正文保持红色可扫读）。TodoWrite 头行同步。print 路径同语言。**揪出真实缺陷**：纯文本兜底 styler 缺 `bold`，无注入时 tool_execution_start 渲染抛错被 loop 吞掉（工具行整行消失）——已补。
+- [x] **围栏语言标签**：markdownStream `fence-open` 事件新增 `lang`（信息串解析，加法）；TUI 围栏头 `┌─ js ────…`。
+
+### Loop D2 · 交互质感 ✅
+- [x] **spinner 动词轮换**：工作阶段每 ~3s 轮换软动词（thinking/exploring/forging/polishing/weaving/crafting/distilling/considering），`⠹ polishing… · 12s · agent mode · esc to interrupt`。
+- [x] **审批行重排**：`? **Allow Write** (preview) **[y/N]**`——工具名与 y/N 强调，参数转暗；语义不变。
+
+- **Gate ✅（2026-09-06）**：typecheck + lint 0 错；全量 **438 tests / 430 pass / 0 fail / 8 skip**；TUI 族 54/54。golden 断言更新 6 个测试文件（banner/提示符/spinner/围栏事件），渲染层零行为变化。

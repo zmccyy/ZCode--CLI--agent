@@ -32,11 +32,18 @@ test('chrome: banner pairs the pixel logo with info lines', () => {
     mode: 'agent',
     cwd: 'E:\\proj',
   })
-  assert.ok(rows.length >= 3)
+  assert.ok(rows.length >= 4)
   assert.equal(rows[0].logo, '█████')
-  assert.match(rows[0].text, /ZCode v1\.6\.0 — interactive session/)
-  assert.match(rows[1].text, /model: glm-5\.3-flash · mode: agent/)
-  assert.match(rows[2].text, /cwd: E:\\proj/)
+  assert.equal(rows[0].label, '')
+  assert.equal(rows[0].value, 'ZCode v1.6.0')
+  assert.equal(rows[1].label, 'model')
+  assert.equal(rows[1].value, 'glm-5.3-flash')
+  assert.equal(rows[2].label, 'mode')
+  assert.match(rows[2].value, /agent · esc interrupts/)
+  assert.equal(rows[3].label, 'dir')
+  assert.equal(rows[3].value, 'E:\\proj')
+  // The logo is five rows; the last carries no info row.
+  assert.equal(rows[4].value, '')
 })
 
 // ── context bar ──
@@ -182,7 +189,7 @@ test('TUI: pixel banner renders and each turn ends with the status line', async 
     })
 
     await waitFor(out, /█████/)
-    await waitFor(out, /ZCode v1\.6\.0 — interactive session/)
+    await waitFor(out, /ZCode v1\.6\.0/)
 
     stdin.write('hello\n')
     await waitFor(out, /Context (?:▓+)?(?:░+) ~\d+% \(est\.\)/)

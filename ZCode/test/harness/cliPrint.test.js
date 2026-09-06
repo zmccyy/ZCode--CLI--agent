@@ -148,13 +148,18 @@ test('CLI text mode renders progress lines and the final answer', async () => {
 
     assert.equal(exitCode, 0)
     const output = stdout.read()
+    // Styled streams split tool names from args with color codes; strip them
+    // so the structural assertions stay readable. (Escape char built from a
+    // char code: the no-control-regex rule bans it in pattern literals.)
+    const esc = String.fromCharCode(27)
+    const plain = output.replace(new RegExp(`${esc}\\[[0-9;]*m`, 'g'), '')
 
     // YOLO banner, tool progress line, result preview, final text, usage footer.
-    assert.match(output, /── YOLO MODE ──/)
-    assert.match(output, /● Glob\(/)
-    assert.match(output, /✓|notes\.md/)
-    assert.match(output, /The workspace has one markdown file\./)
-    assert.match(output, /in · .*out|in/)
+    assert.match(plain, /── YOLO MODE ──/)
+    assert.match(plain, /● Glob\(/)
+    assert.match(plain, /✓|notes\.md/)
+    assert.match(plain, /The workspace has one markdown file\./)
+    assert.match(plain, /in · .*out|in/)
   } finally {
     await server.close()
     await fs.rm(workspace, { recursive: true, force: true })

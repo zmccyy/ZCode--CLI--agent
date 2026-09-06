@@ -216,7 +216,7 @@ export function createProgressRenderer({
   showReasoning = false,
   styler = null,
 } = {}) {
-  const s = styler ?? { dim: t => t, red: t => t, green: t => t, yellow: t => t, cyan: t => t }
+  const s = styler ?? { dim: t => t, red: t => t, green: t => t, yellow: t => t, cyan: t => t, bold: t => t }
   const write = (chunk) => {
     if (stdout) stdout.write(chunk)
   }
@@ -236,13 +236,14 @@ export function createProgressRenderer({
         if (event.text) write('\n')
         break
       case 'tool_execution_start':
-        write(`\n${s.cyan(`● ${event.name}`)}(${formatToolInputPreview(event.input)})\n`)
+        // Glyph carries the color; the name is bold; args are dim chrome.
+        write(`\n${s.cyan('●')} ${s.bold(event.name)}${s.dim(`(${formatToolInputPreview(event.input)})`)}\n`)
         break
       case 'tool_execution_end':
         write(
           event.isError
             ? `  ${s.red(`✗ ${truncateForLine(event.preview)}`)}\n`
-            : `  ${s.green(`✓ ${truncateForLine(event.preview)}`)}\n`,
+            : `  ${s.green('✓')} ${s.dim(truncateForLine(event.preview))}\n`,
         )
         break
       case 'context_compact':

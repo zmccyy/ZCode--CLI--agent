@@ -228,7 +228,7 @@ test('blockParser: emits the documented event protocol', () => {
   parser.line('done')
   assert.deepEqual(events, [
     { type: 'line', segments: [{ text: '# Title', style: 'bold' }] },
-    { type: 'fence-open' },
+    { type: 'fence-open', lang: 'js' },
     { type: 'line', fence: true, segments: [{ text: 'const x = 1', style: 'code' }] },
     { type: 'fence-close' },
     { type: 'line', segments: [{ text: 'done', style: null }] },

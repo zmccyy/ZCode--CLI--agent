@@ -80,7 +80,10 @@ export function createBlockParser({ onEvent }) {
       if (wellFormedOpener && !gluedFenceSeen) {
         inFence = true
         gluedFenceSeen = false
-        onEvent({ type: 'fence-open' })
+        // Info string after the fence marker is the language hint — callers
+        // label the code block with it ("┌─ js ────").
+        const lang = /```\s*([\w+#.-]+)/.exec(line)?.[1] ?? ''
+        onEvent({ type: 'fence-open', lang })
         return
       }
       if (startsFence) {

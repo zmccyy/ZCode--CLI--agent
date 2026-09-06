@@ -10,7 +10,7 @@
 [![CI](https://github.com/zmccyy/ZCode--CLI--agent/actions/workflows/ci.yml/badge.svg)](https://github.com/zmccyy/ZCode--CLI--agent/actions/workflows/ci.yml)
 [![Stars](https://img.shields.io/github/stars/zmccyy/ZCode--CLI--agent?style=flat-square&logo=github)](https://github.com/zmccyy/ZCode--CLI--agent/stargazers)
 [![License](https://img.shields.io/github/license/zmccyy/ZCode--CLI--agent?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.4.0-blue?style=flat-square)](https://github.com/zmccyy/ZCode--CLI--agent/releases)
+[![Version](https://img.shields.io/badge/version-1.5.0-blue?style=flat-square)](https://github.com/zmccyy/ZCode--CLI--agent/releases)
 [![Node](https://img.shields.io/badge/node-%3E%3D24-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Bun](https://img.shields.io/badge/bun-%3E%3D1.0-f9f1e1?style=flat-square&logo=bun)](https://bun.sh)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square)](#-quick-start)
@@ -22,15 +22,20 @@
 | Capability | State |
 |------|------|
 | **Harness v1: real agent loop** — multi-turn Think→Act→Observe with tools | ✅ Shipped ([baseline](docs/harness/01-current-baseline.md) · [ADR-0001](docs/adr/0001-progressive-port-clean-endgame.md)) |
-| Core six tools: Read / Glob / Grep / Write / Edit / Bash | ✅ Shipped |
+| Core tools: Read / Glob / Grep / Write / Edit / Bash + TodoWrite (task tracking) + WebFetch (SSRF-guarded docs lookup) | ✅ Shipped |
 | Permission modes: Plan (read-only) / Agent (per-call approval) / YOLO | ✅ Shipped |
+| System prompt engineering: environment block (git/OS/shell/date) + workflow discipline + per-tool usage contracts | ✅ Shipped (v1.5) |
+| Project memory: AGENTS.md / ZCODE.md injected from workspace → parents → `~/.zcode` | ✅ Shipped (v1.5) |
+| TUI v1.5: Esc interrupt · Shift+Tab mode cycle · /model /mode /reasoning /save /memory · status line · ANSI | ✅ Shipped (v1.5) |
+| Windows depth: `ZCODE_SHELL=powershell` dialect · GBK output decoding · deep doctor | ✅ Shipped (v1.5) |
+| Layered settings: `.zcode/settings.json` (user→project→local→flag→policy) wired into startup | ✅ Shipped (v1.5) |
 | Workspace boundary (file tools) incl. realpath symlink protection | ✅ Shipped |
 | Bash gate: allow / deny / ask (deny holds in YOLO too) | ✅ Shipped |
 | Guardrails: 30-turn limit (configurable) + token budget | ✅ Shipped |
 | JSONL session transcripts (secret redaction) + compact + resume | ✅ Shipped |
 | Cancellation & protocol integrity (abort ≠ end_turn, stream validation) | ✅ Shipped |
-| Interactive TUI (zero-dependency readline, streaming, inline approvals) | ✅ Shipped |
 | Dual-provider streaming — OpenAI-compatible (DeepSeek) + Anthropic dialect | ✅ Shipped |
+| `zcode www` — local promo-site server (traversal-hardened) | ✅ Shipped (v1.5) |
 | Acceptance UC-03: *"fix all failing tests"* end-to-end, no human input | ✅ Verified live ([evidence](docs/acceptance/uc03-acceptance.md)) |
 | MCP / LSP / sub-agents / workflows | 🚧 Planned — P1/P2 ([roadmap](docs/harness/roadmap.md)); the former reference tree was removed in v1.4 |
 
@@ -47,7 +52,7 @@ Since **v1.0**, `-p` is not a one-shot Q&A: it drives a real agent runtime. The 
 ## ✨ Features
 
 - 🎯 **Real agent loop** ✅ — Multi-turn Think→Act→Observe: the model calls tools, results feed back, repeat until done
-- 🧰 **Core six tools** ✅ — Read (paginated, line numbers), Glob (mtime-sorted), Grep (regex, context lines, count mode), Write, Edit (unique-match replacement), Bash (Git Bash, timeouts, exit codes)
+- 🧰 **Core eight tools** ✅ — Read (paginated, line numbers), Glob (mtime-sorted), Grep (regex, context lines, count mode), Write (read-before-overwrite), Edit (unique-match replacement), Bash (Git Bash/PowerShell, timeouts, tree kill), TodoWrite (session task list), WebFetch (SSRF-guarded page fetch)
 - 🛡️ **Permission gate** ✅ — Plan (read-only) / Agent (y/n per call, fail-closed headless) / YOLO (auto-approve)
 - 🚧 **Guardrails** ✅ — Max 30 turns (default) + configurable token budget; stops hard and reports progress as-is
 - 📼 **JSONL transcripts** ✅ — Every session persisted to `~/.zcode/projects/<cwd-hash>/<sessionId>.jsonl`
@@ -188,7 +193,7 @@ Env knobs: `ZCODE_MAX_TURNS` (turn guardrail, default 30) · `ZCODE_BUDGET_TOKEN
 zcode
 ```
 
-Bare `zcode` on a real TTY boots the interactive TUI — a zero-dependency readline REPL with streaming output, inline tool approval, slash commands, and session resume. Headless runs use `zcode -p "<task>"`.
+Bare `zcode` on a real TTY boots the interactive TUI — a zero-dependency readline REPL with streaming markdown rendering, red/green diff previews before every Edit/Write approval, colored TodoWrite checklists, a spinner status line, and a Claude-Code-style footer (`[model] | dir git:(main*) | Context ▓▓░░ 12%`) after each turn. Keys: **Esc** interrupts a running turn, **Shift+Tab** cycles plan/agent/yolo, a trailing `\` continues input on the next line; `Tab` completes `/commands` and `@files`. Slash commands: `/help /clear /compact /sessions /cost /model /mode /reasoning /save /memory /exit`. Headless runs use `zcode -p "<task>"`.
 
 ---
 
@@ -200,7 +205,7 @@ Bare `zcode` on a real TTY boots the interactive TUI — a zero-dependency readl
 │  print mode = headless agent + JSON envelope │
 ├──────────────────────────────────────────────┤
 │  Harness v1  (src/harness, TS, zero build)   │
-│  Agent loop · 6 tools · Permission gate      │
+│  Agent loop · 8 tools · Permission gate      │
 │  Guardrails · JSONL transcript               │
 ├──────────────────────────────────────────────┤
 │  Provider layer  (src/providers)             │
@@ -209,7 +214,7 @@ Bare `zcode` on a real TTY boots the interactive TUI — a zero-dependency readl
 ```
 
 - **Agent loop** (`src/harness/loop.ts`) — provider-agnostic Think→Act→Observe engine; translates internal messages to either wire dialect per request.
-- **Tools** (`src/harness/tools/`) — the six core tools are implemented clean-room in the harness; Edit = exact unique-match replacement, Edit/Write require a prior Read, Bash runs with timeouts. Tool semantics are self-documented in `tools/`.
+- **Tools** (`src/harness/tools/`) — the core tools are implemented clean-room in the harness; Edit = exact unique-match replacement, Edit/Write require a prior Read, Bash runs with timeouts and a selectable shell. Tool semantics are self-documented in `tools/`.
 - **Testing** — a scripted fake LLM server (both SSE dialects) drives the *real* loop, *real* provider adapters, and *real* tools in tests; live e2e skips automatically without an API key. UC-03 evidence is archived in [docs/acceptance/](docs/acceptance/).
 
 ## 📚 Documentation
@@ -254,7 +259,7 @@ Place `.env` in your current working directory. Existing process env vars take p
 
 **Q: Node.js or Bun?**
 
-Node ≥ 24 runs everything (the harness is TS run via native type-stripping — zero build). Bun is only needed for the not-yet-wired TUI source.
+Node ≥ 24 runs everything (the harness is TS run via native type-stripping — zero build). The interactive TUI is plain `node:readline` + ANSI and ships in the same `zcode` entry point — no Bun, no build step, no Ink.
 
 ---
 

@@ -87,9 +87,9 @@ powershell -ExecutionPolicy Bypass -File packaging\windows\install.ps1 -ZipPath 
 
 | 包含 | 不包含 |
 |------|--------|
-| 公共 CLI `zcode` 命令 | 完整 Ink REPL（需 Bun，见本地开发文档） |
-| PATH 注册、便携 ZIP | MSI 签名安装包（后续可选） |
-| Node 22+ 运行时检测 | 捆绑 Node 二进制（后续可选 `pkg`/SEA） |
+| 公共 CLI `zcode` 命令（含交互式 TUI，纯 Node readline 实现） | MSI 签名安装包（后续可选） |
+| PATH 注册、便携 ZIP | 捆绑 Node 二进制（后续可选 `pkg`/SEA） |
+| Node 22+ 运行时检测 | |
 
 ## 后续（可选）
 

@@ -1,5 +1,11 @@
 # ZCode UI/输出优化计划 —— 参考 DeepSeek-TUI
 
+> **状态：HISTORICAL（历史文档，仅存档）。** 本计划基于一套后来被放弃的 Ink/TSX
+> 交互源码树（query.ts / Messages.tsx / MessageRow.tsx 等，已不存在）。实际交付的
+> 交互 TUI 是 `src/cli/tui.js` 的零依赖 readline + ANSI 实现，流式渲染见
+> `markdownStream.js`，diff 预览见 `diffPreview.js`。阅读本文时请勿把它当作
+> 现状或待办：文中"未实现"的判断均已过时。现状以 `docs/harness/roadmap.md` 为准。
+>
 > 制定日期：2026-06-07
 > 目标：优化终端交互界面的视觉结构和文件创建/修改流程，对标 DeepSeek-TUI 的 UX 体验
 

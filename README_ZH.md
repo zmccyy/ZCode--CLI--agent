@@ -7,7 +7,7 @@
 [![CI](https://github.com/zmccyy/ZCode--CLI--agent/actions/workflows/ci.yml/badge.svg)](https://github.com/zmccyy/ZCode--CLI--agent/actions/workflows/ci.yml)
 [![Stars](https://img.shields.io/github/stars/zmccyy/ZCode--CLI--agent?style=flat-square&logo=github)](https://github.com/zmccyy/ZCode--CLI--agent/stargazers)
 [![License](https://img.shields.io/github/license/zmccyy/ZCode--CLI--agent?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.4.0-blue?style=flat-square)](https://github.com/zmccyy/ZCode--CLI--agent/releases)
+[![Version](https://img.shields.io/badge/version-1.5.0-blue?style=flat-square)](https://github.com/zmccyy/ZCode--CLI--agent/releases)
 [![Node](https://img.shields.io/badge/node-%3E%3D24-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Bun](https://img.shields.io/badge/bun-%3E%3D1.0-f9f1e1?style=flat-square&logo=bun)](https://bun.sh)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square)](#-快速开始)
@@ -19,15 +19,20 @@
 | 能力 | 状态 |
 |------|------|
 | **Harness v1：真正的 Agent 循环** —— 多轮 Think→Act→Observe 工具循环 | ✅ 已交付（[基线](docs/harness/01-current-baseline.md) · [ADR-0001](docs/adr/0001-progressive-port-clean-endgame.md)） |
-| 核心六件套工具：Read / Glob / Grep / Write / Edit / Bash | ✅ 已交付 |
+| 核心工具：Read / Glob / Grep / Write / Edit / Bash + TodoWrite（任务追踪）+ WebFetch（SSRF 防护的文档抓取） | ✅ 已交付 |
 | 权限门三模式：Plan（只读）/ Agent（逐项审批）/ YOLO（全自动） | ✅ 已交付 |
+| 系统提示词工程：环境块（git/OS/shell/日期）+ 工作纪律 + 每工具使用契约 | ✅ 已交付（v1.5） |
+| 项目记忆：AGENTS.md / ZCODE.md 自 workspace → 父目录 → `~/.zcode` 注入 | ✅ 已交付（v1.5） |
+| TUI v1.5：Esc 中断 · Shift+Tab 模式切换 · /model /mode /reasoning /save /memory · 状态行 · ANSI | ✅ 已交付（v1.5） |
+| Windows 深化：`ZCODE_SHELL=powershell` 方言 · GBK 输出解码 · doctor 强化 | ✅ 已交付（v1.5） |
+| 分层设置：`.zcode/settings.json`（user→project→local→flag→policy）接入启动链 | ✅ 已交付（v1.5） |
 | 文件工具工作区边界（含 realpath 符号链接防护） | ✅ 已交付 |
 | Bash 门控：allow / deny / ask（deny 在 YOLO 下同样拦截） | ✅ 已交付 |
 | 护栏：默认 30 轮上限（可配置）+ token 预算 | ✅ 已交付 |
 | JSONL 会话转录（密钥脱敏）+ 自动压缩 + 会话恢复 | ✅ 已交付 |
 | 取消与流协议完整性（abort ≠ end_turn、流校验） | ✅ 已交付 |
-| 交互式 TUI（零依赖 readline：流式输出、内联审批、斜杠命令） | ✅ 已交付 |
 | 双 provider 流式——OpenAI 兼容（DeepSeek）+ Anthropic 方言 | ✅ 已交付 |
+| `zcode www` —— 本地宣传站服务器（遍历加固） | ✅ 已交付（v1.5） |
 | 验收场景 UC-03：「修复所有失败的测试」端到端、无人工干预 | ✅ 真实验收通过（[留档](docs/acceptance/uc03-acceptance.md)） |
 | MCP / LSP / 子 Agent / 工作流 | 🚧 规划中 —— P1/P2（[roadmap](docs/harness/roadmap.md)）；原参考树已在 v1.4 移除 |
 
@@ -44,7 +49,7 @@
 ## ✨ 核心特性
 
 - 🎯 **真正的 Agent 循环** ✅ —— 多轮 Think→Act→Observe：模型调用工具、结果回灌、循环直至完成
-- 🧰 **核心六件套** ✅ —— Read（分页 + 行号）、Glob（按修改时间排序）、Grep（正则 + 上下文 + 计数）、Write、Edit（唯一匹配精确替换）、Bash（Git Bash、超时、退出码）
+- 🧰 **核心八件套** ✅ —— Read（分页 + 行号）、Glob（按修改时间排序）、Grep（正则 + 上下文 + 计数）、Write（覆写先读）、Edit（唯一匹配精确替换）、Bash（Git Bash/PowerShell、超时、进程树击杀）、TodoWrite（任务清单）、WebFetch（SSRF 防护文档抓取）
 - 🛡️ **权限门** ✅ —— Plan（只读）/ Agent（每次调用 y/n 确认，无交互时默认拒绝）/ YOLO（自动批准）
 - 🚧 **护栏** ✅ —— 默认最多 30 轮 + 可配置 token 预算；触发即硬停并如实汇报进度
 - 📼 **JSONL 转录** ✅ —— 每个会话落盘至 `~/.zcode/projects/<cwd-hash>/<sessionId>.jsonl`
@@ -185,7 +190,7 @@ ZCODE_OPENAI_API_KEY=your-api-key
 zcode
 ```
 
-裸 `zcode` 在真实 TTY 上启动交互式 TUI——零依赖 readline REPL，支持流式输出、内联工具审批、斜杠命令与会话恢复。无头运行用 `zcode -p "<task>"`。
+裸 `zcode` 在真实 TTY 上启动交互式 TUI——零依赖 readline REPL：流式 markdown 渲染、Edit/Write 审批前红绿 diff 预览、TodoWrite 着色清单、spinner 状态行、每轮 Claude Code 式页脚（`[模型] | 目录 git:(main*) | Context ▓▓░░ 12%`）。按键：**Esc** 中断运行中的 turn，**Shift+Tab** 循环 plan/agent/yolo，行尾 `\` 续行输入；`Tab` 补全 `/命令` 与 `@文件`。斜杠命令：`/help /clear /compact /sessions /cost /model /mode /reasoning /save /memory /exit`。无头运行用 `zcode -p "<task>"`。
 
 ---
 
@@ -197,7 +202,7 @@ zcode
 │  print 模式 = 无头 Agent + JSON 信封          │
 ├──────────────────────────────────────────────┤
 │  Harness v1  (src/harness，TS，零构建)        │
-│  Agent 循环 · 6 工具 · 权限门                 │
+│  Agent 循环 · 8 工具 · 权限门                 │
 │  护栏 · JSONL 转录                            │
 ├──────────────────────────────────────────────┤
 │  Provider 层  (src/providers)                │
@@ -251,7 +256,7 @@ stdin 是 TTY 时，每个非只读工具调用都会提示 `[y/N]`。stdin 被�
 
 **Q：Node.js 还是 Bun？**
 
-Node ≥ 24 能跑一切（Harness 用 TS 原生类型剥离直接运行——零构建）。只有尚未接线的 TUI 源码需要 Bun。
+Node ≥ 24 能跑一切（Harness 用 TS 原生类型剥离直接运行——零构建）。交互式 TUI 就是纯 `node:readline` + ANSI，随同一个 `zcode` 入口发布——不需要 Bun、不需要构建、没有 Ink。
 
 ---
 
@@ -287,4 +292,4 @@ npx tsc --noEmit -p tsconfig.public.json   # 类型检查
 
 灵感来自 Claude Code 开创的终端 Agent 范式。
 
-*最后更新：2026-09-05（v1.4.0 + P0 可靠性闭环）*
+*最后更新：2026-09-05（v1.5.0 —— 提示词工程 / TUI / 工具 / 记忆 / Windows / 配置接线）*

@@ -7,6 +7,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { runTui } from '../../src/cli/tui.js'
+import { listSessions } from '../../src/harness/index.ts'
 import { supportsColor, createStyler, ERASE_LINE } from '../../src/cli/ansi.js'
 
 function createCollector() {
@@ -577,5 +578,153 @@ test('TUI: terminal title shows the running prompt and restores on completion (T
     assert.equal(await exitPromise, 0)
   } finally {
     stdin.end()
+  }
+})
+
+test('TUI: /resume loads a recorded session into the live conversation', async () => {
+  const seen = []
+  const provider = {
+    id: 'stub',
+    kind: 'openai',
+    listModels: () => [{ id: 'stub-model' }],
+    streamChat: async function* (input) {
+      seen.push((input?.messages ?? []).map(m => m.content))
+      yield { type: 'response_start', messageId: 'm', model: 'stub-model', provider: 'stub' }
+      yield { type: 'text_delta', text: `reply ${seen.length}` }
+      yield {
+        type: 'response_end',
+        finishReason: 'stop',
+        usage: { inputTokens: 10, outputTokens: 2, totalTokens: 12 },
+      }
+    },
+  }
+  const stdin = new PassThrough()
+  const out = createCollector()
+  const workspace = await createTempDir('zcode-tui-resume-')
+  const transcripts = path.join(workspace, 'transcripts')
+
+  try {
+    const exitPromise = runTui({
+      stdin,
+      stdout: out.stream,
+      stderr: out.stream,
+      provider,
+      cwd: workspace,
+      permissionMode: 'agent',
+      boundary: { enabled: true, addDirs: [] },
+      transcript: { enabled: true, dir: transcripts },
+      transcriptDir: transcripts,
+    })
+
+    // Two turns → two transcript files; each records the full conversation
+    // as of that turn. The older one only knows the first exchange.
+    stdin.write('first prompt\n')
+    await waitFor(out, /reply 1/)
+    stdin.write('second prompt\n')
+    await waitFor(out, /reply 2/)
+    await waitUntil(async () => (await listSessions(transcripts)).length >= 2, 5000, 'transcript files')
+
+    stdin.write('/resume\n')
+    await waitFor(out, /pick one with \/resume <n> or \/resume <id>/)
+
+    // Entry 2 is the older session: only the first exchange (user + assistant).
+    stdin.write('/resume 2\n')
+    await waitFor(out, /↩ resumed/)
+    assert.match(out.text(), /↩ resumed \S+ — 2 message\(s\) in context/)
+
+    stdin.write('third prompt\n')
+    await waitFor(out, /reply 3/)
+    const thirdRequest = seen[2]
+    assert.ok(
+      thirdRequest.some(content => String(content).includes('first prompt')),
+      'restored session history is in context',
+    )
+    assert.ok(
+      thirdRequest.every(content => !String(content).includes('second prompt')),
+      'the newer exchange was replaced by the restored snapshot',
+    )
+
+    stdin.write('/exit\n')
+    assert.equal(await exitPromise, 0)
+  } finally {
+    stdin.end()
+    await fs.rm(workspace, { recursive: true, force: true })
+  }
+})
+
+test('TUI: # appends durable notes to project memory and refreshes the injection', async () => {
+  const provider = createScriptedProvider([{ text: 'noted' }])
+  const stdin = new PassThrough()
+  const out = createCollector()
+  const workspace = await createTempDir('zcode-tui-memory-')
+
+  try {
+    const exitPromise = runTui({
+      stdin,
+      stdout: out.stream,
+      stderr: out.stream,
+      provider,
+      cwd: workspace,
+      permissionMode: 'agent',
+      boundary: { enabled: true, addDirs: [] },
+      transcript: { enabled: false },
+    })
+
+    stdin.write('# always run tests before committing\n')
+    await waitFor(out, /✓ noted in AGENTS\.md/)
+    const created = await fs.readFile(path.join(workspace, 'AGENTS.md'), 'utf-8')
+    assert.match(created, /^# Project memory\n/)
+    assert.match(created, /- always run tests before committing\n/)
+
+    // A second note appends without gluing to the previous line. The screen
+    // shows a second confirmation; the file content is asserted below.
+    stdin.write('# deploy uses pnpm\n')
+    await waitUntil(
+      () => (out.text().match(/✓ noted in AGENTS\.md/g) ?? []).length >= 2,
+      5000,
+      'second memory confirmation',
+    )
+    const updated = await fs.readFile(path.join(workspace, 'AGENTS.md'), 'utf-8')
+    assert.match(updated, /- always run tests before committing\n- deploy uses pnpm\n/)
+
+    // /memory now sees the file, and a bare `#` explains itself.
+    stdin.write('/memory\n')
+    await waitFor(out, /AGENTS\.md/)
+    stdin.write('#\n')
+    await waitFor(out, /# saves a durable note/)
+    assert.equal(provider.prompts.length, 0, 'memory notes never consume LLM turns')
+
+    // ZCODE.md is the fallback when only it exists.
+    const workspace2 = await createTempDir('zcode-tui-memory2-')
+    await fs.writeFile(path.join(workspace2, 'ZCODE.md'), 'existing notes\n', 'utf-8')
+    const stdin2 = new PassThrough()
+    const out2 = createCollector()
+    try {
+      const exit2 = runTui({
+        stdin: stdin2,
+        stdout: out2.stream,
+        stderr: out2.stream,
+        provider,
+        cwd: workspace2,
+        permissionMode: 'agent',
+        boundary: { enabled: true, addDirs: [] },
+        transcript: { enabled: false },
+      })
+      stdin2.write('# zcode fallback\n')
+      await waitFor(out2, /✓ noted in ZCODE\.md/)
+      const zcode = await fs.readFile(path.join(workspace2, 'ZCODE.md'), 'utf-8')
+      assert.match(zcode, /existing notes\n- zcode fallback\n/)
+      stdin2.write('/exit\n')
+      assert.equal(await exit2, 0)
+    } finally {
+      stdin2.end()
+      await fs.rm(workspace2, { recursive: true, force: true })
+    }
+
+    stdin.write('/exit\n')
+    assert.equal(await exitPromise, 0)
+  } finally {
+    stdin.end()
+    await fs.rm(workspace, { recursive: true, force: true })
   }
 })

@@ -17,12 +17,15 @@
 
 import { createInterface } from 'node:readline'
 import path from 'node:path'
+import { appendFile, readFile } from 'node:fs/promises'
 import {
   runAgentLoop,
   createCoreTools,
   compactConversation,
   resolveDialect,
   listSessions,
+  resolveSessionPath,
+  loadSessionForResume,
   defaultTranscriptDir,
   emptyUsage,
   addUsage,
@@ -118,6 +121,8 @@ export async function runTui({
   let lastMemory = { files: [], text: '' }
   /** Full results of the last completed turn's tool calls (Ctrl+O expands). */
   let lastToolCalls = null
+  /** Sessions listed by the last bare `/resume`, so `/resume <n>` resolves. */
+  let resumeMenu = []
 
   const controller = { current: null }
 
@@ -348,6 +353,45 @@ export async function runTui({
     // Claude-Code semantics: the output joins the context and the model
     // responds to it immediately.
     await runTurn(`!shell ${command}\n\n${text}`)
+  }
+
+  // ── `#` memory mode ──
+  // Appends a durable note to the project memory file (AGENTS.md preferred,
+  // ZCODE.md fallback, created when neither exists) and refreshes the injected
+  // memory so the very next turn already sees it.
+  const appendMemoryNote = async text => {
+    const agentsPath = path.join(cwd, 'AGENTS.md')
+    const zcodePath = path.join(cwd, 'ZCODE.md')
+    let target = agentsPath
+    let creating = true
+    try {
+      await readFile(agentsPath, 'utf-8')
+      creating = false
+    } catch {
+      try {
+        await readFile(zcodePath, 'utf-8')
+        target = zcodePath
+        creating = false
+      } catch {
+        // Neither exists: create AGENTS.md with a header.
+      }
+    }
+    try {
+      let existing = ''
+      if (!creating) existing = await readFile(target, 'utf-8')
+      const prefix = creating
+        ? '# Project memory\n\n'
+        : existing.endsWith('\n') || existing === ''
+          ? ''
+          : '\n'
+      await appendFile(target, `${prefix}- ${text}\n`, 'utf-8')
+      lastMemory = await collectProjectMemory(cwd)
+      writeLine(
+        `✓ noted in ${path.basename(target)} — injected into the system prompt from the next turn.`,
+      )
+    } catch (error) {
+      writeLine(`✗ could not write project memory: ${error instanceof Error ? error.message : String(error)}`)
+    }
   }
 
   // Streaming markdown: when colors are on, text deltas flow through the
@@ -626,6 +670,7 @@ export async function runTui({
             '  /clear     Start a fresh conversation (history is dropped)',
             '  /compact   Summarize older history now, keep recent messages verbatim',
             '  /sessions  List recent sessions for this workspace',
+            '  /resume [n|id]  Load a recorded session into this conversation and keep chatting',
             '  /cost      Token totals and estimated cost for this interactive session',
             '  /model [id]  List models, or switch to <id> for the rest of the session',
             `  /mode [m]  Show or set the permission mode (${MODE_CYCLE.join(' / ')})`,
@@ -639,6 +684,8 @@ export async function runTui({
             '      Esc Esc rewinds: your last message goes back into the editor for a rephrase.',
             '! <command>  Runs a shell command right now (your keystroke, so no approval gate);',
             '             the output joins the conversation and the model responds to it.',
+            '# <note>  Saves a durable note to project memory (AGENTS.md); the very next turn',
+            '             already sees it. /memory shows what is loaded.',
           ].join('\n'),
         )
         return true
@@ -690,6 +737,54 @@ export async function runTui({
           writeLine(`  ${session.sessionId}  ${modified}  ${session.sizeBytes} B`)
         }
         writeLine('Resume later with: zcode -p "<prompt>" --continue (or --resume <id>).')
+        return true
+      }
+      case '/resume': {
+        // In-session resume: replace the live conversation with a recorded
+        // session's history and keep chatting on top of it.
+        const arg = rest.trim()
+        if (arg === '') {
+          const sessions = await listSessions(sessionsDir)
+          if (sessions.length === 0) {
+            writeLine(`No sessions recorded in ${sessionsDir} yet.`)
+            return true
+          }
+          resumeMenu = sessions.slice(0, 5)
+          writeLine('Recent sessions (newest first) — pick one with /resume <n> or /resume <id>:')
+          resumeMenu.forEach((session, index) => {
+            const modified = new Date(session.mtimeMs).toISOString().replace('T', ' ').slice(0, 16)
+            writeLine(`  ${index + 1}  ${session.sessionId}  ${modified}  ${session.sizeBytes} B`)
+          })
+          return true
+        }
+        const listed = /^\d+$/.test(arg) ? resumeMenu[Number(arg) - 1] : null
+        let targetPath = listed?.path ?? null
+        if (!targetPath) {
+          try {
+            targetPath = await resolveSessionPath(sessionsDir, arg)
+          } catch {
+            targetPath = null
+          }
+        }
+        if (!targetPath) {
+          writeLine(`No session matches "${arg}" — run /resume to list recent ones.`)
+          return true
+        }
+        try {
+          const snapshot = await loadSessionForResume(targetPath)
+          history = snapshot.messages
+          const lastAssistant = [...history].reverse().find(m => m.role === 'assistant' && m.text)
+          lastAssistantText = lastAssistant?.text ?? ''
+          lastToolCalls = null
+          resumeMenu = []
+          writeLine(
+            `↩ resumed ${snapshot.sessionId} — ${history.length} message(s) in context` +
+              `${snapshot.skippedLines > 0 ? ` (${snapshot.skippedLines} unparseable line(s) skipped)` : ''}.` +
+              ' The next reply builds on this history.',
+          )
+        } catch (error) {
+          writeLine(`✗ resume failed: ${error instanceof Error ? error.message : String(error)}`)
+        }
         return true
       }
       case '/cost': {
@@ -857,6 +952,15 @@ export async function runTui({
           continue
         }
         await runShellCommand(command)
+        continue
+      }
+      if (!continuation && line.startsWith('#')) {
+        const note = line.slice(1).trim()
+        if (note === '') {
+          writeLine('# saves a durable note to project memory (AGENTS.md): # always run tests before committing')
+          continue
+        }
+        await appendMemoryNote(note)
         continue
       }
       if (!continuation && line.startsWith('/')) {

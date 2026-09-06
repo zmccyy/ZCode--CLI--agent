@@ -212,3 +212,14 @@ Gate：fake MCP 全链路稳定、工具名零冲突、主 loop 不被 server �
 - [x] 测试：双 Esc 回退 + 断言下一轮请求含 earlier、不含 rewound 交换。
 
 - **Gate ✅（2026-09-06）**：typecheck + lint 0 错；全量 **433 tests / 425 pass / 0 fail / 8 skip**；tuiInteractive 13/13。/help 同步全部新键位与 `!` 语义。
+
+### Loop C3 · `/resume` 会话内选择器 ✅（2026-09-06）
+- [x] `/resume` 列出最近 5 个会话（编号菜单），`/resume <n|id>` 把录制会话的历史加载进当前对话（替换 history、更新 lastAssistantText、清 Ctrl+O 快照），继续对话即基于该历史——Claude Code 式的会话内切换。解析失败/无匹配降级为明确错误行；skippedLines 如实上报。
+- [x] 测试：两轮生成两个 transcript 文件 → `/resume 2` 加载较早会话 → 断言下一轮请求「含 first、不含 second」（请求级历史断言）。
+
+### Loop C4 · `#` 记忆追加 ✅（2026-09-06）
+- [x] `# <note>` 把持久笔记追加进项目记忆文件：AGENTS.md 优先、ZCODE.md 回退、都不存在则创建 AGENTS.md（带 `# Project memory` 头）；换行边界正确处理（不粘行）；写入后立即刷新注入（collectProjectMemory），下一 turn 即生效。
+- [x] 空 `#` 给用法提示；`/memory` 同步可见；笔记永不消耗 LLM 轮次。
+- [x] 测试：创建/追加/ZCODE.md 回退三路径 + /memory 可见 + 裸 `#` 不耗轮次。
+
+- **Gate ✅（2026-09-06）**：typecheck + lint 0 错；全量 **435 tests / 427 pass / 0 fail / 8 skip**；tuiInteractive 15/15。

@@ -195,3 +195,20 @@ Gate：fake MCP 全链路稳定、工具名零冲突、主 loop 不被 server �
 - [x] **最终 Gate：349 tests / 342 pass / 0 fail / 7 skip；typecheck+lint 0 错**
 - [x] **真机截图验收 ✅（真实 API + 真实终端逐帧取证）**：①像素 Z banner（青色块字符 + 版本/模型/cwd 三行）上屏正确；②TodoWrite 着色清单三次状态推进（◐青/☐灰/☒绿 + 绿色摘要行）；③**diff 审批预览真机首秀**：`Edit → greeting.txt (edit · +1 −1)` 红 `- hello world` / 绿 `+ hi world`，y 批准后实际落盘；④行内样式（`**hi**` 粗体、`` `type` `` 青色行内码）渲染生效；⑤**Claude Code 式状态行上屏**：`[glm-5.3-flash] | greet | git:(main*) | Context ▓░░░░░░░░░ 13%`；⑥`/exit` 干净退出
 - [x] **真机验收揪出围栏 bug ✅（已修复）**：模型输出不规范围栏 `​```txthi world`（内容胶连 info string 同行）被开栏检测整行吞掉——修复：开栏收紧为「```(+语言标签)+行尾」，非标准围栏行与其后配对的裸 ``` 按字面原样渲染（内容零丢失），补 3 用例回归。**修复后 Gate：349 tests / 342 pass / 0 fail / 7 skip**
+
+## v1.7 CLI/TUI 对标打磨（2026-09-06 启动）
+
+> 范围限定 CLI 与 TUI；firecrawl/文档调研 Claude Code 交互模式与 OpenCode 键位后选型（Firecrawl key 失效，改用 WebFetch）。零新依赖，fake-LLM 全链路测试。后续 Loop 候选（按价值排序）：`/resume` 会话内选择器、Ctrl+R 历史反查、`Up` 召回排队消息、`#` 记忆追加模式。
+
+### Loop C1 · Shell 直通 + 工具输出复核 + 终端呈现 ✅（2026-09-06）
+- [x] **`!` shell 模式**：`! <command>` 经 Bash 工具同一执行器（输出解码/超时/进程树击杀一致）直接运行——用户击键即意图，无审批门；命令+输出作为下一条 user 消息注入并由模型立即响应（Claude Code 语义）。空 `!` 给用法提示。
+- [x] **Ctrl+O 工具输出展开**：现场渲染 160 字符截断，loop 的 executedCalls 保留完整结果——Ctrl+O（空闲时）打印最近一次工具调用的完整输出（展示上限 8KB + 余量注记）。
+- [x] **终端标题 + 完成响铃**：turn 开始设窗口标题 `● <prompt> — ZCode`（切窗可见长任务），结束恢复 `ZCode — <cwd>`；响铃仅对 ≥10s 的长回合触发（Esc 用户已在键盘前，不扰民）。仅 TTY 生效。
+- [x] 测试：`!` 直通全链路（命令回显/输出打印/进模型上下文/空 `!` 不耗轮次）、Ctrl+O 展开 300 字符 Read 输出、TTY 标题序列设置与恢复。共享 stub 补 toolCalls 支持（加法）。
+
+### Loop C2 · Esc Esc 消息回退（rewind）✅（2026-09-06）
+- [x] **空闲双击 Esc（≤800ms）**：回退最近一条 user 消息及其后全部交换，原文放回编辑器（TTY 经 `rl.write`，非 TTY 打印还原预览）；更早历史保留。仅内存态——transcript 仍含完整交换，resume 该会话文件可还原（已注明）。
+- [x] 单 Esc 空闲时保持无操作（仅记录时间戳）；运行中 Esc 仍是中断。
+- [x] 测试：双 Esc 回退 + 断言下一轮请求含 earlier、不含 rewound 交换。
+
+- **Gate ✅（2026-09-06）**：typecheck + lint 0 错；全量 **433 tests / 425 pass / 0 fail / 8 skip**；tuiInteractive 13/13。/help 同步全部新键位与 `!` 语义。

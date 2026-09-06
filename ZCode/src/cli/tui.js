@@ -26,6 +26,7 @@ import {
   defaultTranscriptDir,
   emptyUsage,
   addUsage,
+  executeBash,
 } from '../harness/index.ts'
 import {
   buildAgentSystemPrompt,
@@ -115,6 +116,8 @@ export async function runTui({
   let showReasoning = false
   let lastAssistantText = ''
   let lastMemory = { files: [], text: '' }
+  /** Full results of the last completed turn's tool calls (Ctrl+O expands). */
+  let lastToolCalls = null
 
   const controller = { current: null }
 
@@ -209,9 +212,74 @@ export async function runTui({
   // agent mode, so switching modes mid-session needs no rewiring here.
   const confirm = request => askApproval(request)
 
-  // ── Keyboard: Esc interrupts the running turn, Shift+Tab cycles modes ──
+  // ── Terminal chrome ──
+  // Window title reflects the running task so users can spot a long turn from
+  // another window; a completion bell only fires for long turns (≥10s) — the
+  // "notify me when it's done" case — so short turns never get noisy.
+  const setTitle = title => {
+    if (stdout?.isTTY === true) write(`\u001b]2;${title}\u0007`)
+  }
+  const ringCompletionBell = elapsedMs => {
+    if (stdout?.isTTY === true && elapsedMs >= 10_000) write('\u0007')
+  }
+
+  // ── Ctrl+O: expand the last tool call's full output ──
+  // The live renderer truncates tool lines to 160 chars; the loop's executed
+  // calls keep the complete result, so a review pass can reveal it.
+  const TOOL_OUTPUT_DISPLAY_CAP = 8000
+  const expandLastTool = () => {
+    const call = Array.isArray(lastToolCalls) ? lastToolCalls[lastToolCalls.length - 1] : null
+    if (!call) {
+      writeLine('No tool output to expand yet — run a turn that uses tools first.')
+      return
+    }
+    writeLine(
+      `\n${styler.bold(`▸ ${call.name}`)} ${styler.dim(`(${formatToolInputPreview(call.input)})`)}`,
+    )
+    const text = typeof call.result === 'string' ? call.result : String(call.result ?? '')
+    const body =
+      text.length > TOOL_OUTPUT_DISPLAY_CAP
+        ? `${text.slice(0, TOOL_OUTPUT_DISPLAY_CAP)}\n… (+${text.length - TOOL_OUTPUT_DISPLAY_CAP} chars not shown)`
+        : text
+    for (const line of body.split('\n')) writeLine(`  ${line}`)
+    if (call.isError) writeLine(`  ${styler.red('(this tool call reported an error)')}`)
+  }
+
+  // ── Esc Esc: rewind the last user message back into the editor ──
+  // In-memory only: the transcript keeps the full exchange, and resuming that
+  // session file restores what was rewound here. Claude-Code-style affordance
+  // for "I want to rephrase that" without losing the rest of the workspace.
+  const rewindLastMessage = () => {
+    if (controller.current) return
+    let index = -1
+    for (let i = history.length - 1; i >= 0; i -= 1) {
+      if (history[i]?.role === 'user') {
+        index = i
+        break
+      }
+    }
+    if (index === -1) {
+      writeLine('Nothing to rewind — no user message in this conversation yet.')
+      return
+    }
+    const content = typeof history[index].content === 'string' ? history[index].content : ''
+    history = history.slice(0, index)
+    writeLine(
+      `↩ rewound — the last message is back in the editor` +
+        ` (${history.length} message${history.length === 1 ? '' : 's'} kept).`,
+    )
+    if (content && stdout?.isTTY === true && typeof rl.write === 'function') {
+      rl.write(content)
+    } else if (content) {
+      writeLine(`  ${styler.dim(`(restored prompt: ${content.slice(0, 80)}${content.length > 80 ? '…' : ''})`)}`)
+    }
+  }
+
+  // ── Keyboard: Esc interrupts the running turn, Shift+Tab cycles modes,
+  // Ctrl+O expands the last tool result, Esc Esc rewinds the last message ──
   // In production readline already attaches keypress emission to the input
   // stream; scripted tests emit 'keypress' on the injected stream directly.
+  let lastEscapeAt = 0
   if (stdin && typeof stdin.on === 'function') {
     stdin.on('keypress', (_str, key) => {
       if (!key) return
@@ -235,8 +303,51 @@ export async function runTui({
               ? ' — read-only planning'
               : ' — writes require approval')
         writeLine(note)
+        return
+      }
+      if (key.ctrl && key.name === 'o' && !controller.current) {
+        expandLastTool()
+        return
+      }
+      // Double-Escape when idle rewinds the last user message back into the
+      // editor (Claude-Code-style). A single Esc stays inert while idle.
+      if (isEscape && !controller.current) {
+        const now = Date.now()
+        if (now - lastEscapeAt <= 800) {
+          lastEscapeAt = 0
+          rewindLastMessage()
+        } else {
+          lastEscapeAt = now
+        }
       }
     })
+  }
+
+  // ── `!` shell mode ──
+  // Runs the command directly through the harness's Bash executor (same
+  // output decoding, timeout, and process-tree kill as the model's Bash tool)
+  // and feeds command+output into the conversation as the next user turn —
+  // the user typed it, so it runs without an approval round-trip.
+  const runShellCommand = async command => {
+    writeLine(`  ${styler.dim(`$ ${command}`)}`)
+    let result
+    try {
+      result = await executeBash(
+        { command },
+        { cwd, state: { readFiles: new Set() }, boundary },
+      )
+    } catch (error) {
+      writeLine(`  ${styler.red(`✗ ${error instanceof Error ? error.message : String(error)}`)}`)
+      return
+    }
+    const text = typeof result?.content === 'string' ? result.content : String(result?.content ?? '')
+    for (const line of text.split('\n')) writeLine(`  ${line}`)
+    if (result?.isError === true) {
+      writeLine(`  ${styler.red('(command failed — output still joins the context)')}`)
+    }
+    // Claude-Code semantics: the output joins the context and the model
+    // responds to it immediately.
+    await runTurn(`!shell ${command}\n\n${text}`)
   }
 
   // Streaming markdown: when colors are on, text deltas flow through the
@@ -271,6 +382,7 @@ export async function runTui({
     const active = new AbortController()
     controller.current = active
     abortedThisRun = false
+    setTitle(`● ${String(prompt ?? '').slice(0, 60)} — ZCode`)
 
     // Status line: an animated spinner with elapsed seconds, shown on a TTY.
     // It starts BEFORE the env/memory probes so slow git repos still get
@@ -421,12 +533,19 @@ export async function runTui({
       controller.current = null
       // Abort/error paths stop deltas mid-line: flush the parser's buffer.
       if (mdStream) mdStream.flush()
+      setTitle(`ZCode — ${path.basename(cwd)}`)
+      // Esc users are already at the keyboard; the bell is for the switched-
+      // away long-turn case only.
+      if (!abortedThisRun) ringCompletionBell(Date.now() - turnStartedAt)
     }
     clearStatus()
 
     history = result.messages
     addUsage(totalUsage, result.usage)
     if (result.text) lastAssistantText = result.text
+    // Full tool results for the Ctrl+O review pass (the live line renderer
+    // truncates to 160 chars; these keep everything).
+    lastToolCalls = result.toolCalls
     // Context footprint for the status bar: the provider-reported input of
     // the last turn (the full history the model saw). When a provider omits
     // usage, fall back to a chars/4 estimate over the conversation — coarse,
@@ -516,6 +635,10 @@ export async function runTui({
             '  /exit      Leave the session (also: /quit, Ctrl+C, Ctrl+D)',
             'Keys: Esc interrupts a running turn · Shift+Tab cycles plan/agent/yolo · a trailing',
             '      backslash continues your input on the next line.',
+            '      Ctrl+O expands the last tool call’s full output.',
+            '      Esc Esc rewinds: your last message goes back into the editor for a rephrase.',
+            '! <command>  Runs a shell command right now (your keystroke, so no approval gate);',
+            '             the output joins the conversation and the model responds to it.',
           ].join('\n'),
         )
         return true
@@ -727,6 +850,15 @@ export async function runTui({
       }
       line = line.trim()
       if (line === '') continue
+      if (!continuation && line.startsWith('!')) {
+        const command = line.slice(1).trim()
+        if (command === '') {
+          writeLine('! runs a shell command directly and feeds its output to the model: !npm test')
+          continue
+        }
+        await runShellCommand(command)
+        continue
+      }
       if (!continuation && line.startsWith('/')) {
         const keepGoing = await handleSlash(line)
         if (!keepGoing) break

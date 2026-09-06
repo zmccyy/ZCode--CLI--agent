@@ -74,6 +74,12 @@ function createScriptedProvider(script) {
         return
       }
       yield { type: 'response_start', messageId: `m-${index}`, model: 'stub-model', provider: 'stub' }
+      for (const [callIndex, call] of (step.toolCalls ?? []).entries()) {
+        yield {
+          type: 'tool_call',
+          toolCall: { id: `call-${index}-${callIndex}`, name: call.name, input: call.input },
+        }
+      }
       if (step.text) yield { type: 'text_delta', text: step.text }
       yield {
         type: 'response_end',
@@ -391,5 +397,185 @@ test('TUI: status line renders on a TTY and is erased on first event', async () 
   } finally {
     stdin.end()
     await fs.rm(workspace, { recursive: true, force: true })
+  }
+})
+
+// ── P1.7 polishing loop: shell mode, tool-output expansion, rewind, title ──
+
+test('TUI: ! runs a shell command directly and feeds its output to the model', async () => {
+  const provider = createScriptedProvider([{ text: 'tests look green' }])
+  const stdin = new PassThrough()
+  const out = createCollector()
+  const workspace = await createTempDir('zcode-tui-shell-')
+
+  try {
+    const exitPromise = runTui({
+      stdin,
+      stdout: out.stream,
+      stderr: out.stream,
+      provider,
+      cwd: workspace,
+      permissionMode: 'agent',
+      boundary: { enabled: true, addDirs: [] },
+      transcript: { enabled: false },
+    })
+
+    // The command itself never consumes an LLM turn; the auto-response turn
+    // that follows does.
+    stdin.write('!node -e "console.log(\'shell-ok-12345\')"\n')
+    await waitFor(out, /tests look green/)
+    assert.match(out.text(), /\$ node -e/, 'command echoed')
+    assert.match(out.text(), /shell-ok-12345/, 'command output printed')
+    assert.match(provider.prompts[0], /shell-ok-12345/, 'output joined the model context')
+    assert.match(provider.prompts[0], /!shell node -e/, 'command line joined the context')
+
+    // Bare `!` explains itself instead of running nothing.
+    stdin.write('!\n')
+    await waitFor(out, /! runs a shell command directly/)
+    assert.equal(provider.prompts.length, 1, 'no LLM turn for a bare `!`')
+
+    stdin.write('/exit\n')
+    assert.equal(await exitPromise, 0)
+  } finally {
+    stdin.end()
+    await fs.rm(workspace, { recursive: true, force: true })
+  }
+})
+
+test('TUI: Ctrl+O expands the last tool call beyond the 160-char live preview', async () => {
+  const workspace = await createTempDir('zcode-tui-expand-')
+  const longLine = 'x'.repeat(300)
+  await fs.writeFile(path.join(workspace, 'long.txt'), `${longLine}\n`)
+  const provider = createScriptedProvider([
+    {
+      toolCalls: [{ name: 'Read', input: { file_path: 'long.txt' } }],
+      usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+    },
+    { text: 'read it', usage: { inputTokens: 30, outputTokens: 5, totalTokens: 35 } },
+  ])
+  const stdin = new PassThrough()
+  const out = createCollector()
+
+  try {
+    const exitPromise = runTui({
+      stdin,
+      stdout: out.stream,
+      stderr: out.stream,
+      provider,
+      cwd: workspace,
+      permissionMode: 'agent',
+      boundary: { enabled: true, addDirs: [] },
+      transcript: { enabled: false },
+    })
+
+    stdin.write('read the long file\n')
+    await waitFor(out, /read it/)
+
+    stdin.emit('keypress', '', { ctrl: true, name: 'o' })
+    await waitFor(out, /▸ Read/)
+    assert.ok(out.text().includes(longLine), 'full 300-char output is shown')
+
+    stdin.write('/exit\n')
+    assert.equal(await exitPromise, 0)
+  } finally {
+    stdin.end()
+    await fs.rm(workspace, { recursive: true, force: true })
+  }
+})
+
+test('TUI: Esc Esc rewinds the last user message back into the editor', async () => {
+  const seen = []
+  const provider = {
+    id: 'stub',
+    kind: 'openai',
+    listModels: () => [{ id: 'stub-model' }],
+    streamChat: async function* (input) {
+      seen.push((input?.messages ?? []).map(m => m.content))
+      yield { type: 'response_start', messageId: 'm', model: 'stub-model', provider: 'stub' }
+      yield { type: 'text_delta', text: `reply ${seen.length}` }
+      yield {
+        type: 'response_end',
+        finishReason: 'stop',
+        usage: { inputTokens: 10, outputTokens: 2, totalTokens: 12 },
+      }
+    },
+  }
+  const stdin = new PassThrough()
+  const out = createCollector()
+
+  try {
+    const exitPromise = runTui({
+      stdin,
+      stdout: out.stream,
+      stderr: out.stream,
+      provider,
+      cwd: os.tmpdir(),
+      permissionMode: 'agent',
+      boundary: { enabled: true, addDirs: [] },
+      transcript: { enabled: false },
+    })
+
+    stdin.write('first prompt\n')
+    await waitFor(out, /reply 1/)
+    stdin.write('second prompt\n')
+    await waitFor(out, /reply 2/)
+
+    // Double-Escape while idle: the last exchange goes back into the editor.
+    stdin.emit('keypress', '', { name: 'escape' })
+    stdin.emit('keypress', '', { name: 'escape' })
+    await waitFor(out, /↩ rewound/)
+    assert.match(out.text(), /\(restored prompt: second prompt/, 'prompt restored (non-TTY)')
+
+    // The rewound exchange is gone from history; the next turn's request must
+    // contain 'first' but not 'second'.
+    stdin.write('third prompt\n')
+    await waitFor(out, /reply 3/)
+    const thirdRequest = seen[2]
+    assert.ok(
+      thirdRequest.some(content => String(content).includes('first prompt')),
+      'earlier exchange survives',
+    )
+    assert.ok(
+      thirdRequest.every(content => !String(content).includes('second prompt')),
+      'rewound exchange is dropped',
+    )
+
+    stdin.write('/exit\n')
+    assert.equal(await exitPromise, 0)
+  } finally {
+    stdin.end()
+  }
+})
+
+test('TUI: terminal title shows the running prompt and restores on completion (TTY)', async () => {
+  const provider = createScriptedProvider([{ text: 'titled done' }])
+  const stdin = new PassThrough()
+  const out = createCollector()
+  out.stream.isTTY = true
+
+  try {
+    const exitPromise = runTui({
+      stdin,
+      stdout: out.stream,
+      stderr: out.stream,
+      provider,
+      cwd: os.tmpdir(),
+      permissionMode: 'agent',
+      boundary: { enabled: true, addDirs: [] },
+      transcript: { enabled: false },
+    })
+
+    stdin.write('title me\n')
+    await waitFor(out, /titled done/)
+    assert.ok(
+      out.text().includes('\u001b]2;● title me — ZCode\u0007'),
+      'running-turn title set',
+    )
+    assert.ok(out.text().includes('\u001b]2;ZCode — '), 'idle title restored')
+
+    stdin.write('/exit\n')
+    assert.equal(await exitPromise, 0)
+  } finally {
+    stdin.end()
   }
 })

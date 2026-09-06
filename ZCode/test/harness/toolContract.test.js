@@ -18,10 +18,6 @@ async function createTempDir(prefix) {
   return fs.mkdtemp(path.join(os.tmpdir(), prefix))
 }
 
-function makeContext(cwd) {
-  return { cwd, state: { readFiles: new Set() } }
-}
-
 function baseTool(overrides = {}) {
   return {
     name: 'Stub',

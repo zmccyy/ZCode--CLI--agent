@@ -1,6 +1,6 @@
 # 需求 → 能力映射（requirements-to-capability）
 
-> Status: normative（防止历史需求继续冒充实现契约） · Owner: harness maintainers · Last verified: 2026-09-05
+> Status: normative（防止历史需求继续冒充实现契约） · Owner: harness maintainers · Last verified: 2026-09-06
 > 输入：`docs/requirements-analysis.md`（2026-06-09，historical）、`docs/ZCode_SRS.docx`（2026-05-28，historical）、`docs/系统设计说明书.md`（historical）
 
 状态语义：**implemented**（有代码+测试）/ **partial**（有代码缺闭环）/ **deferred**（roadmap 有位）/ **retired**（不再目标）。
@@ -21,7 +21,7 @@
 | Bash 门控 | partial | 分类器已实现；取消/进程树 → P0-B；沙箱 → P2 |
 | 零依赖 TUI（Node24 readline） | implemented | `cli/tui.js` + `tui.test.js`（resume 元数据传递 → P0-E 记录） |
 | 配置文件分层（settingsContract） | partial | 契约+单测在；CLI 接线 → P1（roadmap P1-4） |
-| MCP 接入 | deferred | v1.3 CHANGELOG 声明不实（参考树已删）；stdio 最小子集 → P1（roadmap P1-3） |
+| MCP 接入 | partial | stdio 最小子集 implemented（P1.3，contracts/25：Node 脚本启动器、handshake/tools.list+call/取消、统一权限审计、超时/崩溃/有界重连、默认关闭）；任意可执行文件与 `mcp list/ping` CLI → P2 |
 | 任务生命周期/完成协议 | partial | 契约已定（contracts/24）；实装 → P1 |
 | StuckDetector / 有界反思 | deferred | 约束已定（architecture/12）；P1 |
 | 子 Agent | deferred | 有界设计 → P2 |

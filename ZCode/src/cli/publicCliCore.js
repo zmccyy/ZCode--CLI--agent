@@ -11,6 +11,7 @@ import {
   getVersionBanner,
 } from '../config/brandText.js'
 import { LOOP_CONTRACT_VERSION } from '../harness/types.ts'
+import { discoverMcpTools } from '../harness/mcpTools.ts'
 import { resolveRunMode, RUN_MODE_LABELS, getRunModeHelpLines } from '../utils/permissions/runMode.js'
 import { loadSettingsFromDisk } from '../config/settingsContract.js'
 import { applyProviderSettingsToEnv } from '../config/providerEnvironment.js'
@@ -752,6 +753,29 @@ export async function runCli(
     }
     applyProviderSettingsToEnv(diskSettings, env)
 
+    // ── MCP stdio servers (P1.3) — default off: nothing spawns without
+    // config. Discovery is lazy + memoized so help/doctor/models/www never
+    // start a server; failures degrade to stderr warnings, never to a failed
+    // session. The caller of each agent path must dispose the session so no
+    // server process outlives the run.
+    let mcpSessionPromise = null
+    const getMcpSession = () => {
+      if (mcpSessionPromise === null) {
+        mcpSessionPromise = discoverMcpTools({ servers: diskSettings.mcpServers, cwd })
+          .then(session => {
+            for (const warning of session.warnings) {
+              writeLine(stderr, `WARNING: mcp: ${warning}`)
+            }
+            return session
+          })
+          .catch(error => {
+            writeLine(stderr, `WARNING: mcp: discovery failed: ${error instanceof Error ? error.message : String(error)}`)
+            return { tools: [], warnings: [], dispose() {} }
+          })
+      }
+      return mcpSessionPromise
+    }
+
     const options = parseArgv(argv)
     // CLI -m wins; settings.model is the fallback default.
     const effectiveModel = options.model ?? diskSettings.model ?? undefined
@@ -799,26 +823,34 @@ export async function runCli(
         resumedFrom = snapshot.sessionId
       }
 
-      return runTui({
-        stdin,
-        stdout,
-        stderr,
-        provider,
-        cwd,
-        env,
-        permissionMode: runMode === 'plan' ? 'plan' : runMode === 'yolo' ? 'yolo' : 'agent',
-        model: effectiveModel,
-        boundary: options.noBoundary ? false : { enabled: true, addDirs: options.addDirs },
-        maxTurns: options.maxTurns ?? guardrailLimits.maxTurns,
-        budgetTokens: guardrailLimits.budgetTokens,
-        compact: resolveCompactFromEnv(env),
-        transcript: { enabled: true, dir: readString(env.ZCODE_TRANSCRIPT_DIR) || undefined },
-        version,
-        initialMessages,
-        resumedFrom,
-        transcriptDir,
-        estimateCost,
-      })
+      // MCP servers (P1.3): discover once, keep them alive for the whole
+      // interactive session, and shut them down when the TUI ends.
+      const mcpSession = await getMcpSession()
+      try {
+        return await runTui({
+          stdin,
+          stdout,
+          stderr,
+          provider,
+          cwd,
+          env,
+          permissionMode: runMode === 'plan' ? 'plan' : runMode === 'yolo' ? 'yolo' : 'agent',
+          model: effectiveModel,
+          boundary: options.noBoundary ? false : { enabled: true, addDirs: options.addDirs },
+          maxTurns: options.maxTurns ?? guardrailLimits.maxTurns,
+          budgetTokens: guardrailLimits.budgetTokens,
+          compact: resolveCompactFromEnv(env),
+          transcript: { enabled: true, dir: readString(env.ZCODE_TRANSCRIPT_DIR) || undefined },
+          version,
+          initialMessages,
+          resumedFrom,
+          transcriptDir,
+          estimateCost,
+          mcpTools: mcpSession.tools,
+        })
+      } finally {
+        mcpSession.dispose()
+      }
     }
 
     if (options.help || bareInvocation) {
@@ -965,26 +997,35 @@ export async function runCli(
         boundary: options.noBoundary ? false : { enabled: true, addDirs: options.addDirs },
       })
 
-      const result = await runHarnessPrint({
-        prompt: options.printPrompt,
-        model: effectiveModel,
-        provider,
-        permissionMode,
-        confirm,
-        cwd,
-        env,
-        maxTurns,
-        budgetTokens: guardrailLimits.budgetTokens,
-        onEvent,
-        transcript: {
-          enabled: true,
-          dir: readString(env.ZCODE_TRANSCRIPT_DIR) || undefined,
-        },
-        reasoning: reasoning || undefined,
-        compact: resolveCompactFromEnv(env),
-        boundary: options.noBoundary ? false : { enabled: true, addDirs: options.addDirs },
-        ...(resumeSnapshot ? { resume: resumeSnapshot } : {}),
-      })
+      // MCP servers (P1.3): discover with the session, release after the run
+      // so no server process outlives the print path.
+      const mcpSession = await getMcpSession()
+      let result
+      try {
+        result = await runHarnessPrint({
+          prompt: options.printPrompt,
+          model: effectiveModel,
+          provider,
+          permissionMode,
+          confirm,
+          cwd,
+          env,
+          maxTurns,
+          budgetTokens: guardrailLimits.budgetTokens,
+          onEvent,
+          transcript: {
+            enabled: true,
+            dir: readString(env.ZCODE_TRANSCRIPT_DIR) || undefined,
+          },
+          reasoning: reasoning || undefined,
+          compact: resolveCompactFromEnv(env),
+          boundary: options.noBoundary ? false : { enabled: true, addDirs: options.addDirs },
+          ...(resumeSnapshot ? { resume: resumeSnapshot } : {}),
+          mcpTools: mcpSession.tools,
+        })
+      } finally {
+        mcpSession.dispose()
+      }
 
       // Non-fatal problems (e.g. transcript persistence) must reach the user;
       // stderr keeps stdout machine-readable in --json mode.

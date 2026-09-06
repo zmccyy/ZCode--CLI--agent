@@ -357,6 +357,9 @@ export async function runHarnessPrint({
   compact = undefined,
   boundary = undefined,
   resume = null,
+  /** MCP stdio tools (P1.3) from discoverMcpTools; merged after the core set
+   * so they ride the same registry, permission, and transcript path. */
+  mcpTools = [],
 }) {
   const resolvedModel = model || provider?.listModels?.()?.[0]?.id || null
 
@@ -381,7 +384,7 @@ export async function runHarnessPrint({
       model: resolvedModel,
       memory,
     }),
-    tools: createCoreTools(),
+    tools: createCoreTools().concat(mcpTools),
     messages,
     permissionMode,
     confirm,

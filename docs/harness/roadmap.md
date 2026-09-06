@@ -1,6 +1,6 @@
 # Roadmap —— 唯一活跃开发计划（P0–P2）
 
-> Status: normative · Owner: harness maintainers · Last verified: 2026-09-05
+> Status: normative · Owner: harness maintainers · Last verified: 2026-09-06
 > 执行方式：Loop Engineering —— 每个 Loop：改 → `typecheck+lint+test` 全绿 → 记录证据 → 下一 Loop。失败就地修复，不可定位则回退该 Loop 改动。
 > 工程根：`ZCode/`。不新增运行时依赖；不触碰根 `package.json` 现场修改与 `.zcode/`；不自动 git 提交。
 
@@ -50,11 +50,12 @@ P0 可靠性闭环交付：确定性测试基线（P0-A）、取消与流协议�
 
 ## P1 扩展运行时（部分已落地，其余规划中）
 
-> 状态以下方 Loop 记录为准：P1.4 配置接线已由 Loop 14 交付 ✅；P1.2 观测（metrics）与 P1.5 有界 StuckDetector 已交付 ✅（2026-09-06，`metrics.ts` + `stuckDetector.ts`，测试 `metrics.test.js` / `stuckDetector.test.js`）；P1.1 契约版本化已交付 ✅（2026-09-06，按 contracts/22 冻结设计实装：ToolDefinition v2 字段 + 注册校验 + loop 超时/输出预算强制 + 工具错误码词表 + Provider/Event 契约版本，测试 `toolContract.test.js`）；其余各项仍为规划。
+> 状态以下方 Loop 记录为准：P1.4 配置接线已由 Loop 14 交付 ✅；P1.2 观测（metrics）与 P1.5 有界 StuckDetector 已交付 ✅（2026-09-06，`metrics.ts` + `stuckDetector.ts`，测试 `metrics.test.js` / `stuckDetector.test.js`）；P1.1 契约版本化已交付 ✅（2026-09-06，按 contracts/22 冻结设计实装：ToolDefinition v2 字段 + 注册校验 + loop 超时/输出预算强制 + 工具错误码词表 + Provider/Event 契约版本，测试 `toolContract.test.js`）；**P1.3 MCP stdio 最小子集已交付 ✅（2026-09-06，contracts/25）**；其余各项仍为规划。
 
 1. **契约版本化** ✅：见上与 contracts/22（P1.1）；contracts/21 的 Provider `contractVersion` 校验同批落地。
 2. **观测与 benchmark** ✅ metrics 部分：`src/harness/metrics.ts` 采集器（turn 时长/TTFT/工具聚合/retry/tokens/RSS）随 `AgentLoopResult.metrics` 返回，print JSON 信封透传，TUI turn 摘要行内联 ttft 与工具数；benchmark harness 仍为规划。
-3. **MCP stdio 最小子集**：handshake、tools/list+call、`mcp.<server>.<tool>` namespace、统一权限/边界/审计、超时/崩溃/重连、默认关闭；adapter 稳定后才接 `mcp list/ping/...` 命令。namespace 契约字段与错误码词表已就绪。
+3. **MCP stdio 最小子集** ✅（2026-09-06，契约 [contracts/25](contracts/25-mcp-adapter-contract.md)）：handshake（initialize + initialized，协议版本 fail-fast）、tools/list（跟随 cursor）+ tools/call、`mcp__<server>__<tool>` registry 名 + `mcp.<server>.<tool>` namespace 双形、统一权限/边界/审计（annotations 视为 untrusted hints → 一律非只读）、每调用死线（默认 30s）+ 崩溃即时失败 + 有界重连（预算 2 次/会话，耗尽禁用）、默认关闭（无配置零进程）。v1 启动器限定 Node 脚本（固定 `node` + argv 数组、无 shell）；任意可执行文件 → P2 与安全策略白名单集成。测试 `mcp.test.js` 15 用例（fake MCP server 真实 stdio 全链路）+ settingsContract mcpServers 归一化；`mcp list/ping` 等 CLI 命令待适配器稳定后续接（按本条原计划）。
+- **Gate ✅（2026-09-06）**：fake MCP 全链路稳定（15/15）；工具名零冲突（`mcp__` 前缀 + 发现层去重 + registry 唯一性不因 MCP 配置抛错）；主 loop 不被 server 阻塞（发现死线化、每调用死线化、崩溃即时拒绝 pending）；warm call p95 = 1ms，与直接内置工具 p95 比 **1.00× ≤ 1.25×**（20 次同轮 echo/TodoWrite 对照基准，fake LLM 驱动真循环）。全量 Gate：**429 tests / 421 pass / 0 fail / 8 skip；typecheck + lint 0 错**。
 4. **配置接线** ✅（Loop 14，见下方记录）：settings 五层真正接入 CLI 启动链 + doctor effective config（E2 补充）。
 5. **有界 StuckDetector** ✅：`src/harness/stuckDetector.ts` — 同一失败调用（同工具+同输入）连续 3 次在模型可见的工具结果中注入换策略提示，连续 5 次以 `stopReason: 'stuck'` 停止运行；成功或不同调用即重置；`stuckDetector: false` 显式逃生口。
 

@@ -13,6 +13,31 @@ export {
 } from './tools/registry.ts'
 export { createCoreTools } from './tools/index.ts'
 export {
+  parseMcpServers,
+  discoverMcpTools,
+  MCP_SERVER_NAME_PATTERN,
+  MCP_TOOL_NAME_PATTERN,
+  MCP_TOOL_TIMEOUT_MS,
+  MCP_MAX_TIMEOUT_MS,
+  MCP_OUTPUT_LIMIT_BYTES,
+  MCP_MAX_SERVERS,
+  type McpServerConfig,
+  type McpSession,
+} from './mcpTools.ts'
+export {
+  startMcpClient,
+  McpClientError,
+  MCP_PROTOCOL_VERSION,
+  MCP_HANDSHAKE_TIMEOUT_MS,
+  MCP_REQUEST_TIMEOUT_MS,
+  MCP_MAX_RESTARTS,
+  type McpClient,
+  type McpClientOptions,
+  type McpToolInfo,
+  type McpCallResult,
+  type McpFailureKind,
+} from './mcpClient.ts'
+export {
   createReadTool,
   executeRead,
 } from './tools/read.ts'

@@ -27,6 +27,7 @@
 | 恶意/损坏 transcript 注入历史 | 坏行跳过、无消息拒绝 | **D1**：Read 播种信了意图 → P0-D 只信成功执行 |
 | 权限绕过（后处理路径） | 工具层权限完整 | **E1**：plan+write CLI 后处理落盘 → P0-E 拒绝组合 |
 | Provider 返回恶意流 | 增量合并校验薄弱 | P1 registry 校验；协议错误分类 P0-B |
+| MCP 服务器进程（P1.3） | 默认关闭；Node 脚本启动器（固定 `node` + argv 数组、无 shell）；注解不信任→一律非只读（审批/拒绝）；同 registry/权限/transcript 路径；发现与每调用死线化；崩溃有界重连（预算 2）；stdout/stderr 有界；重连预算耗尽即禁用 | **残余**：服务器脚本本身 = 用户权限进程，可执行任意 Node 代码（等同用户自己运行）；任意可执行文件启动器 → P2，须过 `.mimosa/security-policy.json` 二进制白名单；`mcpServers.env` 可注入凭据给服务器（操作者自担，等同手动 export） |
 | `--no-boundary` / YOLO 误用 | 显式 flag；deny 仍生效 | 文档明示信任模型；doctor 显示当前模式 |
 
 ## 信任模型声明（对外诚实表述，文档统一引用）

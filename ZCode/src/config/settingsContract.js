@@ -102,6 +102,19 @@ function normalizePermissions(permissions) {
   return Object.keys(normalized).length > 0 ? normalized : undefined
 }
 
+/**
+ * mcpServers is kept shape-preserving here (a record of per-server configs);
+ * semantic validation happens at MCP discovery (src/harness/mcpTools.ts),
+ * which emits one precise warning per skipped server instead of silently
+ * dropping misconfigurations.
+ */
+function normalizeMcpServers(servers) {
+  if (!isPlainObject(servers)) {
+    return undefined
+  }
+  return { ...servers }
+}
+
 function mergeArrays(left = [], right = []) {
   return [...new Set([...left, ...right])]
 }
@@ -165,6 +178,7 @@ export function normalizeSettings(settings = {}) {
   const permissions = normalizePermissions(settings.permissions)
   const hooks = normalizeStringArray(settings.hooks)
   const env = normalizeStringRecord(settings.env)
+  const mcpServers = normalizeMcpServers(settings.mcpServers)
 
   const normalized = {
     ...(provider ? { provider } : {}),
@@ -175,6 +189,7 @@ export function normalizeSettings(settings = {}) {
     ...(permissions ? { permissions } : {}),
     ...(hooks ? { hooks } : {}),
     ...(env ? { env } : {}),
+    ...(mcpServers ? { mcpServers } : {}),
   }
 
   return normalized

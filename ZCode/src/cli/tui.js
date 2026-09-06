@@ -35,7 +35,7 @@ import {
 import { collectEnvironmentInfo } from './envInfo.js'
 import { collectProjectMemory } from './projectMemory.js'
 import { createCompleter } from './completer.js'
-import { renderBanner, renderStatusLine, guessContextLimit, supportsUnicodeChrome } from './tuiChrome.js'
+import { renderBanner, renderStatusLine, guessContextLimit } from './tuiChrome.js'
 import { ERASE_LINE } from './ansi.js'
 import { createCliRuntime } from './runtimeContext.js'
 import { extractCodeBlocks, writeCodeBlocks } from './codeBlocks.js'
@@ -92,6 +92,9 @@ export async function runTui({
   productName = 'ZCode',
   /** (usage, model) => { cost, pricing } | null; injected to avoid a cycle. */
   estimateCost = null,
+  /** MCP stdio tools (P1.3) from discoverMcpTools; merged after the core set
+   * so they ride the same registry, permission, and transcript path. */
+  mcpTools = [],
 } = {}) {
   const write = chunk => stdout.write(chunk)
   const writeLine = line => write(`${line}\n`)
@@ -397,7 +400,7 @@ export async function runTui({
           model: resolvedModel,
           memory: memory.text,
         }),
-        tools: createCoreTools(),
+        tools: createCoreTools().concat(mcpTools),
         messages: [...history, { role: 'user', content: prompt }],
         permissionMode: currentPermissionMode,
         confirm,

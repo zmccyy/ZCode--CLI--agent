@@ -67,7 +67,7 @@
 - **输出预算**：`outputLimitBytes` 由 loop 强制（字节级截断 + 尾注 `[output truncated at N bytes (tool contract)]`），即使工具自身 cap 回归也不会淹没上下文。
 - **错误码**（`ToolResult.code`，仅 isError 时有意义）：`invalid_input | not_found | conflict | boundary | policy_denied | timeout | aborted | failed`。unknown tool → `not_found`；权限/策略拒绝 → `policy_denied`；BoundaryError → `boundary`；loop 超时 → `timeout`；外部取消 → `aborted`。provider 错误码词表见 contracts/21。
 - **Provider 契约版本**：`LoopProvider.contractVersion` 声明后由 loop 启动时校验，不认识即 fail-fast。transcript `session_start` 与 print JSON 信封携带 `contractVersion: 1`。
-- **MCP 对齐备注**（P1.3 铺垫）：MCP wire 的 tool annotations（readOnlyHint/destructiveHint/idempotentHint/openWorldHint）是 untrusted hints；本契约字段是一方 normative 声明，适配器可无损映射（sideEffect/cancellable/idempotent → hints；sensitive 映射到权限审计）。
+- **MCP 对齐备注**（P1.3 已实装）：MCP wire 的 tool annotations（readOnlyHint/destructiveHint/idempotentHint/openWorldHint）是 untrusted hints；本契约字段是一方 normative 声明，适配器可无损映射（sideEffect/cancellable/idempotent → hints；sensitive 映射到权限审计）。适配器契约与命名双形（registry `mcp__s__t` / namespace `mcp.s.t`）见 contracts/25。
 
 ## 新增工具 DoD（workflows/30 摘要）
 

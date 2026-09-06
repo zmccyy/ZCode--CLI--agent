@@ -642,6 +642,43 @@ test('mergeSettingsLayers with empty layers returns empty object', async () => {
   assert.deepEqual(mergeSettingsLayers(), {})
 })
 
+// ---------------------------------------------------------------------------
+// mcpServers (P1.3) — shape-preserving normalization; semantics are validated
+// at MCP discovery (mcpTools), which warns per skipped server.
+// ---------------------------------------------------------------------------
+
+test('normalizeSettings keeps mcpServers records and drops non-object shapes', async () => {
+  const { normalizeSettings } = await loadModule(modulePath)
+
+  const servers = {
+    demo: { script: './tools/demo-mcp.mjs', timeoutMs: 5000 },
+    other: { script: 'C:/abs/server.mjs', enabled: false },
+  }
+  assert.deepEqual(normalizeSettings({ mcpServers: servers }).mcpServers, servers)
+  // Non-object / array shapes are dropped entirely (discovery never sees them).
+  assert.equal(normalizeSettings({ mcpServers: 'node server.mjs' }).mcpServers, undefined)
+  assert.equal(normalizeSettings({ mcpServers: ['demo'] }).mcpServers, undefined)
+  assert.deepEqual(normalizeSettings({}).mcpServers, undefined)
+})
+
+test('mergeSettingsLayers merges mcpServers entries across layers', async () => {
+  const { mergeSettingsLayers } = await loadModule(modulePath)
+
+  const merged = mergeSettingsLayers([
+    { source: 'userSettings', settings: { mcpServers: { docs: { script: 'a.mjs' } } } },
+    { source: 'projectSettings', settings: { mcpServers: { demo: { script: 'b.mjs' } } } },
+    {
+      source: 'localSettings',
+      settings: { mcpServers: { demo: { script: 'c.mjs', timeoutMs: 1000 } } },
+    },
+  ])
+
+  assert.deepEqual(merged.mcpServers, {
+    docs: { script: 'a.mjs' },
+    demo: { script: 'c.mjs', timeoutMs: 1000 },
+  })
+})
+
 test('mergeSettingsLayers handles layers with null/undefined settings', async () => {
   const { mergeSettingsLayers } = await loadModule(modulePath)
 

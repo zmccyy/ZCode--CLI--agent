@@ -5,17 +5,10 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import fs from 'node:fs/promises'
-import os from 'node:os'
-import path from 'node:path'
 
 import { createRunMetricsCollector } from '../../src/harness/metrics.ts'
 import { runAgentLoop } from '../../src/harness/loop.ts'
 import { runHarnessPrint } from '../../src/cli/harnessPrint.js'
-
-async function createTempDir(prefix) {
-  return fs.mkdtemp(path.join(os.tmpdir(), prefix))
-}
 
 test('metrics collector: aggregates turns, TTFT, tools, retries, and tokens', () => {
   const collector = createRunMetricsCollector()

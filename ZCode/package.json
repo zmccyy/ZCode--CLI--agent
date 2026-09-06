@@ -1,6 +1,6 @@
 {
   "name": "zcode-cli-agent",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "type": "module",
   "bin": {
@@ -13,7 +13,7 @@
     "models": "node src/entrypoints/publicCli.js models",
     "start:bun": "bun run src/entrypoints/publicCli.js",
     "typecheck": "tsc --noEmit -p tsconfig.public.json",
-    "lint": "eslint src/entrypoints src/cli/publicCliCore.js src/cli/harnessPrint.js src/cli/tui.js src/harness src/providers src/contracts/providerAdapter.js src/config/brandConfig.js src/config/brandText.js src/config/settingsContract.js src/config/providerEnvironment.js src/utils/permissions/runMode.js src/utils/model/configs.js test/harness test/e2e test/helpers/fakeLlmServer.js test/helpers/loadModule.js test/all.test.js",
+    "lint": "eslint src/entrypoints src/cli/publicCliCore.js src/cli/harnessPrint.js src/cli/tui.js src/cli/envInfo.js src/cli/codeBlocks.js src/cli/ansi.js src/cli/projectMemory.js src/cli/diffPreview.js src/cli/markdownStream.js src/cli/completer.js src/cli/tuiChrome.js src/harness src/providers src/contracts/providerAdapter.js src/config/brandConfig.js src/config/brandText.js src/config/settingsContract.js src/config/providerEnvironment.js src/utils/permissions/runMode.js src/utils/model/configs.js test/harness test/e2e test/helpers/fakeLlmServer.js test/helpers/loadModule.js test/all.test.js",
     "test": "node --experimental-strip-types --test test/all.test.js",
     "test:watch": "node --experimental-strip-types --test --watch test/all.test.js",
     "test:all": "node --experimental-strip-types --test test/all.test.js"

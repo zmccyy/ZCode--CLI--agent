@@ -57,6 +57,15 @@ export interface ToolContext {
 export interface ToolSessionState {
   /** Absolute paths read via the Read tool this session (Edit/Write precondition). */
   readFiles: Set<string>
+  /** Current task list from the TodoWrite tool (session-scoped, not persisted across resume). */
+  todos?: TodoItem[]
+}
+
+export type TodoStatus = 'pending' | 'in_progress' | 'completed'
+
+export interface TodoItem {
+  content: string
+  status: TodoStatus
 }
 
 export interface ToolDefinition {

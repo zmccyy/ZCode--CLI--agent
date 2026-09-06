@@ -1,6 +1,43 @@
 # ZCode Changelog
 
-## Unreleased (P0 可靠性闭环 — Loop Engineering，2026-09-05)
+## 2026-09-05 v1.6.0 (TUI 界面优化 — 对标 Claude Code 观感)
+
+> 以 Claude Code v2.x 实机截图为对标参考；全部优化在 CLI 渲染层完成（loop/types 零改动），每 Loop 配 fake-LLM 全链路测试。延续零依赖路线（依赖政策放宽为「真实痛点才引入最小包」，本轮全部自写）。
+
+### Added
+- **审批 diff 预览**：Agent 模式下 Edit/Write 审批前渲染红/绿行级 diff（`Edit → file (edit · +N −M)` 头 + 上下文折叠），TUI 与 print TTY 审批双路径生效。零依赖 LCS 行 diff（`diffPreview.js`，超 4000 行拒绝并降级），Write 覆写时对磁盘旧内容 diff、新文件预览头部 30 行。
+- **TodoWrite 清单渲染**：`tool_execution_start` 携带完整清单 → 着色清单渲染（☒绿已完成 / ◐青进行中 / ☐灰待办），结束仅显示摘要行——替代原 160 字符截断。
+- **流式 markdown**：`markdownStream.js` 纯数据解析器（text_delta → 结构化行事件：fence 开/关 + styled segments）——跨 delta 拼行、代码围栏框线、`**bold**`/`` `code` ``/标题着色；无色/非 TTY 自动直通。TUI 渲染层着色。
+- **输入补全**：readline completer——`/` 前缀补全 11 个斜杠命令；`@` 前缀补全工作区文件（浅层遍历跳过 node_modules/.git 等，30s 缓存，上限 50 条）。
+- **spinner 状态行**：Braille 帧（Windows Terminal）→ ASCII 帧（legacy conhost，按 `WT_SESSION` 探测），已用秒数实时刷新，首个可见事件即停（interval 生命周期严格清理）。
+- **Claude Code 式外观**：像素 Z banner（logo + 版本/模型/cwd 三行信息）；每轮结束状态行 `[model] | dir git:(main*) | Context ▓▓░░░░░░░░ 12%`（git 状态来自环境探测，Context 按已知模型族上下文窗口估算，未知回退 128k）。
+- 测试新增：`diffPreview` / `tuiTodoRender` / `markdownStream` / `completer` / `tuiChrome`，全量 **348 tests / 0 fail / 7 skip**。
+
+---
+
+## 2026-09-05 v1.5.0 (「真正可干活」— 提示词 / TUI / 工具 / 记忆 / Windows / 配置)
+
+> 对标 OpenCode / Claude Code / Gemini CLI / Codex CLI / Aider 的差距分析立项；Loop Engineering 推进，全程 fake-LLM 全链路验证（[roadmap](../docs/harness/roadmap.md) 实测勾选）。
+
+### Added
+- **系统提示词工程（Loop 9）**：`buildAgentSystemPrompt` 全面重写——身份 + `<environment>` 块（cwd/平台/OS/日期/有效 shell/git 分支与脏文件数/模型/权限模式/边界）+ 工作纪律（理解→计划→最小改动→验证→恢复→收尾）+ 工具指南 + 沟通规范；Plan 模式专用只读纪律分支。新增 `envInfo.js` 环境探测（2s 超时优雅降级，TUI 每轮刷新）。
+- **TUI v1.5（Loop 10）**：Esc 中断运行中的 turn（保留 Ctrl+C）；Shift+Tab 循环 plan/yolo/agent（安全梯度）；`/model`（列出+会话内切换）、`/mode`、`/reasoning`、`/save`（保存最近回复代码块）、`/memory`；状态行（首个事件自动擦除）；工具行着色（NO_COLOR/FORCE_COLOR/非 TTY 降级）；turn 汇总含耗时；反斜杠续行多行输入；排队消息提示。
+- **TodoWrite 工具（Loop 11）**：会话级任务清单（单 in_progress 约束、全量快照语义、☐/◐/☒ 渲染）；readOnly——Plan 模式亦可规划。
+- **WebFetch 工具（Loop 11）**：SSRF 防护（环回/RFC1918/链路本地/CGNAT/IPv6 本地 + 每跳重定向复验）、仅 http/https、512KB 字节上限、15s 超时、取消贯穿、HTML→文本剥离、max_chars 截断。
+- **项目记忆（Loop 12）**：AGENTS.md / ZCODE.md 发现链（workspace → 父目录 3 层 → `~/.zcode`），注入系统提示词尾部，8KB 单文件截断，`/memory` 查看。
+- **Windows 深化（Loop 13）**：`ZCODE_SHELL=powershell|pwsh` 切换 Bash 工具命令方言（描述/错误消息随动）；GBK 输出解码兜底（UTF-8 U+FFFD 损失评估 vs GB18030，win32 only）；doctor 强化（平台/终端/有效 shell/git 可用/transcript 目录可写/API key 存在性/项目记忆数，清除失实旧注记）。
+- **配置接线（Loop 14，P1.4 落地）**：`loadSettingsFromDisk` 五层（user→project→local→flag→policy）接入 runCli；`settings.env` 补缺语义；provider/openaiCompatible 段经 `applyProviderSettingsToEnv` 生效；模型默认值链 `-m` > `settings.model`；doctor `effectiveSettings` 摘要（apiKey 仅存在性）。
+- **`zcode www` 复活（Loop 15）**：`wwwMain` 接入命令分发（www 后旗标透传），本地宣传站服务器带端口回退与遍历加固。
+- 测试新增：`systemPrompt` / `tuiInteractive` / `todoWebFetch` / `loopToolsV15` / `projectMemory` / `windowsV15` / `settingsWiring` / `wwwCommand`，全量 **305 tests / 0 fail / 7 skip**。
+
+### Fixed
+- Write 工具补齐 read-before-overwrite 强制（描述与行为一致，防误覆写）。
+- WebFetch 重定向目标从 `location` 响应头读取（原误用响应体）。
+- Anthropic `thinking_delta` → `reasoning_delta` 映射补齐（roadmap E3），`/reasoning` 与 print `--reasoning` 均可显示。
+
+---
+
+## 2026-09-05 v1.4.1 (P0 可靠性闭环 — Loop Engineering)
 
 > 开发契约与证据：[docs/harness/](../docs/harness/README.md)（31 篇权威文档体系 + roadmap 实测勾选）。
 

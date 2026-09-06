@@ -11,7 +11,10 @@ import {
   getVersionBanner,
 } from '../config/brandText.js'
 import { resolveRunMode, RUN_MODE_LABELS, getRunModeHelpLines } from '../utils/permissions/runMode.js'
-import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs'
+import { loadSettingsFromDisk } from '../config/settingsContract.js'
+import { applyProviderSettingsToEnv } from '../config/providerEnvironment.js'
+import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync } from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import {
   createInteractiveConfirm,
@@ -21,6 +24,9 @@ import {
   runHarnessPrint,
 } from './harnessPrint.js'
 import { runTui } from './tui.js'
+import { collectEnvironmentInfo } from './envInfo.js'
+import { collectProjectMemory } from './projectMemory.js'
+import { wwwMain } from '../../www/server.ts'
 import {
   defaultTranscriptDir,
   findLatestSession,
@@ -30,7 +36,7 @@ import {
   ResumeError,
 } from '../harness/index.ts'
 
-const DEFAULT_COMMANDS = Object.freeze(['help', 'doctor', 'models', 'sessions', 'print'])
+const DEFAULT_COMMANDS = Object.freeze(['help', 'doctor', 'models', 'sessions', 'print', 'www'])
 
 /** Command-line usage failure — exits with code 2 (distinct from runtime errors). */
 export class UsageError extends Error {
@@ -184,115 +190,13 @@ function parseDotEnvLine(line) {
 }
 
 /**
- * Extract code blocks from markdown text. Returns an array of { language, code, startLine, endLine }.
- * Matches ```language\n...\n``` fenced blocks.
+ * Code-block helpers moved to ./codeBlocks.js so the TUI can reuse them
+ * without importing this module (which imports the TUI). writeCodeBlocks is
+ * re-exported for the security regression tests that import it from here.
  */
-function extractCodeBlocks(text) {
-  if (typeof text !== 'string' || !text) return []
-  const blocks = []
-  const regex = /```(\w*)\s*\n([\s\S]*?)```/g
-  let match
-  while ((match = regex.exec(text)) !== null) {
-    const language = match[1]?.trim() || ''
-    const code = match[2]?.replace(/\n$/, '') || ''
-    if (!code.trim()) continue
-    blocks.push({ language, code })
-  }
-  return blocks
-}
+import { extractCodeBlocks, inferFilename, writeCodeBlocks } from './codeBlocks.js'
 
-/**
- * Infer a filename from a code block's language and existing project structure.
- * Falls back to a generic name when language-specific detection fails.
- */
-function inferFilename(language, _cwd = process.cwd()) {
-  const extMap = {
-    js: 'module.js',
-    ts: 'module.ts',
-    tsx: 'Component.tsx',
-    jsx: 'Component.jsx',
-    py: 'script.py',
-    rs: 'module.rs',
-    go: 'module.go',
-    java: 'Main.java',
-    rb: 'script.rb',
-    php: 'script.php',
-    css: 'style.css',
-    html: 'index.html',
-    json: 'data.json',
-    yaml: 'config.yaml',
-    yml: 'config.yml',
-    toml: 'config.toml',
-    md: 'README.md',
-    sql: 'query.sql',
-    sh: 'script.sh',
-    bat: 'script.bat',
-    ps1: 'script.ps1',
-    dockerfile: 'Dockerfile',
-  }
-  const lang = language.toLowerCase()
-  // The language tag comes from model output (untrusted); keep the fallback
-  // filename free of path separators so a malicious tag cannot traverse.
-  const safeName = lang.replace(/[^a-z0-9_]/gi, '')
-  return extMap[lang] || `output.${safeName || 'txt'}`
-}
-
-/**
- * Resolve a write target to an absolute path and refuse to write outside the
- * workspace (the node CLI is the product runtime; out-of-workspace writes are
- * a traversal risk, and inferred names come from untrusted model output).
- */
-function resolveWithinWorkspace(cwd, target) {
-  const root = path.resolve(cwd)
-  const resolved = path.resolve(root, target)
-  if (resolved !== root && !resolved.startsWith(root + path.sep)) {
-    throw new Error(`Refusing to write outside the workspace: ${resolved}`)
-  }
-  return resolved
-}
-
-/**
- * Write code blocks to files. Returns an array of written file paths.
- * If a writePath is provided (single file), writes only the first code block.
- * Exported for security regression tests.
- */
-export function writeCodeBlocks(blocks, writePath, cwd = process.cwd()) {
-  if (!blocks.length) return []
-
-  const written = []
-
-  if (writePath) {
-    // Single file mode: write first block
-    const block = blocks[0]
-    const targetPath = resolveWithinWorkspace(cwd, writePath)
-    mkdirSync(path.dirname(targetPath), { recursive: true })
-    writeFileSync(targetPath, block.code + '\n', 'utf8')
-    written.push(targetPath)
-  } else {
-    // Multi-file mode: infer filenames
-    for (const block of blocks) {
-      const filename = inferFilename(block.language, cwd)
-      const targetPath = resolveWithinWorkspace(cwd, filename)
-      mkdirSync(path.dirname(targetPath), { recursive: true })
-
-      // Avoid overwriting: append suffix if file exists
-      let finalPath = targetPath
-      let counter = 1
-      while (existsSync(finalPath)) {
-        const ext = path.extname(targetPath)
-        const base = path.basename(targetPath, ext)
-        const dir = path.dirname(targetPath)
-        finalPath = path.join(dir, `${base}-${counter}${ext}`)
-        counter++
-      }
-
-      writeFileSync(finalPath, block.code + '\n', 'utf8')
-      written.push(finalPath)
-    }
-  }
-
-  return written
-}
+export { writeCodeBlocks }
 
 export function loadDotEnvFile({
   cwd = process.cwd(),
@@ -349,6 +253,7 @@ function parseArgv(argv = []) {
     resumeRef: null,
     addDirs: [],
     noBoundary: false,
+    wwwArgs: [],
   }
   const positionals = []
 
@@ -463,6 +368,14 @@ function parseArgv(argv = []) {
       continue
     }
 
+    if (arg === 'www') {
+      // The www command owns its own flags (--port/--no-open): everything
+      // after `www` passes through to wwwMain verbatim.
+      options.command = 'www'
+      options.wwwArgs = argv.slice(index + 1)
+      break
+    }
+
     if (arg.startsWith('-')) {
       throw new UsageError(`Unknown option: ${arg}`)
     }
@@ -481,7 +394,8 @@ function parseArgv(argv = []) {
     throw new UsageError('--plan and --write cannot be combined: plan mode never writes files')
   }
 
-  options.command = readString(positionals[0])
+  // `www` (or any future pass-through command) sets `command` itself.
+  options.command = options.command ?? readString(positionals[0])
   return options
 }
 
@@ -535,6 +449,7 @@ export function renderHelp({ version = '0.0.0' } = {}) {
     '  doctor               Inspect the local runtime and provider wiring',
     '  models               List the models exposed by the active provider',
     '  sessions             List recent sessions for this workspace',
+    '  www [options]        Serve the local promo site (--port <n>, --no-open)',
     '  -p, --print <prompt> Run the agent loop headless (tools + guardrails)',
     '',
     'Options:',
@@ -567,13 +482,58 @@ export function renderHelp({ version = '0.0.0' } = {}) {
   ].join('\n')
 }
 
-export function createDoctorReport({
+// ---------------------------------------------------------------------------
+// Doctor environment checks (Windows-first, all probes best-effort)
+// ---------------------------------------------------------------------------
+
+function probeTranscriptDirWritable(cwd) {
+  try {
+    const dir = defaultTranscriptDir(cwd)
+    mkdirSync(dir, { recursive: true })
+    const probe = path.join(dir, `.doctor-probe-${process.pid}`)
+    writeFileSync(probe, 'probe', 'utf8')
+    unlinkSync(probe)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function probeApiKeyConfigured(env) {
+  // Presence only — never the value.
+  return {
+    openaiCompatible: Boolean((env.ZCODE_OPENAI_API_KEY ?? '').trim()),
+    anthropic: Boolean((env.ANTHROPIC_API_KEY ?? '').trim()),
+  }
+}
+
+/**
+ * Safe summary of merged settings for doctor: never includes raw API keys.
+ */
+export function summarizeSettingsForDoctor(settings) {
+  if (!settings || typeof settings !== 'object') return null
+  return {
+    keys: Object.keys(settings),
+    provider: settings.provider ?? null,
+    model: settings.model ?? null,
+    openaiCompatibleBaseUrl: settings.openaiCompatible?.baseUrl ?? null,
+    openaiCompatibleApiKeyConfigured: Boolean(settings.openaiCompatible?.apiKey),
+  }
+}
+
+/**
+ * Async doctor report: shell/git/OS probes come from collectEnvironmentInfo
+ * (short-timeout execFile probes that degrade gracefully). Adds a transcript
+ * writability probe and API-key presence (never values).
+ */
+export async function createDoctorReport({
   cwd = process.cwd(),
   env = process.env,
   version = '0.0.0',
   runtime = getRuntimeSnapshot(),
   createProviderFromEnv = defaultCreateProviderFromEnv,
   createModelRegistryFromEnv = defaultCreateModelRegistryFromEnv,
+  settingsSummary = null,
 } = {}) {
   const provider = createProviderFromEnv(env)
   const registry = createModelRegistryFromEnv(env)
@@ -585,6 +545,11 @@ export function createDoctorReport({
           displayName: model.displayName,
         }))
       : []
+
+  const [envInfo, memory] = await Promise.all([
+    collectEnvironmentInfo(cwd, { env }).catch(() => null),
+    collectProjectMemory(cwd).catch(() => null),
+  ])
 
   return {
     productName: getProductName(),
@@ -600,10 +565,22 @@ export function createDoctorReport({
       defaultModel: getDefaultModel(provider),
       modelCount: models.length,
     },
+    environment: {
+      platform: envInfo?.platform ?? process.platform,
+      os: envInfo ? `${envInfo.osType} ${envInfo.osRelease}` : os.type(),
+      terminal: process.stdout?.isTTY ? 'tty' : 'pipe',
+      shell: envInfo?.shell ?? 'unavailable',
+      gitAvailable: Boolean(envInfo?.git),
+      nodeVersion: process.version,
+      transcriptDirWritable: probeTranscriptDirWritable(cwd),
+      apiKeyConfigured: probeApiKeyConfigured(env),
+      projectMemoryFiles: memory?.files.length ?? 0,
+    },
+    effectiveSettings: settingsSummary,
     commands: toCommandList(),
     notes: [
-      'Legacy interactive startup is not wired in this public build.',
-      'Use doctor, models, or --print to validate the local public entrypoint.',
+      'Bare `zcode` starts the interactive TUI on a TTY; `-p` runs headless.',
+      'Bash tool uses Git Bash by default; set ZCODE_SHELL=powershell to switch dialects.',
     ],
     models,
   }
@@ -611,10 +588,18 @@ export function createDoctorReport({
 
 
 function renderDoctorText(report) {
+  const environment = report.environment ?? {}
+  const apiKeys = environment.apiKeyConfigured ?? {}
   return [
     `${report.productName} local doctor`,
     `cwd: ${report.cwd}`,
     `runtime: ${report.runtime.engine}${report.runtime.bun ? ` ${report.runtime.bun}` : ''}${report.runtime.node ? `, node ${report.runtime.node}` : ''}`,
+    `platform: ${environment.platform ?? 'unknown'} (${environment.os ?? 'unknown'}) · terminal: ${environment.terminal ?? 'unknown'}`,
+    `shell: ${environment.shell ?? 'unknown'} · git: ${environment.gitAvailable ? 'available' : 'unavailable'}`,
+    `transcript dir writable: ${environment.transcriptDirWritable ? 'yes' : 'no'}`,
+    `project memory files: ${environment.projectMemoryFiles ?? 0} (AGENTS.md/ZCODE.md)`,
+    `api key configured: openai-compatible ${apiKeys.openaiCompatible ? 'yes' : 'no'} · anthropic ${apiKeys.anthropic ? 'yes' : 'no'}`,
+    `effective settings: ${report.effectiveSettings?.keys?.length ? report.effectiveSettings.keys.join(', ') : '(none)'}`,
     `provider: ${report.provider.id} (${report.provider.mode})`,
     `print ready: ${report.provider.printReady ? 'yes' : 'no'}`,
     `models: ${report.provider.modelCount}`,
@@ -749,7 +734,26 @@ export async function runCli(
 ) {
   try {
     loadDotEnvFile({ cwd, env })
+
+    // ── Settings wiring (P1.4): user → project → local → flag → policy ──
+    // File layers fill provider/model/env defaults; applyProviderSettingsToEnv
+    // applies the provider section with the repo's designed precedence (its
+    // host-managed guard flag is honored). Invalid files warn but never block.
+    const { settings: diskSettings, errors: settingsErrors } = loadSettingsFromDisk({ cwd })
+    for (const error of settingsErrors) {
+      writeLine(stderr, `WARNING: settings: ${error.message}`)
+    }
+    if (diskSettings.env) {
+      // settings.env fills gaps only: real environment and .env always win.
+      for (const [key, value] of Object.entries(diskSettings.env)) {
+        if (!(key in env)) env[key] = value
+      }
+    }
+    applyProviderSettingsToEnv(diskSettings, env)
+
     const options = parseArgv(argv)
+    // CLI -m wins; settings.model is the fallback default.
+    const effectiveModel = options.model ?? diskSettings.model ?? undefined
     const { runMode, error: runModeError } = resolveRunMode({
       plan: options.plan,
       yolo: options.yolo,
@@ -802,7 +806,7 @@ export async function runCli(
         cwd,
         env,
         permissionMode: runMode === 'plan' ? 'plan' : runMode === 'yolo' ? 'yolo' : 'agent',
-        model: options.model,
+        model: effectiveModel,
         boundary: options.noBoundary ? false : { enabled: true, addDirs: options.addDirs },
         maxTurns: options.maxTurns ?? guardrailLimits.maxTurns,
         budgetTokens: guardrailLimits.budgetTokens,
@@ -826,13 +830,21 @@ export async function runCli(
       return 0
     }
 
+    if (options.command === 'www') {
+      // Serves the local promo site; blocks until Ctrl+C (wwwMain handles
+      // its own port fallback and browser opening).
+      await wwwMain(options.wwwArgs ?? [])
+      return 0
+    }
+
     if (options.command === 'doctor') {
-      const report = createDoctorReport({
+      const report = await createDoctorReport({
         cwd,
         env,
         version,
         createProviderFromEnv,
         createModelRegistryFromEnv,
+        settingsSummary: summarizeSettingsForDoctor(diskSettings),
       })
 
       if (options.json) {
@@ -945,15 +957,21 @@ export async function runCli(
       }
 
       const permissionMode = runMode === 'plan' ? 'plan' : runMode === 'yolo' ? 'yolo' : 'agent'
-      const confirm = createInteractiveConfirm({ stdin: stdin ?? process.stdin, stdout })
+      const confirm = createInteractiveConfirm({
+        stdin: stdin ?? process.stdin,
+        stdout,
+        cwd,
+        boundary: options.noBoundary ? false : { enabled: true, addDirs: options.addDirs },
+      })
 
       const result = await runHarnessPrint({
         prompt: options.printPrompt,
-        model: options.model,
+        model: effectiveModel,
         provider,
         permissionMode,
         confirm,
         cwd,
+        env,
         maxTurns,
         budgetTokens: guardrailLimits.budgetTokens,
         onEvent,

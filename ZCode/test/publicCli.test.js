@@ -102,7 +102,7 @@ test('createDoctorReport reports a startable default Anthropic-backed local CLI'
     `${publicCliCorePath}?doctor=${Date.now()}`,
   )
 
-  const report = createDoctorReport({
+  const report = await createDoctorReport({
     cwd: 'D:\\workspace\\zcode',
     env: {},
     version: '0.1.0',
@@ -230,10 +230,16 @@ test('runCli can execute --print --json through the real openai-compatible provi
         content: 'hello from cli',
       })
       assert.equal(Array.isArray(parsed.tools), true)
-      assert.deepEqual(
-        parsed.tools.map(tool => tool.function.name),
-        ['Read', 'Glob', 'Grep', 'Write', 'Edit', 'Bash'],
-      )
+      assert.deepEqual(parsed.tools.map(tool => tool.function.name), [
+        'Read',
+        'Glob',
+        'Grep',
+        'Write',
+        'Edit',
+        'Bash',
+        'TodoWrite',
+        'WebFetch',
+      ])
 
       res.writeHead(200, {
         'content-type': 'text/event-stream',

@@ -375,6 +375,15 @@ export function createAnthropicProvider(options = {}) {
                 }
               }
 
+              // Extended thinking streams arrive as thinking_delta; the loop
+              // and renderers only know reasoning_delta (roadmap E3).
+              if (delta?.type === 'thinking_delta' && readString(delta.thinking)) {
+                yield {
+                  type: 'reasoning_delta',
+                  text: delta.thinking,
+                }
+              }
+
               if (
                 delta?.type === 'input_json_delta' &&
                 typeof delta.partial_json === 'string'

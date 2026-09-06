@@ -117,7 +117,8 @@ test('interactive flow: prompt → approval → tool → streamed answer → /co
     // The streamed answer and the per-turn usage footer (2 loop turns:
     // tool-call turn + final-answer turn).
     assert.match(output, /The note says hello\./)
-    assert.match(output, /turn 2 · in /)
+    // Footer includes the turn number, duration, and per-turn usage.
+    assert.match(output, /turn 2 · \d+(\.\d+)?(ms|s) · in /)
     assert.match(output, /session total in /)
     // /cost reported the injected pricing.
     assert.match(output, /estimated cost: \$0\.000042/)

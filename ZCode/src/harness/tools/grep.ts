@@ -230,9 +230,12 @@ export function createGrepTool(): ToolDefinition {
   return {
     name: 'Grep',
     description:
-      'Searches file contents with a regular expression, like ripgrep. ' +
-      'output_mode: files_with_matches (default), content, or count. ' +
-      'In content mode supports -n line numbers (default on), -A/-B/-C context, head_limit, and multiline.',
+      'Searches file contents with a regular expression (JavaScript RegExp syntax), like ' +
+      'ripgrep. Use it to find definitions, call sites, config keys, and TODOs across the ' +
+      'workspace. output_mode: "files_with_matches" (default, cheapest), "content" (matching ' +
+      'lines with -n line numbers, optional -A/-B/-C context and head_limit), or "count". ' +
+      'For plain substring searches, escape regex metacharacters. multiline allows patterns ' +
+      'spanning lines. Narrow with the glob filter (e.g. "*.ts") on large trees.',
     readOnly: true,
     inputSchema: {
       type: 'object',

@@ -151,9 +151,11 @@ export function createReadTool(): ToolDefinition {
   return {
     name: 'Read',
     description:
-      'Reads a text file from the local filesystem. Returns content with cat -n style line numbers. ' +
-      'Optional offset (1-based start line) and limit (max 2000 lines) paginate long files. ' +
-      'Reading is required before Edit.',
+      'Reads a text file from the workspace and returns it with line numbers (cat -n format). ' +
+      'Use before editing any file (required by Edit), when inspecting code under discussion, ' +
+      'and to confirm exact formatting before writing an edit. Long files paginate: offset is a ' +
+      '1-based start line, limit caps returned lines (max 2000). Directories and binary files ' +
+      'are rejected; lines over 2000 characters are truncated.',
     readOnly: true,
     inputSchema: {
       type: 'object',

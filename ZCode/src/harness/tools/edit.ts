@@ -110,8 +110,12 @@ export function createEditTool(): ToolDefinition {
   return {
     name: 'Edit',
     description:
-      'Replaces an exact string in a file. old_string must appear exactly once unless replace_all is true. ' +
-      'The file must have been read with the Read tool first in this session.',
+      'Replaces an exact string in an existing file — the surgical way to change code. ' +
+      'old_string must match the file content exactly, including whitespace and indentation, ' +
+      'and must appear exactly once unless replace_all is true; include a few surrounding ' +
+      'lines to guarantee uniqueness. The file must have been read with the Read tool first ' +
+      'in this session (enforced). On mismatch the error reports the occurrence count so you ' +
+      'can adjust the match instead of guessing.',
     readOnly: false,
     inputSchema: {
       type: 'object',

@@ -14,6 +14,9 @@ import {
   DEFAULT_COMPACT_KEEP_MESSAGES,
   resolveCompactConfig as resolveCompactOptions,
 } from '../harness/index.ts'
+import { collectEnvironmentInfo, formatEnvironmentBlock } from './envInfo.js'
+import { collectProjectMemory } from './projectMemory.js'
+import { buildDiffPreviewForTool, readOldContentForPreview } from './diffPreview.js'
 
 const TOOL_INPUT_PREVIEW_LENGTH = 120
 
@@ -37,21 +40,121 @@ function describeBoundaryForPrompt(cwd, boundary) {
   )
 }
 
-export function buildAgentSystemPrompt(cwd, boundary) {
-  return [
-    'You are ZCode, a coding agent working directly in the user\'s workspace.',
+const WORKFLOW_DISCIPLINE = [
+  '# How to work',
+  '',
+  '1. Understand before acting. Read the relevant code with Glob/Grep/Read before changing',
+  '   anything. If the request is ambiguous, pick the most reasonable interpretation, state',
+  '   the assumption, and proceed — do not stall waiting for clarification you can infer.',
+  '2. Plan multi-step work. For any task beyond a couple of steps, state the steps you will',
+  '   take, then execute them one at a time, checking each result before moving on.',
+  '3. Make minimal, precise changes. Produce the smallest diff that solves the problem.',
+  '   Match the surrounding code: naming, formatting, comment density, and idiom. Do not',
+  '   reformat unrelated code, do not add speculative error handling or features the user',
+  '   did not ask for, and never invent dependencies that are not already installed.',
+  '4. Verify before claiming success. After changing code, run the relevant tests, builds,',
+  '   or commands with Bash to prove it works. Only claim success when verification actually',
+  '   passed; report failures as-is and fix them when you can. Never say you ran something',
+  '   you did not run.',
+  '5. Recover from failures. When a tool call fails, read the error, adjust the approach,',
+  '   and retry differently — never repeat the exact same failing call. After 2–3 failed',
+  '   attempts at the same thing, step back, summarize what you learned, and either change',
+  '   strategy or report the blocker.',
+  '6. Finish cleanly. When the task is complete, stop calling tools and write a concise',
+  '   final summary: what changed (files and why), what you verified (commands and results),',
+  '   and anything the user must do manually. Lead with the outcome.',
+].join('\n')
+
+const PLAN_MODE_DISCIPLINE = [
+  '# Plan mode (read-only)',
+  '',
+  'You are in plan mode. Investigate the codebase with Read/Glob/Grep and read-only Bash',
+  'commands only — file modifications and state-changing commands are blocked in this mode.',
+  'Produce a concrete implementation plan instead of making changes:',
+  '- State the goal and your understanding of the relevant code (files, functions, current behavior).',
+  '- List the exact changes you would make, file by file, with enough detail to implement directly.',
+  '- Note risks, open questions, and how you would verify the change afterwards.',
+].join('\n')
+
+const TOOL_GUIDANCE = [
+  '# Tool guidance',
+  '',
+  '- Prefer the dedicated tools over shell one-liners: use Read/Glob/Grep for inspection,',
+  '  not `cat`/`find`/`grep` in Bash — they are faster, safer, and respect the workspace boundary.',
+  '- Issue several independent Read/Glob/Grep calls together in one turn instead of one per turn.',
+  '- For multi-step tasks, keep a TodoWrite list current: one item per concrete step, exactly',
+  '  one in_progress at a time, completed only after its verification passed.',
+  '- Edit is the way to change existing files; Read the file first (enforced). Use Write only',
+  '  for new files or complete rewrites. old_string in Edit must match exactly and uniquely.',
+  '- Bash runs non-interactively via Git Bash on Windows: stdin is not connected, so use',
+  '  non-interactive flags (`git commit -m`, `npm install --yes`) and never editors/pagers.',
+  '  Output past 30,000 characters is truncated; set a sensible `timeout` for slow commands',
+  '  (default 120000 ms, max 600000 ms).',
+  '- WebFetch reaches public pages only (no intranet/auth); prefer it for documentation lookups',
+  '  over guessing APIs from memory.',
+  '- File tools accept absolute paths or paths relative to the working directory; both',
+  '  forward slashes and backslashes work.',
+].join('\n')
+
+const COMMUNICATION_GUIDANCE = [
+  '# Communication',
+  '',
+  '- Progress notes between tool calls are fine, but keep them short; the final message is',
+  '  what the user reads and must be self-contained.',
+  '- Answer in the language the user wrote in.',
+  '- Be factual: state what you did, what you verified, and what remains. No filler, no',
+  '  restating the task back, no unverified "should work" claims.',
+].join('\n')
+
+/**
+ * Builds the agent system prompt. `options.envInfo` (from
+ * collectEnvironmentInfo) is rendered into an <environment> block; when
+ * absent the prompt degrades to cwd-only facts. `options.permissionMode`
+ * switches the discipline block (plan mode is read-only and outputs a plan).
+ * `options.memory` (rendered text from collectProjectMemory) appends the
+ * project's AGENTS.md/ZCODE.md instructions.
+ */
+export function buildAgentSystemPrompt(cwd, boundary, options = {}) {
+  const { envInfo = null, permissionMode = 'agent', model = null, memory = '' } = options
+  const identity =
+    'You are ZCode, an interactive CLI coding agent working directly in the user\'s workspace ' +
+    'from their terminal. You turn requests into verified, working changes.'
+
+  // Environment facts come from the shared renderer (envInfo.js) so the
+  // prompt, the doctor, and the TUI status line can never drift apart.
+  const envLines = envInfo
+    ? formatEnvironmentBlock(envInfo).split('\n')
+    : [`cwd: ${cwd}`]
+  if (model) envLines.push(`model: ${model}`)
+  envLines.push(
+    `permission mode: ${permissionMode}` +
+      (permissionMode === 'plan'
+        ? ' (read-only: produce a plan, do not modify anything)'
+        : permissionMode === 'yolo'
+          ? ' (actions run without per-call approval)'
+          : ' (writes and commands require user approval)'),
+  )
+
+  const discipline = permissionMode === 'plan' ? PLAN_MODE_DISCIPLINE : WORKFLOW_DISCIPLINE
+
+  const sections = [
+    identity,
     '',
-    `Current working directory: ${cwd}`,
+    '<environment>',
+    ...envLines,
     describeBoundaryForPrompt(cwd, boundary),
+    '</environment>',
     '',
-    'Rules of engagement:',
-    '- Explore before you change: use Glob, Grep, and Read to understand the relevant code.',
-    '- Make minimal, precise changes with Edit; create new files with Write.',
-    '- Verify your changes with Bash (tests, builds, git). Only claim success when the',
-    '  verification actually passed; report failures as-is.',
-    '- Tool results are fed back to you each turn. If a call fails, adapt and retry.',
-    '- Stop calling tools and write your final answer when the task is complete.',
-  ].join('\n')
+    discipline,
+    '',
+    TOOL_GUIDANCE,
+    '',
+    COMMUNICATION_GUIDANCE,
+  ]
+  if (typeof memory === 'string' && memory.trim() !== '') {
+    sections.push('', memory)
+  }
+  return sections.join('\n')
 }
 
 export function resolveGuardrailLimits(env = {}) {
@@ -103,13 +206,17 @@ function truncateForLine(text, maxLength = 160) {
 /**
  * Maps loop events to human-readable progress lines on stdout.
  * Returns an onEvent handler; deltas stream live, tool calls render as
- * `● Name({input})` with a result preview line underneath.
+ * `● Name({input})` with a result preview line underneath. Pass a styler
+ * (createStyler from ./ansi.js) to colorize tool activity; without one the
+ * output stays plain.
  */
 export function createProgressRenderer({
   stdout,
   stderr,
   showReasoning = false,
+  styler = null,
 } = {}) {
+  const s = styler ?? { dim: t => t, red: t => t, green: t => t, yellow: t => t, cyan: t => t }
   const write = (chunk) => {
     if (stdout) stdout.write(chunk)
   }
@@ -129,42 +236,48 @@ export function createProgressRenderer({
         if (event.text) write('\n')
         break
       case 'tool_execution_start':
-        write(`\n● ${event.name}(${formatToolInputPreview(event.input)})\n`)
+        write(`\n${s.cyan(`● ${event.name}`)}(${formatToolInputPreview(event.input)})\n`)
         break
       case 'tool_execution_end':
         write(
           event.isError
-            ? `  ✗ ${truncateForLine(event.preview)}\n`
-            : `  ✓ ${truncateForLine(event.preview)}\n`,
+            ? `  ${s.red(`✗ ${truncateForLine(event.preview)}`)}\n`
+            : `  ${s.green(`✓ ${truncateForLine(event.preview)}`)}\n`,
         )
         break
       case 'context_compact':
         if (event.ok) {
           write(
-            `\n⟳ Compacted ${event.summarizedMessages} older message(s), kept ` +
-              `${event.keptMessages} recent.\n`,
+            `\n${s.dim(
+              `⟳ Compacted ${event.summarizedMessages} older message(s), kept ` +
+                `${event.keptMessages} recent.`,
+            )}\n`,
           )
         } else {
-          write(`\n⚠ Compaction failed (${truncateForLine(event.message)}) — continuing uncompacted.\n`)
+          write(`\n${s.yellow(`⚠ Compaction failed (${truncateForLine(event.message)}) — continuing uncompacted.`)}\n`)
         }
         break
       case 'provider_retry':
         write(
-          `\n⟳ Provider request failed (attempt ${event.attempt}), retrying: ` +
-            `${truncateForLine(event.message)}\n`,
+          `\n${s.yellow(
+            `⟳ Provider request failed (attempt ${event.attempt}), retrying: ` +
+              `${truncateForLine(event.message)}`,
+          )}\n`,
         )
         break
       case 'permission_denied':
-        write(`  ⚠ permission denied: ${truncateForLine(event.reason)}\n`)
+        write(`  ${s.yellow(`⚠ permission denied: ${truncateForLine(event.reason)}`)}\n`)
         break
       case 'loop_end':
         if (event.stopReason === 'max_turns' || event.stopReason === 'budget_exceeded') {
           write(
-            `\n⚠ Stopped by guardrail (${event.stopReason}) after ${event.turns} turn(s) — ` +
-              'progress is reported as-is.\n',
+            `\n${s.yellow(
+              `⚠ Stopped by guardrail (${event.stopReason}) after ${event.turns} turn(s) — ` +
+                'progress is reported as-is.',
+            )}\n`,
           )
         } else if (event.stopReason === 'error') {
-          write(`\n✗ Loop stopped on an error after ${event.turns} turn(s).\n`)
+          write(`\n${s.red(`✗ Loop stopped on an error after ${event.turns} turn(s).`)}\n`)
         } else {
           write('\n')
         }
@@ -177,18 +290,43 @@ export function createProgressRenderer({
 
 /**
  * Interactive y/n confirmation for Agent mode; fails closed when stdin is
- * not a TTY (headless runs should use --yolo or --plan).
+ * not a TTY (headless runs should use --yolo or --plan). Edit/Write calls
+ * render a red/green diff preview before the prompt (best-effort).
  */
-export function createInteractiveConfirm({ stdin, stdout } = {}) {
+export function createInteractiveConfirm({ stdin, stdout, cwd = process.cwd(), boundary } = {}) {
   if (!stdin || stdin.isTTY !== true) {
     return null
   }
 
   return async function confirm({ toolName, input }) {
+    let oldContent = null
+    let blocked = false
+    if (toolName === 'Write') {
+      const read = await readOldContentForPreview({ toolName, input, cwd, boundary })
+      oldContent = read.oldContent
+      blocked = read.blocked
+    }
+    const preview = buildDiffPreviewForTool(toolName, input, { oldContent })
+    if (preview && preview.parts) {
+      if (blocked) {
+        preview.note = preview.note
+          ? `${preview.note} (file outside the workspace boundary — existing content not shown)`
+          : '(file outside the workspace boundary — existing content not shown)'
+      }
+      const line = text => stdout.write(`${text}\n`)
+      line(`  ${toolName} → ${preview.file} (${preview.kind} · +${preview.stats.added} −${preview.stats.removed})`)
+      if (preview.note) line(`  ${preview.note}`)
+      for (const part of preview.parts) {
+        if (part.type === 'fold') line(`  ${part.text}`)
+        else if (part.type === 'add') line(`  + ${part.text}`)
+        else if (part.type === 'del') line(`  - ${part.text}`)
+        else line(`    ${part.text}`)
+      }
+    }
     const rl = createInterface({ input: stdin, output: stdout ?? undefined, terminal: true })
     try {
-      const preview = formatToolInputPreview(input)
-      const answer = await rl.question(`Allow ${toolName}(${preview})? [y/N] `)
+      const text = formatToolInputPreview(input)
+      const answer = await rl.question(`Allow ${toolName}(${text})? [y/N] `)
       return answer.trim().toLowerCase() === 'y'
     } finally {
       rl.close()
@@ -207,6 +345,9 @@ export async function runHarnessPrint({
   permissionMode,
   confirm,
   cwd,
+  /** Effective CLI environment merged by runCli; env probes must read this
+   * rather than the host process's environment. */
+  env = process.env,
   maxTurns,
   budgetTokens,
   onEvent,
@@ -219,6 +360,13 @@ export async function runHarnessPrint({
 }) {
   const resolvedModel = model || provider?.listModels?.()?.[0]?.id || null
 
+  // Fresh environment facts per run: git state / OS / date go into the system
+  // prompt. A failed probe never blocks the run (collector never rejects).
+  const [envInfo, memory] = await Promise.all([
+    collectEnvironmentInfo(cwd, { env }),
+    collectProjectMemory(cwd).then(result => result.text),
+  ])
+
   // Resume: the loop prepends the prior session's messages itself; a fresh
   // session starts from the prompt alone.
   const messages = [{ role: 'user', content: prompt }]
@@ -227,7 +375,12 @@ export async function runHarnessPrint({
   const result = await runAgentLoop({
     provider,
     model: resolvedModel,
-    system: buildAgentSystemPrompt(cwd, boundary),
+    system: buildAgentSystemPrompt(cwd, boundary, {
+      envInfo,
+      permissionMode,
+      model: resolvedModel,
+      memory,
+    }),
     tools: createCoreTools(),
     messages,
     permissionMode,

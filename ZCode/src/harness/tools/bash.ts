@@ -5,6 +5,61 @@ const DEFAULT_TIMEOUT_MS = 120_000
 const MAX_TIMEOUT_MS = 600_000
 const MAX_OUTPUT_CHARS = 30_000
 
+export type ShellPreference = {
+  /** Executable to spawn. */
+  file: string
+  /** Arguments placed before the command string. */
+  argsPrefix: string[]
+  /** Human-readable label for errors and the system prompt. */
+  label: string
+}
+
+/**
+ * Resolves which shell executes Bash-tool commands. Git Bash is the default
+ * (its POSIX semantics are what the system prompt teaches); Windows users can
+ * opt into PowerShell via ZCODE_SHELL=powershell|pwsh when Git Bash is not
+ * installed. Injectable via `env` for tests.
+ */
+export function resolveShellPreference(env: Record<string, string | undefined> = process.env): ShellPreference {
+  const requested = (env.ZCODE_SHELL ?? '').trim().toLowerCase()
+  if (requested === 'powershell') {
+    return { file: 'powershell', argsPrefix: ['-NoProfile', '-NonInteractive', '-Command'], label: 'Windows PowerShell' }
+  }
+  if (requested === 'pwsh') {
+    return { file: 'pwsh', argsPrefix: ['-NoProfile', '-NonInteractive', '-Command'], label: 'PowerShell (pwsh)' }
+  }
+  return { file: 'bash', argsPrefix: ['-c'], label: 'Git Bash (bash)' }
+}
+
+/**
+ * Decodes command output. Node decodes buffers as UTF-8; on Windows the
+ * console code page is often GBK-family, which would turn Chinese output into
+ * U+FFFD mojibake. When the UTF-8 decode shows replacement characters, retry
+ * with GB18030 (a GBK superset) and keep whichever lost fewer bytes.
+ */
+export function decodeOutput(buffer: Buffer, platform: string = process.platform): string {
+  if (buffer.length === 0) return ''
+  const utf8 = buffer.toString('utf8')
+  if (platform !== 'win32') return utf8
+  const utf8Losses = countReplacementChars(utf8)
+  if (utf8Losses === 0) return utf8
+  try {
+    const gb = new TextDecoder('gb18030').decode(buffer)
+    if (countReplacementChars(gb) < utf8Losses) return gb
+  } catch {
+    // ICU without gb18030 support: keep the UTF-8 decode.
+  }
+  return utf8
+}
+
+function countReplacementChars(text: string): number {
+  let count = 0
+  for (const char of text) {
+    if (char === '\uFFFD') count += 1
+  }
+  return count
+}
+
 interface BashParams {
   command: string
   timeoutMs: number
@@ -85,9 +140,10 @@ function runBash(command: string, timeoutMs: number, context: ToolContext): Prom
       return
     }
 
+    const shell = resolveShellPreference()
     let child
     try {
-      child = spawn('bash', ['-c', command], {
+      child = spawn(shell.file, [...shell.argsPrefix, command], {
         cwd: context.cwd,
         env: process.env,
         windowsHide: true,
@@ -108,8 +164,10 @@ function runBash(command: string, timeoutMs: number, context: ToolContext): Prom
       return
     }
 
-    let stdout = ''
-    let stderr = ''
+    const stdout: Buffer[] = []
+    let stdoutBytes = 0
+    const stderr: Buffer[] = []
+    let stderrBytes = 0
     let timedOut = false
     let aborted = false
     let settled = false
@@ -126,11 +184,19 @@ function runBash(command: string, timeoutMs: number, context: ToolContext): Prom
     }
     context.signal?.addEventListener('abort', onAbort, { once: true })
 
-    child.stdout?.on('data', chunk => {
-      if (stdout.length < MAX_OUTPUT_CHARS * 2) stdout += String(chunk)
+    child.stdout?.on('data', (chunk: Buffer) => {
+      // Cap collection well above the truncation limit so the cap itself
+      // never dominates the output.
+      if (stdoutBytes < MAX_OUTPUT_CHARS * 4) {
+        stdout.push(chunk)
+        stdoutBytes += chunk.length
+      }
     })
-    child.stderr?.on('data', chunk => {
-      if (stderr.length < MAX_OUTPUT_CHARS * 2) stderr += String(chunk)
+    child.stderr?.on('data', (chunk: Buffer) => {
+      if (stderrBytes < MAX_OUTPUT_CHARS * 4) {
+        stderr.push(chunk)
+        stderrBytes += chunk.length
+      }
     })
 
     const finish = (exitCode: number | null, spawnError: string | null = null): void => {
@@ -138,7 +204,14 @@ function runBash(command: string, timeoutMs: number, context: ToolContext): Prom
       settled = true
       clearTimeout(timer)
       context.signal?.removeEventListener('abort', onAbort)
-      resolve({ stdout, stderr, exitCode, timedOut, aborted, spawnError })
+      resolve({
+        stdout: decodeOutput(Buffer.concat(stdout)),
+        stderr: decodeOutput(Buffer.concat(stderr)),
+        exitCode,
+        timedOut,
+        aborted,
+        spawnError,
+      })
     }
 
     child.on('error', error => {
@@ -163,8 +236,12 @@ export async function executeBash(
   const outcome = await runBash(command, timeoutMs, context)
 
   if (outcome.spawnError !== null) {
+    const shell = resolveShellPreference()
     return {
-      content: `Error: failed to start bash (is Git Bash installed and on PATH?): ${outcome.spawnError}`,
+      content:
+        `Error: failed to start ${shell.label}` +
+        (shell.file === 'bash' ? ' (is Git Bash installed and on PATH?)' : '') +
+        `: ${outcome.spawnError}`,
       isError: true,
     }
   }
@@ -208,12 +285,20 @@ export async function executeBash(
 }
 
 export function createBashTool(): ToolDefinition {
+  const shell = resolveShellPreference()
   return {
     name: 'Bash',
     description:
-      'Executes a shell command via bash -c (Git Bash on Windows) in the workspace directory. ' +
-      'Use for running tests, builds, and git. Optional timeout in ms (default 120000, max 600000). ' +
-      'Returns stdout and stderr; a non-zero exit code is reported as an error.',
+      `Executes a shell command via ${shell.label} in the workspace directory ` +
+      'and returns stdout/stderr. Use for tests, builds, linters, git, and package managers — ' +
+      'not for file inspection covered by Read/Glob/Grep. Non-interactive: stdin is not ' +
+      'connected, so avoid commands that prompt (use `git commit -m`, `npm install --yes`, ' +
+      'never editors or pagers). Output past 30,000 characters is truncated; a non-zero exit ' +
+      'code returns stdout/stderr as an error result. Optional timeout in ms (default 120000, ' +
+      'max 600000) — set a larger value for slow installs or test suites.' +
+      (shell.file === 'bash'
+        ? ' Commands use POSIX/bash syntax (Git Bash on Windows); ZCODE_SHELL=powershell switches the dialect.'
+        : ` Commands use ${shell.label} syntax (set via ZCODE_SHELL).`),
     readOnly: false,
     inputSchema: {
       type: 'object',

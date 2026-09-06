@@ -70,8 +70,10 @@ export function createGlobTool(): ToolDefinition {
   return {
     name: 'Glob',
     description:
-      'Fast file pattern matching. Supports glob patterns like "**/*.js" or "src/**/*.ts". ' +
-      'Returns matching file paths sorted by modification time (newest first).',
+      'Finds files by glob pattern (e.g. "src/**/*.ts", "**/*.{js,json}") and returns paths ' +
+      'sorted by modification time (newest first). Use it to map the project layout, locate ' +
+      'files by name or extension, or check whether a file exists — for file contents use ' +
+      'Grep instead. Results respect the workspace boundary and skip symlinks/junctions.',
     readOnly: true,
     inputSchema: {
       type: 'object',

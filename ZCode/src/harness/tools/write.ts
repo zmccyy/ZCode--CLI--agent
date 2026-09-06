@@ -32,6 +32,16 @@ export async function executeWrite(
     } catch {
       existed = false
     }
+    // Overwriting an existing file is destructive, so it carries the same
+    // read-before-write precondition as Edit. New files need no prior read.
+    if (existed && !context.state.readFiles.has(absolutePath)) {
+      return {
+        content:
+          `Error: file exists and has not been read yet. Read it with the Read tool before ` +
+          `overwriting: ${absolutePath}`,
+        isError: true,
+      }
+    }
     await fs.writeFile(absolutePath, params.content, 'utf8')
     context.state.readFiles.add(absolutePath)
     return {
@@ -49,8 +59,10 @@ export function createWriteTool(): ToolDefinition {
   return {
     name: 'Write',
     description:
-      'Writes content to a file, creating parent directories as needed. ' +
-      'Overwrites the file completely when it exists. For partial changes prefer Edit.',
+      'Creates a new file or completely rewrites an existing one, creating parent directories ' +
+      'as needed. Prefer Edit for changing existing files — Write replaces the entire content. ' +
+      'Overwriting a file that exists requires reading it with the Read tool first in this ' +
+      'session. Returns the created/updated path and byte count.',
     readOnly: false,
     inputSchema: {
       type: 'object',

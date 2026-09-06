@@ -64,7 +64,16 @@ test('minimal closed loop: single-turn text response through the fake server', a
     assert.equal(wireBody.messages[0].content, SYSTEM_PROMPT)
     assert.equal(wireBody.messages[1].role, 'user')
     const toolNames = wireBody.tools.map(tool => tool.function.name)
-    assert.deepEqual(toolNames, ['Read', 'Glob', 'Grep', 'Write', 'Edit', 'Bash'])
+    assert.deepEqual(toolNames, [
+      'Read',
+      'Glob',
+      'Grep',
+      'Write',
+      'Edit',
+      'Bash',
+      'TodoWrite',
+      'WebFetch',
+    ])
 
     // Progress events observed.
     assert.ok(events.some(event => event.type === 'session_start'))

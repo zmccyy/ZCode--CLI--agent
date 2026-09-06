@@ -5,12 +5,15 @@ import { createGrepTool } from './grep.ts'
 import { createWriteTool } from './write.ts'
 import { createEditTool } from './edit.ts'
 import { createBashTool } from './bash.ts'
+import { createTodoTool } from './todo.ts'
+import { createWebFetchTool } from './webFetch.ts'
 
 export * from './registry.ts'
 
 /**
- * The core six tools required by the v1 acceptance scenario.
- * Later milestones may add more; the loop never hardcodes names.
+ * The core toolset: the v1 six (Read/Glob/Grep/Write/Edit/Bash) plus the v1.5
+ * working-tool additions (TodoWrite task tracking, WebFetch documentation
+ * lookup). The loop never hardcodes names.
  */
 export function createCoreTools(): ToolDefinition[] {
   return [
@@ -20,5 +23,7 @@ export function createCoreTools(): ToolDefinition[] {
     createWriteTool(),
     createEditTool(),
     createBashTool(),
+    createTodoTool(),
+    createWebFetchTool(),
   ]
 }

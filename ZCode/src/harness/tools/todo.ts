@@ -90,6 +90,12 @@ export function createTodoTool(): ToolDefinition {
       'user informed of progress and keeps long tasks on track. Items are plain strings; the ' +
       'list is session-scoped.',
     readOnly: true,
+    version: 1,
+    sideEffect: 'write',
+    cancellable: true,
+    timeoutMs: 5_000,
+    outputLimitBytes: 64_000,
+    idempotent: true,
     inputSchema: {
       type: 'object',
       properties: {

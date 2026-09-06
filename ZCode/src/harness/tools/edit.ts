@@ -117,6 +117,12 @@ export function createEditTool(): ToolDefinition {
       'in this session (enforced). On mismatch the error reports the occurrence count so you ' +
       'can adjust the match instead of guessing.',
     readOnly: false,
+    version: 1,
+    sideEffect: 'write',
+    cancellable: true,
+    timeoutMs: 30_000,
+    outputLimitBytes: 64_000,
+    idempotent: false,
     inputSchema: {
       type: 'object',
       properties: {

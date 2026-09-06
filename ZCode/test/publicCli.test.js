@@ -294,6 +294,11 @@ test('runCli can execute --print --json through the real openai-compatible provi
     assert.equal(payload.model, 'deepseek-chat')
     assert.equal(payload.text, 'hello world')
     assert.equal(payload.finishReason, 'stop')
+    // P1.1: the envelope declares its contract version; P1.2: run metrics ride along.
+    assert.equal(payload.contractVersion, 1)
+    assert.ok(payload.metrics, 'run metrics present in the JSON envelope')
+    assert.equal(typeof payload.metrics.totalDurationMs, 'number')
+    assert.ok(Array.isArray(payload.metrics.turns))
   } finally {
     if (server) {
       await new Promise(resolve => server.close(resolve))

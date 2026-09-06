@@ -360,6 +360,12 @@ export function createGrepTool(): ToolDefinition {
       'Matching runs under a time budget (ZCODE_GREP_BUDGET_MS, default 10s); ' +
       'pathological patterns are stopped and reported as an error instead of hanging the turn.',
     readOnly: true,
+    version: 1,
+    sideEffect: 'read',
+    cancellable: true,
+    timeoutMs: 60_000,
+    outputLimitBytes: 1_000_000,
+    idempotent: true,
     inputSchema: {
       type: 'object',
       properties: {

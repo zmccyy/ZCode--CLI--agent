@@ -1,8 +1,8 @@
 # 22 工具注册与执行契约
 
-> Status: normative · Owner: harness maintainers · Last verified: 2026-09-05（v1.4.0）
+> Status: normative · Owner: harness maintainers · Last verified: 2026-09-06（v1.7.0，P1.1 已实装）
 > Source of truth: `ZCode/src/harness/types.ts`（ToolDefinition/ToolContext/ToolSessionState）+ `tools/registry.ts`
-> Test refs: `test/harness/tools.test.js`、`test/harness/m2Security.test.js`
+> Test refs: `test/harness/tools.test.js`、`test/harness/m2Security.test.js`、`test/harness/toolContract.test.js`
 
 ## ToolDefinition（当前 = 契约）
 
@@ -43,7 +43,7 @@
 - 每工具声明输出上限与超时（见下）；
 - 校验失败 → model-visible 错误，不执行工具。
 
-## P1 扩展字段（冻结设计，防止届时随意加）
+## P1 扩展字段（已实装，2026-09-06）
 
 ```ts
 {
@@ -59,7 +59,15 @@
 }
 ```
 
-兼容规则：不带扩展字段的旧工具按 `{sideEffect: readOnly?'read':'write', cancellable:false}` 保守解释。
+实装语义（`tools/registry.ts` 的 `resolveToolContract` + loop 强制）：
+
+- **兼容规则**：不带扩展字段的旧工具按 `{sideEffect: readOnly?'read':'write', cancellable:false}` 保守解释（注册即校验，见下）。
+- **注册校验**：version 必须为正整数且不得高于 harness 所讲版本（`LOOP_CONTRACT_VERSION`，当前 1，过新即抛错）；sideEffect 枚举校验，`'read'` 要求 `readOnly: true`（其余组合与 readOnly 正交，如 WebFetch 为 `network`+readOnly、TodoWrite 为 `write`+readOnly）；timeoutMs/outputLimitBytes 必须为正数；namespace 必须形如 `<scope>.<name>`。
+- **loop 超时强制**：仅对 `cancellable: true` 且声明了 `timeoutMs` 的工具生效——per-call AbortController 链接外层 signal，超时中止并以 `code: 'timeout'` 返回；不可取消的工具绝不 race（避免僵尸执行）。Bash 自管内部超时（默认 120s/上限 600s），不声明 loop 级 deadline。
+- **输出预算**：`outputLimitBytes` 由 loop 强制（字节级截断 + 尾注 `[output truncated at N bytes (tool contract)]`），即使工具自身 cap 回归也不会淹没上下文。
+- **错误码**（`ToolResult.code`，仅 isError 时有意义）：`invalid_input | not_found | conflict | boundary | policy_denied | timeout | aborted | failed`。unknown tool → `not_found`；权限/策略拒绝 → `policy_denied`；BoundaryError → `boundary`；loop 超时 → `timeout`；外部取消 → `aborted`。provider 错误码词表见 contracts/21。
+- **Provider 契约版本**：`LoopProvider.contractVersion` 声明后由 loop 启动时校验，不认识即 fail-fast。transcript `session_start` 与 print JSON 信封携带 `contractVersion: 1`。
+- **MCP 对齐备注**（P1.3 铺垫）：MCP wire 的 tool annotations（readOnlyHint/destructiveHint/idempotentHint/openWorldHint）是 untrusted hints；本契约字段是一方 normative 声明，适配器可无损映射（sideEffect/cancellable/idempotent → hints；sensitive 映射到权限审计）。
 
 ## 新增工具 DoD（workflows/30 摘要）
 

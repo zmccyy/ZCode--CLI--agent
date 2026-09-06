@@ -75,6 +75,12 @@ export function createGlobTool(): ToolDefinition {
       'files by name or extension, or check whether a file exists — for file contents use ' +
       'Grep instead. Results respect the workspace boundary and skip symlinks/junctions.',
     readOnly: true,
+    version: 1,
+    sideEffect: 'read',
+    cancellable: true,
+    timeoutMs: 30_000,
+    outputLimitBytes: 1_000_000,
+    idempotent: true,
     inputSchema: {
       type: 'object',
       properties: {

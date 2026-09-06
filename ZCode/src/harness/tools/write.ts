@@ -64,6 +64,12 @@ export function createWriteTool(): ToolDefinition {
       'Overwriting a file that exists requires reading it with the Read tool first in this ' +
       'session. Returns the created/updated path and byte count.',
     readOnly: false,
+    version: 1,
+    sideEffect: 'write',
+    cancellable: true,
+    timeoutMs: 30_000,
+    outputLimitBytes: 64_000,
+    idempotent: false,
     inputSchema: {
       type: 'object',
       properties: {

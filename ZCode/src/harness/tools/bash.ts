@@ -300,6 +300,14 @@ export function createBashTool(): ToolDefinition {
         ? ' Commands use POSIX/bash syntax (Git Bash on Windows); ZCODE_SHELL=powershell switches the dialect.'
         : ` Commands use ${shell.label} syntax (set via ZCODE_SHELL).`),
     readOnly: false,
+    version: 1,
+    sideEffect: 'process',
+    cancellable: true,
+    // Internal timeout management (default 120s, max 600s) stays authoritative:
+    // the loop would only double-kill, so no loop-level deadline is declared.
+    outputLimitBytes: 200_000,
+    idempotent: false,
+    sensitive: true,
     inputSchema: {
       type: 'object',
       properties: {

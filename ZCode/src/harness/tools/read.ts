@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
-import type { ToolContext, ToolDefinition, ToolResult } from '../types.ts'
+import type { ToolContext, ToolDefinition, ToolErrorCode, ToolResult } from '../types.ts'
 import { assertPathInsideBoundary, assertRealpathInsideBoundary } from '../boundary.ts'
 
 const DEFAULT_LIMIT = 2000
@@ -28,11 +28,16 @@ export async function resolveWorkspacePath(
   return absolutePath
 }
 
-/** Uniform tool-error shape for resolve/validation failures. */
+/** Uniform tool-error shape for resolve/validation failures (P1.1 codes). */
 export function toErrorResult(error: unknown): ToolResult {
+  const name = error instanceof Error ? error.name : ''
+  let code: ToolErrorCode = 'failed'
+  if (name === 'BoundaryError') code = 'boundary'
+  else if (name === 'AbortError') code = 'aborted'
   return {
     content: `Error: ${error instanceof Error ? error.message : String(error)}`,
     isError: true,
+    code,
   }
 }
 
@@ -157,6 +162,12 @@ export function createReadTool(): ToolDefinition {
       '1-based start line, limit caps returned lines (max 2000). Directories and binary files ' +
       'are rejected; lines over 2000 characters are truncated.',
     readOnly: true,
+    version: 1,
+    sideEffect: 'read',
+    cancellable: true,
+    timeoutMs: 30_000,
+    outputLimitBytes: 4_000_000,
+    idempotent: true,
     inputSchema: {
       type: 'object',
       properties: {

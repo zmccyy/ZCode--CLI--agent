@@ -20,10 +20,13 @@ import type {
   ToolCall,
   ToolContext,
   ToolDefinition,
+  ToolErrorCode,
+  ToolResult,
   ToolSessionState,
   UsageSummary,
 } from './types.ts'
-import { createToolRegistry, type ToolRegistry } from './tools/registry.ts'
+import { LOOP_CONTRACT_VERSION } from './types.ts'
+import { createToolRegistry, resolveToolContract, type ToolRegistry } from './tools/registry.ts'
 import { resolveDialect, translateRequest, toolCallIdFor } from './translate.ts'
 import { createTranscriptWriter, type TranscriptWriter } from './transcript.ts'
 import { checkPermission } from './permissions.ts'
@@ -200,6 +203,17 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
   // (mirrors the --no-boundary philosophy: explicit, documented opt-out).
   const stuckDetector =
     options.stuckDetector === false ? null : createStuckDetector(options.stuckDetector ?? {})
+  // P1.1: a provider that declares its contract version must speak one the
+  // harness understands — fail loudly at start, never mid-run.
+  if (
+    options.provider.contractVersion !== undefined &&
+    options.provider.contractVersion !== LOOP_CONTRACT_VERSION
+  ) {
+    throw new Error(
+      `provider "${options.provider.id}" declares contract version ` +
+        `${options.provider.contractVersion}, but this harness speaks version ${LOOP_CONTRACT_VERSION}`,
+    )
+  }
   const emit = (event: LoopEvent): void => {
     metricsCollector.onLoopEvent(event)
     try {
@@ -248,6 +262,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
     provider: options.provider.id,
     dialect,
     boundary: boundary.enabled ? boundary.roots : 'disabled',
+    contractVersion: LOOP_CONTRACT_VERSION,
     ...(options.resume ? { resumedFrom: options.resume.sessionId } : {}),
   })
   if (options.resume) {
@@ -689,13 +704,14 @@ async function executeToolCall(context: {
     context
 
   const startedAt = Date.now()
-  const finalize = (result: string, isError: boolean): ExecutedToolCall => ({
+  const finalize = (result: string, isError: boolean, code?: ToolErrorCode): ExecutedToolCall => ({
     toolCallId,
     name: call.name,
     input: call.input,
     result,
     isError,
     durationMs: Date.now() - startedAt,
+    ...(code !== undefined ? { code } : {}),
   })
 
   const tool = registry.get(call.name)
@@ -706,7 +722,7 @@ async function executeToolCall(context: {
       .join(', ')
     const result = `Error: unknown tool "${call.name}". Available tools: ${available}`
     emit({ type: 'tool_execution_end', toolCallId, name: call.name, isError: true, durationMs: 0, preview: result })
-    return { executed: finalize(result, true) }
+    return { executed: finalize(result, true, 'not_found') }
   }
 
   // ── Permission gate ──
@@ -747,7 +763,7 @@ async function executeToolCall(context: {
       durationMs: 0,
       preview: truncatePreview(result),
     })
-    return { executed: finalize(result, true) }
+    return { executed: finalize(result, true, 'policy_denied') }
   }
 
   // ── Execute ──
@@ -756,16 +772,72 @@ async function executeToolCall(context: {
 
   let resultText: string
   let isError: boolean
+  let code: ToolErrorCode | undefined
+
+  // Contract enforcement (contracts/22 v2 / P1.1): a cancellable tool with a
+  // declared deadline gets a loop-level timeout — the per-call signal is the
+  // outer signal linked with the deadline, so the tool's own cancellation
+  // handling winds it down. Non-cancellable tools are never raced (they
+  // cannot honor abort; racing would leave a zombie execution).
+  const contract = resolveToolContract(tool)
+  const runWithContract = async (): Promise<ToolResult> => {
+    if (!contract.cancellable || contract.timeoutMs === null) {
+      return tool.execute(call.input, toolContext)
+    }
+    const perCall = new AbortController()
+    const onOuterAbort = () => perCall.abort(toolContext.signal?.reason)
+    if (toolContext.signal) {
+      if (toolContext.signal.aborted) perCall.abort(toolContext.signal.reason)
+      else toolContext.signal.addEventListener('abort', onOuterAbort, { once: true })
+    }
+    const timeoutError = Object.assign(
+      new Error(`tool "${call.name}" exceeded its ${contract.timeoutMs}ms deadline`),
+      { name: 'ToolTimeoutError' },
+    )
+    const timer = setTimeout(() => perCall.abort(timeoutError), contract.timeoutMs)
+    const abortedPromise = new Promise<never>((_, reject) => {
+      perCall.signal.addEventListener('abort', () => reject(perCall.signal.reason ?? timeoutError), {
+        once: true,
+      })
+    })
+    try {
+      return await Promise.race([
+        tool.execute(call.input, { ...toolContext, signal: perCall.signal }),
+        abortedPromise,
+      ])
+    } finally {
+      clearTimeout(timer)
+      toolContext.signal?.removeEventListener('abort', onOuterAbort)
+    }
+  }
+
   try {
-    const output = await tool.execute(call.input, toolContext)
+    const output = await runWithContract()
     resultText = output.content
     isError = output.isError === true
+    code = output.code
   } catch (error) {
     resultText = `Error: tool "${call.name}" failed: ${describeError(error)}`
     isError = true
+    const errorName = error instanceof Error ? error.name : ''
+    if (errorName === 'ToolTimeoutError') {
+      code = 'timeout'
+    } else if (errorName === 'AbortError' || toolContext.signal?.aborted) {
+      code = 'aborted'
+    } else {
+      code = 'failed'
+    }
   }
 
-  const executed = finalize(resultText, isError)
+  // Output budget (P1.1): declared byte caps are enforced by the loop so a
+  // tool cannot flood the context, even if its own cap regresses.
+  if (contract.outputLimitBytes !== null && Buffer.byteLength(resultText, 'utf8') > contract.outputLimitBytes) {
+    let cut = contract.outputLimitBytes
+    while (cut > 0 && (resultText.charCodeAt(cut) & 0xfc00) === 0xdc00) cut -= 1
+    resultText = `${resultText.slice(0, cut)}\n[output truncated at ${contract.outputLimitBytes} bytes (tool contract)]`
+  }
+
+  const executed = finalize(resultText, isError, code)
   transcript.append({
     type: 'tool_execution_end',
     toolCallId,

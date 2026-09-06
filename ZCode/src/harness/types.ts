@@ -38,10 +38,53 @@ export type JsonSchemaObject = {
   [key: string]: unknown
 }
 
+/**
+ * Contract version of the loop↔tool/event/provider surface (contracts/22,
+ * P1.1). Bump only for breaking changes; consumers validate and refuse
+ * unknown versions loudly instead of guessing.
+ */
+export const LOOP_CONTRACT_VERSION = 1
+
+/**
+ * Side-effect class of a tool (contracts/22 v2, frozen design). Drives
+ * permission defaults and, for future MCP adapters, maps onto the wire's
+ * annotation hints (readOnlyHint etc. — hints there, normative here).
+ */
+export type ToolSideEffect = 'read' | 'write' | 'process' | 'network'
+
+/** Effective tool contract: declared fields with conservative defaults applied. */
+export interface ToolContract {
+  version: number
+  sideEffect: ToolSideEffect
+  timeoutMs: number | null
+  outputLimitBytes: number | null
+  cancellable: boolean
+  idempotent: boolean
+  sensitive: boolean
+  namespace: string | null
+}
+
+/**
+ * Machine-readable failure classes for tool results. Business failures stay
+ * model-visible (`isError: true` + human text); `code` lets callers and
+ * future MCP adapters classify without string matching.
+ */
+export type ToolErrorCode =
+  | 'invalid_input'
+  | 'not_found'
+  | 'conflict'
+  | 'boundary'
+  | 'policy_denied'
+  | 'timeout'
+  | 'aborted'
+  | 'failed'
+
 /** Result returned by a tool execution. */
 export interface ToolResult {
   content: string
   isError?: boolean
+  /** Failure class; only meaningful when isError is true. */
+  code?: ToolErrorCode
 }
 
 /** Execution context handed to tools by the loop. */
@@ -79,6 +122,30 @@ export interface ToolDefinition {
   /** Read-only tools run in Plan mode without approval. */
   readOnly: boolean
   execute(input: unknown, context: ToolContext): Promise<ToolResult> | ToolResult
+  // ── Contract declaration (contracts/22 v2, frozen design) ──
+  // All fields optional; the registry resolves conservative defaults via
+  // resolveToolContract and validates declarations at registration.
+  /** Contract version of this declaration. Registry refuses unknown values. */
+  version?: number
+  /** Side-effect class; defaults to readOnly ? 'read' : 'write'. */
+  sideEffect?: ToolSideEffect
+  /**
+   * Loop-enforced execution deadline. Only applied when the tool also
+   * declares `cancellable: true` (a tool that cannot honor abort must not
+   * be raced — it would keep running as a zombie). Absent → no loop-level
+   * deadline (e.g. Bash manages its own internally).
+   */
+  timeoutMs?: number
+  /** Byte budget for `result.content`; the loop truncates with a notice. */
+  outputLimitBytes?: number
+  /** Whether the tool honors context.signal cancellation. Default false. */
+  cancellable?: boolean
+  /** Repeating the same successful call has no further effect. Default false. */
+  idempotent?: boolean
+  /** Inputs/outputs may contain secrets needing redaction downstream. Default false. */
+  sensitive?: boolean
+  /** Future MCP namespace: `mcp.<server>.<tool>`. */
+  namespace?: string
 }
 
 export type PermissionMode = 'plan' | 'agent' | 'yolo'
@@ -141,6 +208,8 @@ export interface ExecutedToolCall {
   result: string
   isError: boolean
   durationMs: number
+  /** Failure class for errored calls (absent on success/unknown). */
+  code?: ToolErrorCode
 }
 
 export interface AgentLoopResult {
@@ -170,6 +239,11 @@ export interface AgentLoopResult {
 export interface LoopProvider {
   id: string
   kind?: string
+  /**
+   * Declared contract version (contracts/21, P1.1). When present, the loop
+   * refuses to start against a version it does not speak.
+   */
+  contractVersion?: number
   streamChat(input: Record<string, unknown>): AsyncIterable<ProviderStreamEvent>
 }
 

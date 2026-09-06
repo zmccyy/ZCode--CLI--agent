@@ -291,6 +291,12 @@ export function createWebFetchTool(): ToolDefinition {
       'to max_chars (default 20000), follows up to 3 redirects. It cannot authenticate, so ' +
       'login-walled pages will not work.',
     readOnly: true,
+    version: 1,
+    sideEffect: 'network',
+    cancellable: true,
+    timeoutMs: 30_000,
+    outputLimitBytes: 1_000_000,
+    idempotent: true,
     inputSchema: {
       type: 'object',
       properties: {

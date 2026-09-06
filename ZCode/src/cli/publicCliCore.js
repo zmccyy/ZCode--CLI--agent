@@ -10,6 +10,7 @@ import {
   getProductName,
   getVersionBanner,
 } from '../config/brandText.js'
+import { LOOP_CONTRACT_VERSION } from '../harness/types.ts'
 import { resolveRunMode, RUN_MODE_LABELS, getRunModeHelpLines } from '../utils/permissions/runMode.js'
 import { loadSettingsFromDisk } from '../config/settingsContract.js'
 import { applyProviderSettingsToEnv } from '../config/providerEnvironment.js'
@@ -998,6 +999,8 @@ export async function runCli(
         const output = {
           ...result,
           runMode,
+          // P1.1: contract version of this envelope's event/result surface.
+          contractVersion: LOOP_CONTRACT_VERSION,
           ...(costInfo
             ? {
                 cost: {

@@ -83,6 +83,34 @@ test('preview: trims long unchanged regions around the change', () => {
   assert.ok(plain.length <= 40 + 2, 'within cap plus folds')
 })
 
+test('preview: two distant edits both stay visible with a fold between them', () => {
+  const old = Array.from({ length: 60 }, (_, i) => `line ${i}`).join('\n')
+  const newText = old.replace('line 5', 'LINE 5').replace('line 50', 'LINE 50')
+  const { hunks } = diffLines(old, newText)
+  const parts = trimHunksForPreview(hunks, { contextPadding: 2, maxLines: 30 })
+  const plain = renderDiffPlain(parts)
+
+  assert.ok(plain.some(l => l.startsWith('+ LINE 5')), 'first change shown')
+  assert.ok(plain.some(l => l.startsWith('+ LINE 50')), 'second change shown')
+  const foldCount = plain.filter(l => /^… \d+ unchanged lines? …$/.test(l)).length
+  assert.equal(foldCount, 1, 'exactly one interior fold between the two regions')
+  // Budget only counts rendered diff lines.
+  const rendered = plain.filter(l => !l.startsWith('…')).length
+  assert.ok(rendered <= 30)
+})
+
+test('preview: budget too small for the second region drops it with a trailing fold', () => {
+  const old = Array.from({ length: 60 }, (_, i) => `line ${i}`).join('\n')
+  const newText = old.replace('line 5', 'LINE 5').replace('line 50', 'LINE 50')
+  const { hunks } = diffLines(old, newText)
+  const parts = trimHunksForPreview(hunks, { contextPadding: 2, maxLines: 8 })
+  const plain = renderDiffPlain(parts)
+
+  assert.ok(plain.some(l => l.startsWith('+ LINE 5')), 'first region shown')
+  assert.ok(!plain.some(l => l.startsWith('+ LINE 50')), 'second region dropped')
+  assert.ok(plain[plain.length - 1].includes('below'), 'trailing fold notes the rest')
+})
+
 test('preview: returns null for unchanged text', () => {
   assert.equal(trimHunksForPreview([]), null)
   const { hunks } = diffLines('same', 'same')

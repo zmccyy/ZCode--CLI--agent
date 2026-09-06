@@ -103,6 +103,20 @@ test('listWorkspaceFiles: honors a real directory depth limit', async () => {
   }
 })
 
+test('completer: prefix matches rank above substring matches', async () => {
+  const completer = createCompleter({
+    cwd: os.tmpdir(),
+    listFiles: async () => ['src/readme-helper.js', 'src/notes/readme.md', 'readme.md'],
+  })
+
+  const [matches] = await completer('@readme')
+  assert.deepEqual(
+    matches.map(value => value.trim()),
+    ['@readme.md', '@src/readme-helper.js', '@src/notes/readme.md'],
+    'startsWith first; substring hits ranked by earlier match position',
+  )
+})
+
 // End-to-end against the real readline: the completer contract (second
 // element = region to replace, completions must extend it) was verified
 // against Node's _tabComplete — these tests pin it so a regression in the

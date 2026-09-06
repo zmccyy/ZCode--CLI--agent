@@ -14,15 +14,18 @@ import { execFile } from 'node:child_process'
 import os from 'node:os'
 
 const PROBE_TIMEOUT_MS = 2000
+// The default execFile maxBuffer (64KB) truncates `git status --porcelain`
+// on large repos; the status probe needs more headroom than the others.
+const STATUS_MAX_BUFFER = 1024 * 1024
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 /** Runs a command, resolving { ok, stdout } instead of rejecting. */
-function probeRun(command, args, cwd) {
+function probeRun(command, args, cwd, { maxBuffer = 64 * 1024 } = {}) {
   return new Promise(resolve => {
     execFile(
       command,
       args,
-      { cwd, timeout: PROBE_TIMEOUT_MS, windowsHide: true, maxBuffer: 64 * 1024 },
+      { cwd, timeout: PROBE_TIMEOUT_MS, windowsHide: true, maxBuffer },
       (error, stdout) => {
         resolve({
           ok: error === null,
@@ -48,13 +51,15 @@ async function probeGit(cwd, run) {
   if (!inside.ok || inside.stdout.trim() !== 'true') return null
   const [branch, status] = await Promise.all([
     run('git', ['branch', '--show-current'], cwd),
-    run('git', ['status', '--porcelain'], cwd),
+    // -z: NUL-separated entries — filenames with newlines cannot inflate or
+    // corrupt the count, and the bigger maxBuffer covers large repos.
+    run('git', ['status', '--porcelain', '-z'], cwd, { maxBuffer: STATUS_MAX_BUFFER }),
   ])
   const branchName = branch.ok && branch.stdout.trim() !== '' ? branch.stdout.trim() : '(detached)'
   // dirtyCount null means the status probe failed (slow repo, maxBuffer…) —
   // reported as "unknown" so it can never masquerade as a clean tree.
   const dirtyCount = status.ok
-    ? status.stdout.split('\n').filter(line => line.trim() !== '').length
+    ? status.stdout.split('\0').filter(entry => entry.trim() !== '').length
     : null
   return { branch: branchName, dirtyCount }
 }

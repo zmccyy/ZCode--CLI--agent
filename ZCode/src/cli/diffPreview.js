@@ -124,9 +124,12 @@ export function diffLines(oldText, newText) {
 }
 
 /**
- * Trims hunks for preview: keeps up to `contextPadding` context lines before
- * the first change and after the last change, plus a cap on total rendered
- * lines. Returns null when nothing changed.
+ * Trims hunks for preview: renders each change region (a maximal run of
+ * changes plus `contextPadding` context lines on both sides) with fold
+ * markers between them, subject to a total `maxLines` budget. Unlike a
+ * first/last-change slice, two distant edits both stay visible instead of
+ * spending the whole budget on the unchanged middle. Returns null when
+ * nothing changed.
  */
 export function trimHunksForPreview(hunks, { contextPadding = 3, maxLines = 40 } = {}) {
   if (!hunks || hunks.length === 0) return null
@@ -134,31 +137,68 @@ export function trimHunksForPreview(hunks, { contextPadding = 3, maxLines = 40 }
   const entries = hunks.flatMap(hunk =>
     hunk.text.map(text => ({ type: hunk.type, text })),
   )
-  const firstChange = entries.findIndex(entry => entry.type !== 'context')
-  const lastChange = entries.length - 1 - [...entries].reverse().findIndex(entry => entry.type !== 'context')
+  const changeIndices = entries
+    .map((entry, index) => (entry.type !== 'context' ? index : -1))
+    .filter(index => index !== -1)
+  if (changeIndices.length === 0) return null
 
-  let start = Math.max(0, firstChange - contextPadding)
-  let end = Math.min(entries.length, lastChange + 1 + contextPadding)
+  // Group change indices into maximal runs, then pad each run into a region.
+  const regions = []
+  let runStart = changeIndices[0]
+  let runEnd = changeIndices[0]
+  for (const index of changeIndices.slice(1)) {
+    if (index === runEnd + 1) {
+      runEnd = index
+    } else {
+      regions.push([runStart, runEnd])
+      runStart = index
+      runEnd = index
+    }
+  }
+  regions.push([runStart, runEnd])
+  const padded = regions.map(([start, end]) => [
+    Math.max(0, start - contextPadding),
+    Math.min(entries.length, end + 1 + contextPadding),
+  ])
 
-  // Honor the global line cap around the changes.
-  if (end - start > maxLines) {
-    const overflow = end - start - maxLines
-    const trimHead = Math.min(Math.ceil(overflow / 2), firstChange - start)
-    const trimTail = Math.min(overflow - trimHead, end - 1 - lastChange)
-    start += trimHead
-    end -= trimTail
-    // Still over (huge change block): hard-cut around the first change.
-    if (end - start > maxLines) {
-      end = start + maxLines
+  // Greedy selection under the line budget; the first region always renders
+  // (hard-cut to the cap if it alone exceeds it, preserving the old
+  // "cut around the first change" behavior).
+  const selected = []
+  let used = 0
+  for (const [start, end] of padded) {
+    const size = end - start
+    if (selected.length === 0) {
+      const end2 = start + Math.min(size, maxLines)
+      selected.push([start, end2])
+      used = end2 - start
+      continue
+    }
+    if (used + size <= maxLines) {
+      selected.push([start, end])
+      used += size
+    } else {
+      break
     }
   }
 
-  const sliced = entries.slice(start, end)
   const parts = []
-  if (start > 0) parts.push({ type: 'fold', text: `… ${start} unchanged line${start === 1 ? '' : 's'} above …` })
-  parts.push(...sliced)
-  if (end < entries.length) {
-    parts.push({ type: 'fold', text: `… ${entries.length - end} unchanged line${entries.length - end === 1 ? '' : 's'} below …` })
+  const firstStart = selected[0][0]
+  if (firstStart > 0) {
+    parts.push({ type: 'fold', text: `… ${firstStart} unchanged line${firstStart === 1 ? '' : 's'} above …` })
+  }
+  let lastEnd = firstStart
+  for (const [start, end] of selected) {
+    if (start > lastEnd) {
+      const gap = start - lastEnd
+      parts.push({ type: 'fold', text: `… ${gap} unchanged line${gap === 1 ? '' : 's'} …` })
+    }
+    parts.push(...entries.slice(start, end))
+    lastEnd = end
+  }
+  if (lastEnd < entries.length) {
+    const below = entries.length - lastEnd
+    parts.push({ type: 'fold', text: `… ${below} unchanged line${below === 1 ? '' : 's'} below …` })
   }
   return parts
 }

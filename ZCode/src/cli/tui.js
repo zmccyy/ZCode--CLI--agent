@@ -279,9 +279,10 @@ export async function runTui({
     let statusTimer = null
     let spinnerFrame = 0
     let statusLabel = 'reading workspace state'
+    let renderStatus = () => {}
     const spinnerFrames = runtime.spinnerFramesUnicode ? SPINNER_FRAMES_UTF : SPINNER_FRAMES_ASCII
     if (stdout?.isTTY === true) {
-      const renderStatus = () => {
+      renderStatus = () => {
         const elapsedSeconds = Math.floor((Date.now() - turnStartedAt) / 1000)
         const frame = spinnerFrames[spinnerFrame % spinnerFrames.length]
         spinnerFrame += 1
@@ -316,6 +317,9 @@ export async function runTui({
     ])
     lastMemory = memory
     statusLabel = 'working'
+    // Re-render immediately so a fast first event doesn't leave the stale
+    // "reading workspace state" label on screen for a whole interval tick.
+    if (statusActive) renderStatus()
     const renderer = createProgressRenderer({
       stdout,
       stderr,
@@ -420,29 +424,36 @@ export async function runTui({
     history = result.messages
     addUsage(totalUsage, result.usage)
     if (result.text) lastAssistantText = result.text
-    if (result.usage) {
-      writeLine(
-        `\n${BANNER_LINE}\n` +
-          `  turn ${result.turns} · ${formatDuration(Date.now() - turnStartedAt)} · ` +
-          `in ${formatTokens(result.usage.inputTokens)} / ` +
-          `out ${formatTokens(result.usage.outputTokens)} tok · ` +
-          `session total in ${formatTokens(totalUsage.inputTokens)} / out ${formatTokens(totalUsage.outputTokens)} tok`,
-      )
-      // Claude-Code-style status line: model | dir git:(branch*) | Context bar.
-      // usedTokens is the last turn's input — the full history the model saw,
-      // i.e. the real context footprint. The limit is a model-family guess,
-      // so the bar is explicitly labelled an estimate.
-      const statusLine = renderStatusLine({
-        model: resolvedModel,
-        cwd,
-        git: envInfo?.git ?? null,
-        usedTokens: result.usage.inputTokens ?? 0,
-        contextLimit: guessContextLimit(resolvedModel),
-        estimated: true,
-        unicode: runtime.unicode,
-      })
-      writeLine(`  ${styler.dim(statusLine)}`)
-    }
+    // Context footprint for the status bar: the provider-reported input of
+    // the last turn (the full history the model saw). When a provider omits
+    // usage, fall back to a chars/4 estimate over the conversation — coarse,
+    // but the bar is already labelled an estimate.
+    const contextFootprintTokens =
+      result.usage && Number.isFinite(result.usage.inputTokens)
+        ? result.usage.inputTokens
+        : Math.ceil(JSON.stringify(history ?? []).length / 4)
+    writeLine(
+      `\n${BANNER_LINE}\n` +
+        `  turn ${result.turns} · ${formatDuration(Date.now() - turnStartedAt)}` +
+        (result.usage
+          ? ` · in ${formatTokens(result.usage.inputTokens)} / ` +
+            `out ${formatTokens(result.usage.outputTokens)} tok · ` +
+            `session total in ${formatTokens(totalUsage.inputTokens)} / out ${formatTokens(totalUsage.outputTokens)} tok`
+          : ` · (provider did not report usage) · session total in ${formatTokens(totalUsage.inputTokens)} / out ${formatTokens(totalUsage.outputTokens)} tok`),
+    )
+    // Claude-Code-style status line: model | dir git:(branch*) | Context bar.
+    // The limit is a model-family guess, so the bar is explicitly labelled
+    // an estimate.
+    const statusLine = renderStatusLine({
+      model: resolvedModel,
+      cwd,
+      git: envInfo?.git ?? null,
+      usedTokens: contextFootprintTokens,
+      contextLimit: guessContextLimit(resolvedModel),
+      estimated: true,
+      unicode: runtime.unicode,
+    })
+    writeLine(`  ${styler.dim(statusLine)}`)
     if (result.stopReason !== 'end_turn' && result.error) {
       writeLine(`  ${styler.red(`✗ ${result.error}`)}`)
     }

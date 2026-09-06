@@ -146,8 +146,7 @@ test('collectEnvironmentInfo falls back to PowerShell when bash is missing', asy
   assert.equal(info.git.dirtyCount, 1)
 })
 
-test('a failed git status probe reports "unknown", never a clean tree', async () => {
-  const fakeRun = async (command, args) => {
+test('a failed git status probe reports "unknown", never a clean tree', async () => {  const fakeRun = async (command, args) => {
     if (command === 'git' && args[0] === 'rev-parse') return { ok: true, stdout: 'true\n' }
     if (command === 'git' && args[0] === 'branch') return { ok: true, stdout: 'main\n' }
     // status probe fails (slow repo / maxBuffer): dirtyCount must be null
@@ -163,6 +162,28 @@ test('a failed git status probe reports "unknown", never a clean tree', async ()
   const block = formatEnvironmentBlock(info)
   assert.match(block, /state unknown/)
   assert.doesNotMatch(block, /· clean/)
+})
+
+test('git status probe uses NUL-separated porcelain output for an accurate count', async () => {
+  const calls = []
+  const fakeRun = async (command, args) => {
+    calls.push([command, ...args])
+    if (command === 'git' && args[0] === 'rev-parse') return { ok: true, stdout: 'true\n' }
+    if (command === 'git' && args[0] === 'branch') return { ok: true, stdout: 'main\n' }
+    if (command === 'git' && args[0] === 'status') {
+      // Three NUL-separated entries (porcelain -z).
+      return { ok: true, stdout: ' M a.txt\0?? b.txt\0M  c.txt\0' }
+    }
+    return { ok: false, stdout: '' }
+  }
+  const info = await collectEnvironmentInfo('C:\\repo', {
+    run: fakeRun,
+    platform: 'win32',
+    os: { type: () => 'Windows_NT', release: () => '10' },
+    now: () => new Date('2026-09-05T12:00:00'),
+  })
+  assert.equal(info.git.dirtyCount, 3)
+  assert.ok(calls.some(([command, ...args]) => command === 'git' && args.includes('-z')), '-z requested')
 })
 
 test('every core tool description documents when-to-use and constraints', () => {

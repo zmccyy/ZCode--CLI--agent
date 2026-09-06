@@ -16,6 +16,7 @@
 
 import path from 'node:path'
 import { promises as fs } from 'node:fs'
+import { realpathSync } from 'node:fs'
 
 export interface WorkspaceBoundary {
   /** When false, no path checking happens at all (--no-boundary). */
@@ -156,6 +157,56 @@ export function assertPathInsideBoundary(
   if (!boundary) return
   if (isPathInsideBoundary(boundary, absolutePath)) return
   throw new BoundaryError(absolutePath, boundary)
+}
+
+/**
+ * Sync twin of {@link assertRealpathInsideBoundary} for callers outside the
+ * loop that write synchronously (e.g. the CLI's code-block write-back). Same
+ * semantics: the path's real location — via its deepest existing ancestor,
+ * since not-yet-existing segments carry no symlinks — must stay inside the
+ * boundary's realpath'd roots. The residual TOCTOU window documented above
+ * applies equally; re-run this right before the write to narrow it.
+ */
+export function assertRealpathInsideBoundarySync(
+  boundary: WorkspaceBoundary | undefined,
+  absolutePath: string,
+): void {
+  if (!boundary || !boundary.enabled) return
+
+  const realTarget = foldPath(realpathViaExistingPrefixSync(absolutePath))
+  const contained = boundary.roots.some(root => {
+    let realRoot: string
+    try {
+      realRoot = realpathSync(root)
+    } catch {
+      realRoot = path.normalize(root)
+    }
+    return containedIn([realRoot], realTarget) || containedIn([root], realTarget)
+  })
+  if (!contained) throw new BoundaryError(realTarget, boundary)
+}
+
+function foldPath(value: string): string {
+  return process.platform === 'win32' ? value.toLowerCase() : value
+}
+
+/** Sync mirror of resolveRealPrefix: deepest existing ancestor + lexical tail. */
+function realpathViaExistingPrefixSync(absolutePath: string): string {
+  const tail: string[] = []
+  let current = absolutePath
+  for (;;) {
+    try {
+      return path.normalize(path.join(realpathSync(current), ...tail))
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        return path.normalize(absolutePath)
+      }
+      const parent = path.dirname(current)
+      if (parent === current) return path.normalize(absolutePath)
+      tail.unshift(path.basename(current))
+      current = parent
+    }
+  }
 }
 
 export function describeBoundary(boundary: WorkspaceBoundary): string {

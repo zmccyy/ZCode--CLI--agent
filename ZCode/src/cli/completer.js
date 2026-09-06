@@ -106,7 +106,19 @@ export function createCompleter({ cwd, listFiles = listWorkspaceFiles } = {}) {
       const token = lastWord.slice(1)
       const files = await getFileCandidates()
       const lowerToken = token.toLowerCase()
-      const matches = files.filter(file => file.toLowerCase().includes(lowerToken)).slice(0, MAX_FILE_COMPLETIONS)
+      // Prefix hits rank above substring hits (typing "src" should offer
+      // "src/…" before "x/src-helper.js"); ties break by match position then
+      // alphabetically for stable, predictable ordering.
+      const rank = file => {
+        const lower = file.toLowerCase()
+        if (lower.startsWith(lowerToken)) return 0
+        const at = lower.indexOf(lowerToken)
+        return at === -1 ? Number.MAX_SAFE_INTEGER : 1 + Math.min(at, 1000)
+      }
+      const matches = files
+        .filter(file => file.toLowerCase().includes(lowerToken))
+        .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
+        .slice(0, MAX_FILE_COMPLETIONS)
       // Completions must start with the region they replace: keep the "@",
       // use the full relative path, and end with a space so typing can go on.
       return [matches.map(file => `@${file} `), lastWord]

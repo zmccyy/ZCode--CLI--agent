@@ -23,3 +23,6 @@ dist/
 
 # security scan audit artifacts
 .mimosa/
+
+# local zcode session artifacts (plans)
+.zcode/

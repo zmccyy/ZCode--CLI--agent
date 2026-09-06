@@ -6,8 +6,9 @@
  * itself imports the TUI).
  */
 
-import { existsSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import { createWorkspaceBoundary, assertRealpathInsideBoundarySync } from '../harness/boundary.ts'
 
 /**
  * Extract code blocks from markdown text. Returns an array of { language, code }.
@@ -78,15 +79,15 @@ export function inferFilename(language, _cwd = process.cwd()) {
  * workspace (out-of-workspace writes are a traversal risk, and inferred names
  * come from untrusted model output).
  *
- * Two containment layers, mirroring the harness boundary (boundary.ts):
+ * Two containment layers, delegated to the harness boundary so the semantics
+ * can never drift from the file tools:
  * 1. lexical — the resolved path must be inside the workspace root;
  * 2. realpath — a path that is lexically inside may still resolve OUTSIDE
- *    through a symlink/junction placed inside the workspace, so the target's
- *    real path (via its deepest existing ancestor) must also be inside the
- *    root's realpath.
+ *    through a symlink/junction placed inside the workspace.
  *
  * Residual race (documented, same as the harness): a symlink swapped in
- * between this check and the write is a TOCTOU window.
+ * between this check and the write is a TOCTOU window — writeCodeBlocks
+ * re-verifies immediately before each write to narrow it.
  */
 export function resolveWithinWorkspace(cwd, target) {
   const root = path.resolve(cwd)
@@ -94,36 +95,21 @@ export function resolveWithinWorkspace(cwd, target) {
   if (resolved !== root && !resolved.startsWith(root + path.sep)) {
     throw new Error(`Refusing to write outside the workspace: ${resolved}`)
   }
-  const realRoot = realTargetOf(root)
-  const realTarget = realTargetOf(resolved)
-  if (realTarget !== realRoot && !realTarget.startsWith(realRoot + path.sep)) {
-    throw new Error(`Refusing to write outside the workspace (symlink escape): ${resolved}`)
+  try {
+    assertRealpathInsideBoundarySync(createWorkspaceBoundary({ cwd: root }), resolved)
+  } catch (error) {
+    if (error instanceof Error && error.name === 'BoundaryError') {
+      throw new Error(`Refusing to write outside the workspace (symlink escape): ${resolved}`)
+    }
+    throw error
   }
   return resolved
 }
 
-/**
- * Realpath of a path via its deepest EXISTING ancestor: segments that do not
- * exist yet (a write into a to-be-created directory) carry no symlinks, so
- * joining the lexical tail onto the resolved prefix is sound. Falls back to
- * the normalized lexical path when even the root cannot be resolved.
- */
-function realTargetOf(absolutePath) {
-  const fold = value => (process.platform === 'win32' ? value.toLowerCase() : value)
-  let current = absolutePath
-  const tail = []
-  for (;;) {
-    try {
-      const real = realpathSync(current)
-      return fold(path.normalize(path.join(real, ...tail)))
-    } catch (error) {
-      if (error.code !== 'ENOENT') return fold(path.normalize(absolutePath))
-      const parent = path.dirname(current)
-      if (parent === current) return fold(path.normalize(absolutePath))
-      tail.unshift(path.basename(current))
-      current = parent
-    }
-  }
+/** Re-verifies containment right before the actual write (TOCTOU narrowing). */
+function writeVerified(targetPath, content) {
+  resolveWithinWorkspace(path.dirname(targetPath), path.basename(targetPath))
+  writeFileSync(targetPath, content, 'utf8')
 }
 
 /**
@@ -141,7 +127,7 @@ export function writeCodeBlocks(blocks, writePath, cwd = process.cwd()) {
     const block = blocks[0]
     const targetPath = resolveWithinWorkspace(cwd, writePath)
     mkdirSync(path.dirname(targetPath), { recursive: true })
-    writeFileSync(targetPath, block.code + '\n', 'utf8')
+    writeVerified(targetPath, block.code + '\n')
     written.push(targetPath)
   } else {
     // Multi-file mode: infer filenames
@@ -161,7 +147,7 @@ export function writeCodeBlocks(blocks, writePath, cwd = process.cwd()) {
         counter++
       }
 
-      writeFileSync(finalPath, block.code + '\n', 'utf8')
+      writeVerified(finalPath, block.code + '\n')
       written.push(finalPath)
     }
   }

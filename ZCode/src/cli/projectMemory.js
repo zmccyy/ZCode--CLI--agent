@@ -90,6 +90,18 @@ function escapeAttribute(value) {
 }
 
 /**
+ * Defuses tag-like sequences in the memory BODY. Attributes are escaped, but
+ * the body must stay human-readable instruction text — so instead of full
+ * escaping we neutralize only sequences that could close or open a <memory>
+ * tag and let content masquerade as being outside the memory context.
+ */
+function defuseMemoryBody(text) {
+  return text
+    .replace(/<\/(memory)/gi, '<\\/$1')
+    .replace(/<(memory[\s>])/gi, '< $1')
+}
+
+/**
  * Collects project memory for `cwd`: workspace files from cwd upward (at
  * most MAX_PARENT_LEVELS directories) plus the global ~/.zcode file.
  * Returns { files: [{ path, source, truncated, scope }], text } where text
@@ -126,7 +138,7 @@ export function renderMemoryBlock(files) {
   if (!files || files.length === 0) return ''
   const sections = files.map(
     file =>
-      `<memory source="${escapeAttribute(file.path)}" scope="${escapeAttribute(file.scope)}"${file.truncated ? ' truncated="true"' : ''}>\n${file.source}\n</memory>`,
+      `<memory source="${escapeAttribute(file.path)}" scope="${escapeAttribute(file.scope)}"${file.truncated ? ' truncated="true"' : ''}>\n${defuseMemoryBody(file.source)}\n</memory>`,
   )
   return [
     '# Project memory',

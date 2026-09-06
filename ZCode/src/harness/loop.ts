@@ -30,6 +30,8 @@ import { checkPermission } from './permissions.ts'
 import { evaluateGuardrails } from './guardrails.ts'
 import { emptyUsage, addUsage } from './usage.ts'
 import { createWorkspaceBoundary, type WorkspaceBoundary } from './boundary.ts'
+import { createRunMetricsCollector } from './metrics.ts'
+import { createStuckDetector } from './stuckDetector.ts'
 import { resolveBashPolicy, type BashPolicy } from './bashPolicy.ts'
 import {
   compactConversation,
@@ -78,6 +80,13 @@ export interface AgentLoopOptions {
   boundary?: { enabled?: boolean; addDirs?: readonly string[] } | false
   /** Bash command gate (allow/deny/ask). Defaults to the built-in policy. */
   bashPolicy?: BashPolicy
+  /**
+   * Bounded stuck detector (P1.5): when the SAME tool call fails identically
+   * `nudgeAfter` (default 3) times in a row, a strategy nudge is appended to
+   * the tool result; at `stopAfter` (default 5) the run stops ('stuck').
+   * Pass `false` to disable (documented escape hatch).
+   */
+  stuckDetector?: { nudgeAfter?: number; stopAfter?: number } | false
   /** Auto context compaction; disabled when limitTokens is 0. */
   compact?: CompactOptions
   /** Seed the loop with a prior session's history (see resume.ts). */
@@ -186,7 +195,13 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
   /** Input tokens of the latest main request, per the provider's report. */
   let lastInputTokens = 0
 
+  const metricsCollector = createRunMetricsCollector()
+  // P1.5: bounded stuck detector. `stuckDetector: false` is the escape hatch
+  // (mirrors the --no-boundary philosophy: explicit, documented opt-out).
+  const stuckDetector =
+    options.stuckDetector === false ? null : createStuckDetector(options.stuckDetector ?? {})
   const emit = (event: LoopEvent): void => {
+    metricsCollector.onLoopEvent(event)
     try {
       options.onEvent?.(event)
     } catch {
@@ -488,15 +503,39 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
       })
       executedCalls.push(executed.executed)
 
+      // Stuck detector (P1.5): the same failing call repeating past its
+      // thresholds gets a strategy nudge in the result the model sees, and
+      // past the hard limit stops the run instead of burning the budget.
+      let toolContent = executed.executed.result
+      let stuckStop = false
+      if (stuckDetector) {
+        const verdict = stuckDetector.record({
+          name: call.name,
+          input: call.input,
+          isError: executed.executed.isError,
+        })
+        if (verdict.action === 'nudge' || verdict.action === 'stop') {
+          toolContent += `\n\n[stuck detector] ${verdict.message}`
+        }
+        if (verdict.action === 'stop') {
+          stuckStop = true
+          stopReason = 'stuck'
+          errorMessage =
+            `Stuck detector: the same failing call repeated ${verdict.streak} time(s) — ` +
+            'stopping to protect the turn budget.'
+        }
+      }
+
       const toolMessage: ChatMessage = {
         role: 'tool',
         toolCallId,
         toolName: call.name,
-        content: executed.executed.result,
+        content: toolContent,
         isError: executed.executed.isError,
       }
       messages.push(toolMessage)
       transcript.append({ type: 'message', message: toolMessage, turn })
+      if (stuckStop) break loop
     }
 
     transcript.append({ type: 'turn_end', turn, usage: outcome.usage })
@@ -533,6 +572,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
     finishReason: lastFinishReason,
     error: errorMessage,
     warnings,
+    metrics: metricsCollector.snapshot(),
   }
 }
 

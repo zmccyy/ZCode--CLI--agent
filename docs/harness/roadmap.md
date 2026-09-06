@@ -50,13 +50,13 @@ P0 可靠性闭环交付：确定性测试基线（P0-A）、取消与流协议�
 
 ## P1 扩展运行时（部分已落地，其余规划中）
 
-> 状态以下方 Loop 记录为准：P1.4 配置接线已由 Loop 14 交付 ✅；其余各项仍为规划。
+> 状态以下方 Loop 记录为准：P1.4 配置接线已由 Loop 14 交付 ✅；P1.2 观测（metrics）与 P1.5 有界 StuckDetector 已交付 ✅（2026-09-06，`metrics.ts` + `stuckDetector.ts`，测试 `metrics.test.js` / `stuckDetector.test.js`）；其余各项仍为规划。
 
 1. **契约版本化**：ToolDefinition/Event/Provider 增加 version、side-effect class、timeout、output budget、cancellation 声明、error code（contracts/22、21 已预留字段设计）。
-2. **观测与 benchmark**：metrics（TTFT/turn/tool 延迟、retry、tokens、RSS）+ 确定性 benchmark harness（testing/44）。
+2. **观测与 benchmark** ✅ metrics 部分：`src/harness/metrics.ts` 采集器（turn 时长/TTFT/工具聚合/retry/tokens/RSS）随 `AgentLoopResult.metrics` 返回，print JSON 信封透传，TUI turn 摘要行内联 ttft 与工具数；benchmark harness 仍为规划。
 3. **MCP stdio 最小子集**：handshake、tools/list+call、`mcp.<server>.<tool>` namespace、统一权限/边界/审计、超时/崩溃/重连、默认关闭；adapter 稳定后才接 `mcp list/ping/...` 命令。
 4. **配置接线** ✅（Loop 14，见下方记录）：settings 五层真正接入 CLI 启动链 + doctor effective config（E2 补充）。
-5. **有界 StuckDetector**：同一失败路径 3 次 → 强制换策略/缩小问题/询问/结束（architecture/12）。
+5. **有界 StuckDetector** ✅：`src/harness/stuckDetector.ts` — 同一失败调用（同工具+同输入）连续 3 次在模型可见的工具结果中注入换策略提示，连续 5 次以 `stopReason: 'stuck'` 停止运行；成功或不同调用即重置；`stuckDetector: false` 显式逃生口。
 
 Gate：fake MCP 全链路稳定、工具名零冲突、主 loop 不被 server 阻塞、warm call p95 ≤ 直接工具 1.25×。
 

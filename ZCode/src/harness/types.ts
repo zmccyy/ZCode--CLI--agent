@@ -5,6 +5,10 @@
  * and tools only ever see the shapes in this file.
  */
 
+// Type-only, erased at strip time — metrics.ts itself imports event types
+// from here, and both sides are types, so no runtime cycle exists.
+import type { RunMetrics } from './metrics.ts'
+
 export type ToolCallId = string
 
 /** A tool invocation requested by the model. */
@@ -98,6 +102,8 @@ export type StopReason =
   | 'budget_exceeded'
   | 'aborted'
   | 'error'
+  /** The stuck detector saw the same failing call repeat past its hard limit. */
+  | 'stuck'
 
 export type LoopEvent =
   | { type: 'session_start'; sessionId: string; cwd: string; model: string | null; permissionMode: PermissionMode }
@@ -156,6 +162,8 @@ export interface AgentLoopResult {
    * failed). Empty when nothing noteworthy happened during the run.
    */
   warnings: string[]
+  /** Observability aggregate for this run (P1.2): timings, tools, retries, tokens. */
+  metrics: RunMetrics
 }
 
 /** Provider duck-type used by the loop (subset of the public provider adapter). */

@@ -426,6 +426,9 @@ export async function runHarnessPrint({
     turns: result.turns,
     compactions: result.compactions,
     usage: result.usage,
+    // P1.2 observability: pass the loop's run metrics through to the JSON
+    // envelope (the envelope spreads this object).
+    ...(result.metrics ? { metrics: result.metrics } : {}),
     ...(result.warnings?.length ? { warnings: result.warnings } : {}),
     ...(reasoning ? { reasoning } : {}),
     ...(result.error ? { error: result.error } : {}),

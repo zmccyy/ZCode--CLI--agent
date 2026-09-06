@@ -432,9 +432,17 @@ export async function runTui({
       result.usage && Number.isFinite(result.usage.inputTokens)
         ? result.usage.inputTokens
         : Math.ceil(JSON.stringify(history ?? []).length / 4)
+    // P1.2 observability: surface the loop's run metrics inline — TTFT of the
+    // last turn and the run's tool-call totals, next to the wall time.
+    const metrics = result.metrics
+    const lastTurnMetrics = metrics?.turns?.[metrics.turns.length - 1] ?? null
+    const toolCallCount = metrics?.tools?.reduce((sum, tool) => sum + tool.count, 0) ?? 0
+    const metricsNote =
+      (lastTurnMetrics?.ttftMs != null ? ` · ttft ${formatDuration(lastTurnMetrics.ttftMs)}` : '') +
+      (toolCallCount > 0 ? ` · ${toolCallCount} tool call${toolCallCount === 1 ? '' : 's'}` : '')
     writeLine(
       `\n${BANNER_LINE}\n` +
-        `  turn ${result.turns} · ${formatDuration(Date.now() - turnStartedAt)}` +
+        `  turn ${result.turns} · ${formatDuration(Date.now() - turnStartedAt)}${metricsNote}` +
         (result.usage
           ? ` · in ${formatTokens(result.usage.inputTokens)} / ` +
             `out ${formatTokens(result.usage.outputTokens)} tok · ` +

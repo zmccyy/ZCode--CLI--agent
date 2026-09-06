@@ -123,6 +123,8 @@ export async function runTui({
   let lastToolCalls = null
   /** Sessions listed by the last bare `/resume`, so `/resume <n>` resolves. */
   let resumeMenu = []
+  /** Prompts submitted this session (deduped consecutively) for /history. */
+  const promptHistory = []
 
   const controller = { current: null }
 
@@ -671,6 +673,7 @@ export async function runTui({
             '  /compact   Summarize older history now, keep recent messages verbatim',
             '  /sessions  List recent sessions for this workspace',
             '  /resume [n|id]  Load a recorded session into this conversation and keep chatting',
+            '  /history [n]  List this session\'s prompts; re-run one by number',
             '  /cost      Token totals and estimated cost for this interactive session',
             '  /model [id]  List models, or switch to <id> for the rest of the session',
             `  /mode [m]  Show or set the permission mode (${MODE_CYCLE.join(' / ')})`,
@@ -785,6 +788,35 @@ export async function runTui({
         } catch (error) {
           writeLine(`✗ resume failed: ${error instanceof Error ? error.message : String(error)}`)
         }
+        return true
+      }
+      case '/history': {
+        // Prompt log for this session: recall and re-run a previous task
+        // without scrolling back through the transcript.
+        if (promptHistory.length === 0) {
+          writeLine('No prompts submitted yet in this session.')
+          return true
+        }
+        const pick = rest.trim()
+        if (/^\d+$/.test(pick)) {
+          const n = Number(pick)
+          const prompt = promptHistory[promptHistory.length - n]
+          if (prompt === undefined) {
+            writeLine(`No such entry: ${n} — /history lists 1..${promptHistory.length} (1 = most recent).`)
+            return true
+          }
+          writeLine(`↻ re-running prompt ${n} ${styler.dim(`(${prompt.slice(0, 80)}${prompt.length > 80 ? '…' : ''})`)}`)
+          if (promptHistory[promptHistory.length - 1] !== prompt) promptHistory.push(prompt)
+          await runTurn(prompt)
+          return true
+        }
+        writeLine('Prompts this session (newest first) — re-run one with /history <n>:')
+        promptHistory
+          .slice(-10)
+          .reverse()
+          .forEach((prompt, index) => {
+            writeLine(`  ${index + 1}  ${prompt.length > 90 ? `${prompt.slice(0, 90)}…` : prompt}`)
+          })
         return true
       }
       case '/cost': {
@@ -968,6 +1000,7 @@ export async function runTui({
         if (!keepGoing) break
         continue
       }
+      if (promptHistory[promptHistory.length - 1] !== line) promptHistory.push(line)
       await runTurn(line)
     }
   } finally {

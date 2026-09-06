@@ -223,3 +223,13 @@ Gate：fake MCP 全链路稳定、工具名零冲突、主 loop 不被 server �
 - [x] 测试：创建/追加/ZCODE.md 回退三路径 + /memory 可见 + 裸 `#` 不耗轮次。
 
 - **Gate ✅（2026-09-06）**：typecheck + lint 0 错；全量 **435 tests / 427 pass / 0 fail / 8 skip**；tuiInteractive 15/15。
+
+### Loop C5 · `/history` 提示词历史选择器 ✅（2026-09-06）
+- [x] `/history` 列出本会话提交过的提示词（最近 10 条，newest first，连续重复去重）；`/history <n>` 把选中提示词作为新 turn 重跑。空会话/越界均为诚实提示。
+- [x] **弃选记录**：Claude Code 的 Ctrl+R 覆盖式反查与 readline 的键处理管线冲突（自绘搜索框需接管全部按键，readline 会并行消费输入）——需要自研输入编辑器，P2 一并做 `/resume` 菜单化；`Up` 召回排队消息已被 readline 自身历史覆盖（排队行本就进了 rl history），不再实现。
+
+### Loop C6 · `-p --stream-json` 流式事件输出 ✅（2026-09-06）
+- [x] `--stream-json` 配合 `-p`：stdout 变 NDJSON 事件流——每个 LoopEvent 一行紧凑 JSON（types.ts 判别联合），末行 `{"type":"result", …envelope}`（与 `--json` 字段一致外加 `type`）；模式横幅/resume 提示/进度渲染全部抑制，退出码语义不变。契约落 contracts/23（命令表 + 规则 5）。
+- [x] 测试：`cliPolish.test.js` 3 用例（/history 列表+重跑+越界、空会话、stream-json 全流解析——每行合法 JSON、事件序、result 信封字段）。
+
+- **Gate ✅（2026-09-06）**：typecheck + lint 0 错；全量 **438 tests / 430 pass / 0 fail / 8 skip**。

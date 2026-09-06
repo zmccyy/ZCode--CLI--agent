@@ -10,6 +10,7 @@
 |---|---|
 | `-p, --print <prompt>` | 无头 Agent 循环 |
 | `--json` | 机器可读输出（-p / doctor / models / sessions） |
+| `--stream-json` | 配合 -p：stdout 逐行输出 LoopEvent（紧凑单行 JSON），末行 `{"type":"result", …envelope}`；stdout 每行恰为一个完整 JSON 值（NDJSON），人类可读横幅与进度全部走 stderr 或被抑制 |
 | `-m, --model <id>` | 指定模型 |
 | `--plan` / `--yolo` | 权限模式（互斥，同时传入回退 agent + WARNING） |
 | `--max-turns <n>` | 覆盖默认 30 |
@@ -46,6 +47,7 @@
 2. 新字段只增不改；`messageId` 现状恒为 null（非 provider 响应 ID）——P1 要么移除要么接真实值，使用方不得依赖。
 3. `error` 非空时携带分类 code（architecture/13）。
 4. P1 预留 `warnings[]`（transcript 写失败等）与 `status`（contracts/24）。
+5. **`--stream-json`（v1.7）**：`-p` 下 stdout 变为 NDJSON 事件流——每行一个 LoopEvent（types.ts 的判别联合，`type` ∈ session_start/turn_start/text_delta/reasoning_delta/assistant_message/permission_request/permission_denied/tool_execution_start/tool_execution_end/turn_end/context_compact/provider_retry/loop_end），末行为 `type:"result"` 的 -p 信封（与 `--json` 字段一致，外加 `type`）；退出码语义不变。`--stream-json` 隐含抑制一切人类可读 stdout（模式横幅、resume 提示、进度渲染）。
 
 ## 退出码
 

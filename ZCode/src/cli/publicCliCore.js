@@ -241,6 +241,7 @@ export function loadDotEnvFile({
 function parseArgv(argv = []) {
   const options = {    help: false,
     json: false,
+    streamJson: false,
     version: false,
     model: null,
     printPrompt: null,
@@ -269,6 +270,11 @@ function parseArgv(argv = []) {
 
     if (arg === '--json') {
       options.json = true
+      continue
+    }
+
+    if (arg === '--stream-json') {
+      options.streamJson = true
       continue
     }
 
@@ -457,6 +463,8 @@ export function renderHelp({ version = '0.0.0' } = {}) {
     'Options:',
     '  -m, --model <id>     Specify the model to use',
     '  --json               Output in JSON format (adds toolCalls/usage/stopReason)',
+    '  --stream-json        With -p: emit each loop event as one JSON line, ending',
+    '                       with a "type":"result" line (machine-readable streams)',
     '  -w, --write [path]   Write code blocks from response to file(s)',
     ...getRunModeHelpLines(),
     '  --reasoning          Show model thinking/reasoning process',
@@ -940,7 +948,8 @@ export async function runCli(
         )
       }
 
-      if (!options.json) {
+      const streamJson = options.streamJson === true
+      if (!options.json && !streamJson) {
         if (runMode === 'plan') {
           writeLine(stdout, `── ${RUN_MODE_LABELS.plan} MODE ──`)
         } else if (runMode === 'yolo') {
@@ -965,7 +974,7 @@ export async function runCli(
           )
         }
         resumeSnapshot = await loadSessionForResume(resumePath)
-        if (!options.json) {
+        if (!options.json && !options.streamJson) {
           writeLine(
             stdout,
             `↩ Resuming session ${resumeSnapshot.sessionId} (${resumeSnapshot.messages.length} message(s))`,
@@ -974,8 +983,10 @@ export async function runCli(
       }
 
       let reasoning = ''
-      // JSON mode must keep stdout machine-readable: no human progress lines.
-      const progressRenderer = options.json
+      // JSON / stream-json modes must keep stdout machine-readable: no human
+      // progress lines. stream-json emits every loop event as one compact
+      // JSON line, ending with a "type":"result" line.
+      const progressRenderer = options.json || streamJson
         ? () => {}
         : createProgressRenderer({
             stdout,
@@ -983,6 +994,9 @@ export async function runCli(
             showReasoning: options.reasoning,
           })
       const onEvent = event => {
+        if (streamJson) {
+          writeLine(stdout, JSON.stringify(event))
+        }
         if (options.reasoning && event.type === 'reasoning_delta') {
           reasoning += event.text
         }
@@ -1033,7 +1047,7 @@ export async function runCli(
         writeLine(stderr, `WARNING: ${warning}`)
       }
 
-      if (options.json) {
+      if (options.json || streamJson) {
         // JSON envelope: backward-compatible superset of the print result.
         const blocks = result.text ? extractCodeBlocks(result.text) : []
         const costInfo = result.usage ? estimateCost(result.usage, result.model) : null
@@ -1067,7 +1081,13 @@ export async function runCli(
           }
         }
 
-        writeJson(stdout, output)
+        if (streamJson) {
+          // NDJSON discipline: every stdout line is exactly one JSON value,
+          // so the terminal envelope is compact and typed.
+          writeLine(stdout, JSON.stringify({ type: 'result', ...output }))
+        } else {
+          writeJson(stdout, output)
+        }
       } else {
         writeLine(stdout, renderPrintResult(result, {
           json: false,

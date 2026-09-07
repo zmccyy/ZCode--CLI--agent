@@ -275,3 +275,13 @@ Gate：fake MCP 全链路稳定、工具名零冲突、主 loop 不被 server �
 - [x] 冒烟实测：12%→青、55%→黄、90%→红；dark/light/plain 三模式 chrome 码逐一验证。
 - [x] 测试：新增 `tuiTheme.test.js` 4 组（模式解析/明暗映射/阈值/identity）；TUI 族 79/79。
 - **Gate ✅（2026-09-06）**：typecheck + lint 0 错；全量 **443 tests / 435 pass / 0 fail / 8 skip**。
+
+### Loop D8 · `/dump` 全量转录到 scrollback ✅（2026-09-06）
+- [x] 按价值排序后对「全屏 transcript viewer」的工程拆解：交互式翻页需要接管 readline 输入（自研编辑器级，维持 P2），但其核心价值——全量转录进终端 scrollback、用终端自带 find/tmux 搜索——可纯渲染零输入冲突交付。落地为 `/dump` 命令（`[` 裸键会与提示符输入冲突，命令更稳）。
+- [x] 分节渲染：`── user ── / ── assistant ──（含 → 工具调用预览）/ ── tool: Name ──（完整结果）`，节规则线用 renderFrame top；尾部 `end · N message(s)` + 搜索提示。
+- [x] 测试：两轮 + Read 工具后 /dump，断言各节头、全文内容、计数。
+
+### Loop D9 · `/diff` 会话变更汇总 ✅（2026-09-06）
+- [x] git 基线（对标 Claude Code）：`git --no-pager status --short && git --no-pager diff --stat`，框线呈现 `diff · workspace vs HEAD`；诚实标注「agent 与用户自己的改动都会出现」。非 git 仓库/git 不可用降级为明确提示；clean tree 给 `clean — no workspace changes.`。
+- [x] 测试：非仓库降级路径。
+- **Gate ✅（2026-09-06）**：typecheck + lint 0 错；全量 **445 tests / 437 pass / 0 fail / 8 skip**。

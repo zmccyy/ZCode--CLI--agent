@@ -727,3 +727,76 @@ test('TUI: # appends durable notes to project memory and refreshes the injection
     await fs.rm(workspace, { recursive: true, force: true })
   }
 })
+
+test('TUI: /dump prints the full conversation to the scrollback, sectioned', async () => {
+  const provider = createScriptedProvider([
+    {
+      toolCalls: [{ name: 'Read', input: { file_path: 'note.txt' } }],
+      usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+    },
+    { text: 'reply 1', usage: { inputTokens: 30, outputTokens: 5, totalTokens: 35 } },
+  ])
+  const stdin = new PassThrough()
+  const out = createCollector()
+  const workspace = await createTempDir('zcode-tui-dump-')
+  await fs.writeFile(path.join(workspace, 'note.txt'), 'note body line\n')
+
+  try {
+    const exitPromise = runTui({
+      stdin,
+      stdout: out.stream,
+      stderr: out.stream,
+      provider,
+      cwd: workspace,
+      permissionMode: 'agent',
+      boundary: { enabled: true, addDirs: [] },
+      transcript: { enabled: false },
+    })
+
+    stdin.write('read the note\n')
+    await waitFor(out, /reply 1/)
+    stdin.write('/dump\n')
+    await waitFor(out, /end · \d+ message\(s\)/)
+    const text = out.text()
+    assert.match(text, /─ user /, 'user section header')
+    assert.match(text, /read the note/)
+    assert.match(text, /─ assistant /)
+    assert.match(text, /reply 1/)
+    assert.match(text, /─ tool: Read /, 'tool result section with full content')
+    assert.match(text, /note body line/)
+    assert.match(text, /use your terminal's find to search/)
+
+    stdin.write('/exit\n')
+    assert.equal(await exitPromise, 0)
+  } finally {
+    stdin.end()
+    await fs.rm(workspace, { recursive: true, force: true })
+  }
+})
+
+test('TUI: /diff reports workspace changes vs HEAD and degrades without git', async () => {
+  const provider = createScriptedProvider([{ text: 'ok' }])
+  const stdin = new PassThrough()
+  const out = createCollector()
+
+  try {
+    const exitPromise = runTui({
+      stdin,
+      stdout: out.stream,
+      stderr: out.stream,
+      provider,
+      cwd: os.tmpdir(), // almost certainly not a git repository
+      permissionMode: 'agent',
+      boundary: { enabled: true, addDirs: [] },
+      transcript: { enabled: false },
+    })
+
+    stdin.write('/diff\n')
+    await waitFor(out, /not a git repository, or git is unavailable/)
+
+    stdin.write('/exit\n')
+    assert.equal(await exitPromise, 0)
+  } finally {
+    stdin.end()
+  }
+})

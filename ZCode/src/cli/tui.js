@@ -736,6 +736,8 @@ export async function runTui({
             '  /sessions  List recent sessions for this workspace',
             '  /resume [n|id]  Load a recorded session into this conversation and keep chatting',
             '  /history [n]  List this session\'s prompts; re-run one by number',
+            '  /dump      Print the whole conversation to the scrollback (terminal find searches it)',
+            '  /diff      Workspace changes vs HEAD (git status + diff --stat)',
             '  /cost      Token totals and estimated cost for this interactive session',
             '  /model [id]  List models, or switch to <id> for the rest of the session',
             `  /mode [m]  Show or set the permission mode (${MODE_CYCLE.join(' / ')})`,
@@ -901,6 +903,63 @@ export async function runTui({
         writeLine(`  ${theme.chrome(top)}`)
         for (const line of historyLines) writeLine(line)
         writeLine(`  ${theme.chrome(bottom)}`)
+        return true
+      }
+      case '/dump': {
+        // Full conversation to the terminal scrollback — the native find/
+        // tmux search then works over the whole exchange (Claude-Code's `[`
+        // dump, delivered as a command so `[` stays typeable at the prompt).
+        if (history.length === 0) {
+          writeLine('Nothing to dump yet — the conversation is empty.')
+          return true
+        }
+        const section = label => styler.dim(renderFrame({ title: label, contentWidth: 56, unicode: runtime.unicode }).top)
+        for (const message of history) {
+          if (message.role === 'user') {
+            writeLine(section('user'))
+            writeLine(message.content)
+          } else if (message.role === 'assistant') {
+            writeLine(section('assistant'))
+            if (message.text) writeLine(message.text)
+            for (const call of message.toolCalls ?? []) {
+              writeLine(styler.dim(`→ ${call.name} ${formatToolInputPreview(call.input)}`))
+            }
+          } else {
+            writeLine(section(`tool: ${message.toolName ?? 'tool'}`))
+            writeLine(message.content)
+          }
+        }
+        writeLine(section(`end · ${history.length} message(s)`))
+        writeLine(styler.dim('Dumped to scrollback — use your terminal\'s find to search it.'))
+        return true
+      }
+      case '/diff': {
+        // Workspace changes vs HEAD (git-based, like Claude Code): the agent's
+        // file tools and the user's own edits both show up, honestly labeled.
+        write('⟳ git…')
+        const result = await executeBash(
+          { command: 'git --no-pager status --short && git --no-pager diff --stat' },
+          { cwd, state: { readFiles: new Set() }, boundary },
+        )
+        const text = typeof result?.content === 'string' ? result.content.trim() : ''
+        if (result?.isError === true) {
+          writeLine(` ✗ ${text.split('\n')[0] ?? 'git diff failed'}`)
+          writeLine(styler.dim('(not a git repository, or git is unavailable)'))
+          return true
+        }
+        if (text === '') {
+          writeLine(' clean — no workspace changes.')
+          return true
+        }
+        const lines = text.split('\n')
+        const { top, bottom } = renderFrame({
+          title: 'diff · workspace vs HEAD',
+          contentWidth: Math.max(...lines.map(visibleWidth)) + 2,
+          unicode: runtime.unicode,
+        })
+        writeLine(`  ${styler.dim(top)}`)
+        for (const line of lines) writeLine(`  ${line}`)
+        writeLine(`  ${styler.dim(bottom)}`)
         return true
       }
       case '/cost': {

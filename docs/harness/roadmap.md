@@ -258,3 +258,20 @@ Gate：fake MCP 全链路稳定、工具名零冲突、主 loop 不被 server �
 - [x] **D4 应用**：三个列表菜单框线化——`/resume`（`╭─ resume`）、`/history`、`/sessions`；内容行原样保留，现有断言零破坏。
 - [x] 测试：renderFrame 单元（等宽/标题/ASCII/72 上限/超长标题截断/visibleWidth），TUI 族 75/75。
 - **Gate ✅（2026-09-06）**：lint + typecheck 0 错；全量 **439 tests / 431 pass / 0 fail / 8 skip**。
+
+## v1.7.2 主题化与亮色适配（2026-09-06，Loop D5/D6/D7）
+
+> 三环递进：色板收敛 → 亮色终端适配 → Context 条阈值预警。迁移期间 renderer 的 token 映射与渲染体一度脱节（旧方法名 undefined 被观察者守卫吞掉）——TUI 族测试当场揪出并修复，测试侧顺带把 no-control-regex 的断言改为精确相等（更严格）。
+
+### Loop D5 · 单文件色板 ✅
+- [x] 新增 `src/cli/tuiTheme.js`：语义 token（accent/success/danger/warning/chrome/emphasis + contextLoad 阈值函数），`resolveThemeMode` 探测（`ZCODE_THEME=dark|light` 显式覆盖 > `COLORFGBG` 启发（bg 7..15 为亮面）> 默认 dark），`createPlainTheme` 供 headless/NO_COLOR。
+- [x] tui.js 全量迁移（72 处 styler.* → theme.*，零残留）；createProgressRenderer 接受 `theme` 参数（styler 兼容回退保留），print 路径行为不变。
+
+### Loop D6 · 亮色适配 ✅
+- [x] 亮色模式唯一映射变更：chrome 由 faint(2) → 中灰(90)——faint 在白底上几乎不可见；其余色相保持。ansi.js 新增 `gray(90)`（加法）。
+
+### Loop D7 · Context 条阈值变色 ✅
+- [x] tuiChrome 新增 `renderStatusSegments`（head/context/percent 三段，`renderStatusLine` 变为兼容包装）；tui.js 按阈值着色 bar：**<50% 青（平静）/ 50–79% 黄（警示）/ ≥80% 红（逼近压缩线）**，标签保持 chrome。
+- [x] 冒烟实测：12%→青、55%→黄、90%→红；dark/light/plain 三模式 chrome 码逐一验证。
+- [x] 测试：新增 `tuiTheme.test.js` 4 组（模式解析/明暗映射/阈值/identity）；TUI 族 79/79。
+- **Gate ✅（2026-09-06）**：typecheck + lint 0 错；全量 **443 tests / 435 pass / 0 fail / 8 skip**。

@@ -215,8 +215,26 @@ export function createProgressRenderer({
   stderr,
   showReasoning = false,
   styler = null,
+  theme = null,
 } = {}) {
-  const s = styler ?? { dim: t => t, red: t => t, green: t => t, yellow: t => t, cyan: t => t, bold: t => t }
+  // Semantic theme wins; the raw-styler fallback keeps the legacy call shape.
+  const s = theme ?? (styler
+    ? {
+        accent: t => styler.cyan(t),
+        success: t => styler.green(t),
+        danger: t => styler.red(t),
+        warning: t => styler.yellow(t),
+        chrome: t => styler.dim(t),
+        emphasis: t => styler.bold(t),
+      }
+    : {
+        accent: t => t,
+        success: t => t,
+        danger: t => t,
+        warning: t => t,
+        chrome: t => t,
+        emphasis: t => t,
+      })
   const write = (chunk) => {
     if (stdout) stdout.write(chunk)
   }
@@ -237,48 +255,48 @@ export function createProgressRenderer({
         break
       case 'tool_execution_start':
         // Glyph carries the color; the name is bold; args are dim chrome.
-        write(`\n${s.cyan('●')} ${s.bold(event.name)}${s.dim(`(${formatToolInputPreview(event.input)})`)}\n`)
+        write(`\n${s.accent('●')} ${s.emphasis(event.name)}${s.chrome(`(${formatToolInputPreview(event.input)})`)}\n`)
         break
       case 'tool_execution_end':
         write(
           event.isError
-            ? `  ${s.red(`✗ ${truncateForLine(event.preview)}`)}\n`
-            : `  ${s.green('✓')} ${s.dim(truncateForLine(event.preview))}\n`,
+            ? `  ${s.danger(`✗ ${truncateForLine(event.preview)}`)}\n`
+            : `  ${s.success('✓')} ${s.chrome(truncateForLine(event.preview))}\n`,
         )
         break
       case 'context_compact':
         if (event.ok) {
           write(
-            `\n${s.dim(
+            `\n${s.chrome(
               `⟳ Compacted ${event.summarizedMessages} older message(s), kept ` +
                 `${event.keptMessages} recent.`,
             )}\n`,
           )
         } else {
-          write(`\n${s.yellow(`⚠ Compaction failed (${truncateForLine(event.message)}) — continuing uncompacted.`)}\n`)
+          write(`\n${s.warning(`⚠ Compaction failed (${truncateForLine(event.message)}) — continuing uncompacted.`)}\n`)
         }
         break
       case 'provider_retry':
         write(
-          `\n${s.yellow(
+          `\n${s.warning(
             `⟳ Provider request failed (attempt ${event.attempt}), retrying: ` +
               `${truncateForLine(event.message)}`,
           )}\n`,
         )
         break
       case 'permission_denied':
-        write(`  ${s.yellow(`⚠ permission denied: ${truncateForLine(event.reason)}`)}\n`)
+        write(`  ${s.warning(`⚠ permission denied: ${truncateForLine(event.reason)}`)}\n`)
         break
       case 'loop_end':
         if (event.stopReason === 'max_turns' || event.stopReason === 'budget_exceeded') {
           write(
-            `\n${s.yellow(
+            `\n${s.warning(
               `⚠ Stopped by guardrail (${event.stopReason}) after ${event.turns} turn(s) — ` +
                 'progress is reported as-is.',
             )}\n`,
           )
         } else if (event.stopReason === 'error') {
-          write(`\n${s.red(`✗ Loop stopped on an error after ${event.turns} turn(s).`)}\n`)
+          write(`\n${s.danger(`✗ Loop stopped on an error after ${event.turns} turn(s).`)}\n`)
         } else {
           write('\n')
         }

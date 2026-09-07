@@ -37,6 +37,9 @@ export function createStyler(enabled) {
     yellow: wrap(33),
     cyan: wrap(36),
     magenta: wrap(35),
+    /** Mid-gray (bright black): the light theme's chrome color — faint text
+     * (2) is nearly invisible on white backgrounds. */
+    gray: wrap(90),
   }
 }
 

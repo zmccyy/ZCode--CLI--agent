@@ -39,7 +39,8 @@ import {
 import { collectEnvironmentInfo } from './envInfo.js'
 import { collectProjectMemory } from './projectMemory.js'
 import { createCompleter } from './completer.js'
-import { renderBanner, renderStatusLine, guessContextLimit, renderFrame, visibleWidth } from './tuiChrome.js'
+import { renderBanner, guessContextLimit, renderFrame, visibleWidth, renderStatusSegments } from './tuiChrome.js'
+import { createTuiTheme, resolveThemeMode } from './tuiTheme.js'
 import { ERASE_LINE } from './ansi.js'
 import { createCliRuntime } from './runtimeContext.js'
 import { extractCodeBlocks, writeCodeBlocks } from './codeBlocks.js'
@@ -119,6 +120,9 @@ export async function runTui({
   // back to process.env on its own.
   const runtime = createCliRuntime({ cwd, env, stdout, stderr })
   const styler = runtime.styler
+  // Semantic palette (v1.7.1): render calls use theme tokens, never raw
+  // colors — mode resolution (dark/light) lives in tuiTheme.js.
+  const theme = createTuiTheme(styler, resolveThemeMode(env))
 
   const sessionsDir = transcriptDir || defaultTranscriptDir(cwd)
 
@@ -185,7 +189,7 @@ export async function runTui({
     }
     const preview = buildDiffPreviewForTool(toolName, input, { oldContent })
     if (!preview || !preview.parts) {
-      if (blocked) writeLine(`  ${styler.dim('(file outside the workspace boundary — existing content not shown)')}`)
+      if (blocked) writeLine(`  ${theme.chrome('(file outside the workspace boundary — existing content not shown)')}`)
       return
     }
     if (blocked) preview.note = preview.note ? `${preview.note} (file outside the workspace boundary — existing content not shown)` : '(file outside the workspace boundary — existing content not shown)'
@@ -194,16 +198,16 @@ export async function runTui({
     // no side borders, so long diff lines are never wrapped or clipped.
     const title = `${toolName} → ${preview.file} (${preview.kind} · +${preview.stats.added} −${preview.stats.removed})`
     const bodyLines = []
-    if (preview.note) bodyLines.push(`  ${styler.dim(preview.note)}`)
+    if (preview.note) bodyLines.push(`  ${theme.chrome(preview.note)}`)
     for (const part of preview.parts) {
       if (part.type === 'fold') {
-        bodyLines.push(`  ${styler.dim(part.text)}`)
+        bodyLines.push(`  ${theme.chrome(part.text)}`)
       } else if (part.type === 'add') {
-        bodyLines.push(`  ${styler.green(`+ ${part.text}`)}`)
+        bodyLines.push(`  ${theme.success(`+ ${part.text}`)}`)
       } else if (part.type === 'del') {
-        bodyLines.push(`  ${styler.red(`- ${part.text}`)}`)
+        bodyLines.push(`  ${theme.danger(`- ${part.text}`)}`)
       } else {
-        bodyLines.push(`  ${styler.dim(`  ${part.text}`)}`)
+        bodyLines.push(`  ${theme.chrome(`  ${part.text}`)}`)
       }
     }
     const contentWidth = Math.max(
@@ -212,9 +216,9 @@ export async function runTui({
       preview.note ? visibleWidth(preview.note) + 4 : 0,
     )
     const { top, bottom } = renderFrame({ title, contentWidth, unicode: runtime.unicode })
-    writeLine(`  ${styler.dim(top)}`)
+    writeLine(`  ${theme.chrome(top)}`)
     for (const line of bodyLines) writeLine(line)
-    writeLine(`  ${styler.dim(bottom)}`)
+    writeLine(`  ${theme.chrome(bottom)}`)
   }
 
   const askApproval = async ({ toolName, input }) => {
@@ -233,7 +237,7 @@ export async function runTui({
         active?.signal.addEventListener('abort', () => resolve(false), { once: true })
       }),
     ])
-    if (!answer) writeLine(`  ${styler.dim('(declined)')}`)
+    if (!answer) writeLine(`  ${theme.chrome('(declined)')}`)
     return answer
   }
 
@@ -274,10 +278,10 @@ export async function runTui({
       ...rawLines.map(line => visibleWidth(line) + 2),
     )
     const { top, bottom } = renderFrame({ title, contentWidth, unicode: runtime.unicode })
-    writeLine(`\n  ${styler.dim(top)}`)
+    writeLine(`\n  ${theme.chrome(top)}`)
     for (const line of rawLines) writeLine(`  ${line}`)
-    writeLine(`  ${styler.dim(bottom)}`)
-    if (call.isError) writeLine(`  ${styler.red('(this tool call reported an error)')}`)
+    writeLine(`  ${theme.chrome(bottom)}`)
+    if (call.isError) writeLine(`  ${theme.danger('(this tool call reported an error)')}`)
   }
 
   // ── Esc Esc: rewind the last user message back into the editor ──
@@ -306,7 +310,7 @@ export async function runTui({
     if (content && stdout?.isTTY === true && typeof rl.write === 'function') {
       rl.write(content)
     } else if (content) {
-      writeLine(`  ${styler.dim(`(restored prompt: ${content.slice(0, 80)}${content.length > 80 ? '…' : ''})`)}`)
+      writeLine(`  ${theme.chrome(`(restored prompt: ${content.slice(0, 80)}${content.length > 80 ? '…' : ''})`)}`)
     }
   }
 
@@ -331,9 +335,9 @@ export async function runTui({
         const index = MODE_CYCLE.indexOf(currentPermissionMode)
         currentPermissionMode = MODE_CYCLE[(index + 1) % MODE_CYCLE.length]
         const note =
-          `mode: ${styler.bold(currentPermissionMode)}` +
+          `mode: ${theme.emphasis(currentPermissionMode)}` +
           (currentPermissionMode === 'yolo'
-            ? styler.yellow(' — actions run without approval')
+            ? theme.warning(' — actions run without approval')
             : currentPermissionMode === 'plan'
               ? ' — read-only planning'
               : ' — writes require approval')
@@ -364,7 +368,7 @@ export async function runTui({
   // and feeds command+output into the conversation as the next user turn —
   // the user typed it, so it runs without an approval round-trip.
   const runShellCommand = async command => {
-    writeLine(`  ${styler.dim(`$ ${command}`)}`)
+    writeLine(`  ${theme.chrome(`$ ${command}`)}`)
     let result
     try {
       result = await executeBash(
@@ -372,13 +376,13 @@ export async function runTui({
         { cwd, state: { readFiles: new Set() }, boundary },
       )
     } catch (error) {
-      writeLine(`  ${styler.red(`✗ ${error instanceof Error ? error.message : String(error)}`)}`)
+      writeLine(`  ${theme.danger(`✗ ${error instanceof Error ? error.message : String(error)}`)}`)
       return
     }
     const text = typeof result?.content === 'string' ? result.content : String(result?.content ?? '')
     for (const line of text.split('\n')) writeLine(`  ${line}`)
     if (result?.isError === true) {
-      writeLine(`  ${styler.red('(command failed — output still joins the context)')}`)
+      writeLine(`  ${theme.danger('(command failed — output still joins the context)')}`)
     }
     // Claude-Code semantics: the output joins the context and the model
     // responds to it immediately.
@@ -432,21 +436,21 @@ export async function runTui({
         onLine: lineEvent => {
           if (lineEvent.kind === 'fence-open') {
             const label = lineEvent.lang || 'code'
-            writeLine(styler.dim(`┌─ ${label} ${'─'.repeat(Math.max(4, 40 - label.length))}`))
+            writeLine(theme.chrome(`┌─ ${label} ${'─'.repeat(Math.max(4, 40 - label.length))}`))
             return
           }
           if (lineEvent.kind === 'fence-close') {
-            writeLine(styler.dim('└────────────────'))
+            writeLine(theme.chrome('└────────────────'))
             return
           }
           const rendered = lineEvent.segments
             .map(segment => {
-              if (segment.style === 'bold') return styler.bold(segment.text)
-              if (segment.style === 'code') return styler.cyan(segment.text)
+              if (segment.style === 'bold') return theme.emphasis(segment.text)
+              if (segment.style === 'code') return theme.accent(segment.text)
               return segment.text
             })
             .join('')
-          const prefix = lineEvent.fence ? `${styler.dim('│')} ` : ''
+          const prefix = lineEvent.fence ? `${theme.chrome('│')} ` : ''
           writeLine(prefix + rendered)
         },
       })
@@ -482,7 +486,7 @@ export async function runTui({
         const label = statusLabel === 'working' ? `${verb}…` : statusLabel
         write(
           ERASE_LINE +
-            styler.dim(
+            theme.chrome(
               `${frame} ${label} · ${elapsedSeconds}s · ${currentPermissionMode} mode · esc to interrupt`,
             ),
         )
@@ -518,23 +522,23 @@ export async function runTui({
       stdout,
       stderr,
       showReasoning,
-      styler,
+      theme,
     })
 
     // TodoWrite events carry the full new list in `input.todos` (raw input);
   // render it as a colored checklist instead of the truncated JSON preview.
   const renderTodoChecklist = todos => {
     writeLine(
-      `\n${styler.cyan('●')} ${styler.bold('TodoWrite')} ${styler.dim(`(${todos.length} step${todos.length === 1 ? '' : 's'})`)}`,
+      `\n${theme.accent('●')} ${theme.emphasis('TodoWrite')} ${theme.chrome(`(${todos.length} step${todos.length === 1 ? '' : 's'})`)}`,
     )
     for (const todo of todos) {
       const content = typeof todo?.content === 'string' ? todo.content : String(todo?.content ?? '')
       if (todo?.status === 'completed') {
-        writeLine(`  ${styler.green('☒')} ${styler.dim(content)}`)
+        writeLine(`  ${theme.success('☒')} ${theme.chrome(content)}`)
       } else if (todo?.status === 'in_progress') {
-        writeLine(`  ${styler.cyan('◐')} ${styler.bold(content)}`)
+        writeLine(`  ${theme.accent('◐')} ${theme.emphasis(content)}`)
       } else {
-        writeLine(`  ${styler.dim('☐')} ${content}`)
+        writeLine(`  ${theme.chrome('☐')} ${content}`)
       }
     }
   }
@@ -550,8 +554,8 @@ export async function runTui({
       if (event.type === 'permission_request') {
         clearStatus()
         write(
-          `  ? ${styler.bold(`Allow ${event.name}`)} ${styler.dim(`(${formatToolInputPreview(event.input)})`)} ` +
-            `${styler.bold('[y/N]')} `,
+          `  ? ${theme.emphasis(`Allow ${event.name}`)} ${theme.chrome(`(${formatToolInputPreview(event.input)})`)} ` +
+            `${theme.emphasis('[y/N]')} `,
         )
         return
       }
@@ -566,7 +570,7 @@ export async function runTui({
       if (event.type === 'tool_execution_end' && event.name === 'TodoWrite' && !event.isError) {
         clearStatus()
         const summary = summarizeTodoPreview(event.preview)
-        writeLine(`  ${summary ? styler.green(`✓ ${summary}`) : styler.green('✓ todo list updated')}`)
+        writeLine(`  ${summary ? theme.success(`✓ ${summary}`) : theme.success('✓ todo list updated')}`)
         return
       }
       if (event.type !== 'session_start' && event.type !== 'turn_start') {
@@ -611,7 +615,7 @@ export async function runTui({
       })
     } catch (error) {
       clearStatus()
-      writeLine(`\n${styler.red(`✗ ${error instanceof Error ? error.message : String(error)}`)}`)
+      writeLine(`\n${theme.danger(`✗ ${error instanceof Error ? error.message : String(error)}`)}`)
       return
     } finally {
       controller.current = null
@@ -646,35 +650,35 @@ export async function runTui({
     // Turn summary: chrome dims, numbers speak — dim labels, normal values,
     // thin separators. The status line and teaching hint follow.
     const summary = [
-      `${styler.dim('turn')} ${result.turns}`,
-      `${styler.dim('time')} ${formatDuration(Date.now() - turnStartedAt)}`,
+      `${theme.chrome('turn')} ${result.turns}`,
+      `${theme.chrome('time')} ${formatDuration(Date.now() - turnStartedAt)}`,
       ...(lastTurnMetrics?.ttftMs != null
-        ? [`${styler.dim('ttft')} ${formatDuration(lastTurnMetrics.ttftMs)}`]
+        ? [`${theme.chrome('ttft')} ${formatDuration(lastTurnMetrics.ttftMs)}`]
         : []),
       ...(toolCallCount > 0
-        ? [`${styler.dim('tools')} ${toolCallCount}`]
+        ? [`${theme.chrome('tools')} ${toolCallCount}`]
         : []),
       result.usage
-        ? `${styler.dim('in')} ${formatTokens(result.usage.inputTokens)} ${styler.dim('· out')} ${formatTokens(result.usage.outputTokens)} ${styler.dim('· session')} ${formatTokens(totalUsage.inputTokens)}/${formatTokens(totalUsage.outputTokens)}`
-        : `${styler.dim('(provider did not report usage)')}`,
-    ].join(` ${styler.dim('·')} `)
-    writeLine(`\n${styler.dim(BANNER_LINE)}\n  ${summary}`)
+        ? `${theme.chrome('in')} ${formatTokens(result.usage.inputTokens)} ${theme.chrome('· out')} ${formatTokens(result.usage.outputTokens)} ${theme.chrome('· session')} ${formatTokens(totalUsage.inputTokens)}/${formatTokens(totalUsage.outputTokens)}`
+        : `${theme.chrome('(provider did not report usage)')}`,
+    ].join(` ${theme.chrome('·')} `)
+    writeLine(`\n${theme.chrome(BANNER_LINE)}\n  ${summary}`)
     if (result.stopReason !== 'end_turn' && result.error) {
-      writeLine(`  ${styler.red(`✗ ${result.error}`)}`)
+      writeLine(`  ${theme.danger(`✗ ${result.error}`)}`)
     }
     for (const warning of result.warnings ?? []) {
-      writeLine(`  ${styler.yellow(`⚠ ${warning}`)}`)
+      writeLine(`  ${theme.warning(`⚠ ${warning}`)}`)
     }
     if (abortedThisRun) {
-      writeLine(`  ${styler.dim('⏹ stopped — partial progress is kept in the conversation.')}`)
+      writeLine(`  ${theme.chrome('⏹ stopped — partial progress is kept in the conversation.')}`)
     }
     if (queuedLines.length > 0) {
-      writeLine(`  ${styler.dim(`${queuedLines.length} line(s) typed during the run — sending next.`)}`)
+      writeLine(`  ${theme.chrome(`${queuedLines.length} line(s) typed during the run — sending next.`)}`)
     }
     // Claude-Code-style status line: model | dir git:(branch*) | Context bar.
-    // The limit is a model-family guess, so the bar is explicitly labelled
-    // an estimate.
-    const statusLine = renderStatusLine({
+    // The limit is a model-family guess, so the bar is explicitly labelled an
+    // estimate; the bar itself is threshold-colored (calm/warn/alarm).
+    const { head, context, percent } = renderStatusSegments({
       model: resolvedModel,
       cwd,
       git: envInfo?.git ?? null,
@@ -683,22 +687,22 @@ export async function runTui({
       estimated: true,
       unicode: runtime.unicode,
     })
-    writeLine(`  ${styler.dim(statusLine)}`)
+    writeLine(`  ${theme.chrome(head + 'Context ')}${theme.contextLoad(percent)(context.replace(/^Context /, ''))}`)
     // Teach the review affordance once tools have actually run.
     if (toolCallCount > 0) {
-      writeLine(`  ${styler.dim('↳ ctrl+o expands the last tool result')}`)
+      writeLine(`  ${theme.chrome('↳ ctrl+o expands the last tool result')}`)
     }
     if (result.stopReason !== 'end_turn' && result.error) {
-      writeLine(`  ${styler.red(`✗ ${result.error}`)}`)
+      writeLine(`  ${theme.danger(`✗ ${result.error}`)}`)
     }
     for (const warning of result.warnings ?? []) {
-      writeLine(`  ${styler.yellow(`⚠ ${warning}`)}`)
+      writeLine(`  ${theme.warning(`⚠ ${warning}`)}`)
     }
     if (abortedThisRun) {
-      writeLine(`  ${styler.dim('⏹ stopped — partial progress is kept in the conversation.')}`)
+      writeLine(`  ${theme.chrome('⏹ stopped — partial progress is kept in the conversation.')}`)
     }
     if (queuedLines.length > 0) {
-      writeLine(`  ${styler.dim(`${queuedLines.length} line(s) typed during the run — sending next.`)}`)
+      writeLine(`  ${theme.chrome(`${queuedLines.length} line(s) typed during the run — sending next.`)}`)
     }
   }
 
@@ -709,9 +713,9 @@ export async function runTui({
     }
     currentPermissionMode = next
     writeLine(
-      `mode: ${styler.bold(next)}` +
+      `mode: ${theme.emphasis(next)}` +
         (next === 'yolo'
-          ? styler.yellow(' — actions run without approval')
+          ? theme.warning(' — actions run without approval')
           : next === 'plan'
             ? ' — read-only planning'
             : ' — writes require approval'),
@@ -803,9 +807,9 @@ export async function runTui({
           contentWidth: Math.max(...lines.map(visibleWidth)) + 2,
           unicode: runtime.unicode,
         })
-        writeLine(`  ${styler.dim(top)}`)
+        writeLine(`  ${theme.chrome(top)}`)
         for (const line of lines) writeLine(`  ${line}`)
-        writeLine(`  ${styler.dim(bottom)}`)
+        writeLine(`  ${theme.chrome(bottom)}`)
         return true
       }
       case '/resume': {
@@ -829,9 +833,9 @@ export async function runTui({
             contentWidth: Math.max(...lines.map(visibleWidth)) + 2,
             unicode: runtime.unicode,
           })
-          writeLine(`  ${styler.dim(top)}`)
+          writeLine(`  ${theme.chrome(top)}`)
           for (const line of lines) writeLine(`  ${line}`)
-          writeLine(`  ${styler.dim(bottom)}`)
+          writeLine(`  ${theme.chrome(bottom)}`)
           return true
         }
         const listed = /^\d+$/.test(arg) ? resumeMenu[Number(arg) - 1] : null
@@ -879,7 +883,7 @@ export async function runTui({
             writeLine(`No such entry: ${n} — /history lists 1..${promptHistory.length} (1 = most recent).`)
             return true
           }
-          writeLine(`↻ re-running prompt ${n} ${styler.dim(`(${prompt.slice(0, 80)}${prompt.length > 80 ? '…' : ''})`)}`)
+          writeLine(`↻ re-running prompt ${n} ${theme.chrome(`(${prompt.slice(0, 80)}${prompt.length > 80 ? '…' : ''})`)}`)
           if (promptHistory[promptHistory.length - 1] !== prompt) promptHistory.push(prompt)
           await runTurn(prompt)
           return true
@@ -894,9 +898,9 @@ export async function runTui({
           contentWidth: Math.max(...historyLines.map(visibleWidth)) + 2,
           unicode: runtime.unicode,
         })
-        writeLine(`  ${styler.dim(top)}`)
+        writeLine(`  ${theme.chrome(top)}`)
         for (const line of historyLines) writeLine(line)
-        writeLine(`  ${styler.dim(bottom)}`)
+        writeLine(`  ${theme.chrome(bottom)}`)
         return true
       }
       case '/cost': {
@@ -923,7 +927,7 @@ export async function runTui({
           }
           writeLine(`Models for ${provider?.id ?? 'provider'} (current: ${resolvedModel ?? '(default)'}):`)
           for (const entry of models) {
-            const marker = entry.id === resolvedModel ? styler.green(' ←') : ''
+            const marker = entry.id === resolvedModel ? theme.success(' ←') : ''
             writeLine(`  ${entry.id}${marker}`)
           }
           writeLine('Switch with: /model <id>')
@@ -936,12 +940,12 @@ export async function runTui({
           return true
         }
         resolvedModel = found.id
-        writeLine(`model: ${styler.bold(resolvedModel)} (applies from the next message)`)
+        writeLine(`model: ${theme.emphasis(resolvedModel)} (applies from the next message)`)
         return true
       }
       case '/mode': {
         if (rest === '') {
-          writeLine(`mode: ${styler.bold(currentPermissionMode)} — Shift+Tab cycles plan/agent/yolo, or /mode <m>`)
+          writeLine(`mode: ${theme.emphasis(currentPermissionMode)} — Shift+Tab cycles plan/agent/yolo, or /mode <m>`)
           return true
         }
         setPermissionMode(rest.toLowerCase())
@@ -977,12 +981,12 @@ export async function runTui({
         }
         writeLine(`Project memory (${files.length} file(s)) injected into the system prompt:`)
         for (const file of files) {
-          writeLine(`  ${file.path} ${styler.dim(`[${file.scope}${file.truncated ? ' · truncated' : ''}]`)}`)
+          writeLine(`  ${file.path} ${theme.chrome(`[${file.scope}${file.truncated ? ' · truncated' : ''}]`)}`)
           const preview = file.source.split('\n').slice(0, 5).join('\n')
           for (const line of preview.split('\n')) {
-            writeLine(`    ${styler.dim(`| ${line}`)}`)
+            writeLine(`    ${theme.chrome(`| ${line}`)}`)
           }
-          if (file.source.split('\n').length > 5) writeLine(`    ${styler.dim('| …')}`)
+          if (file.source.split('\n').length > 5) writeLine(`    ${theme.chrome('| …')}`)
         }
         return true
       }
@@ -1015,24 +1019,24 @@ export async function runTui({
   })
   const logoWidth = Math.max(...bannerRows.map(row => row.logo.length)) + 2
   for (const row of bannerRows) {
-    const logo = styler.cyan(row.logo.padEnd(logoWidth, ' '))
+    const logo = theme.accent(row.logo.padEnd(logoWidth, ' '))
     // Aligned dim label column; the product line (empty label) is the only
     // bold row — chrome dims, the name speaks.
-    const label = row.label === '' ? '' : `${styler.dim(row.label.padEnd(6))} `
+    const label = row.label === '' ? '' : `${theme.chrome(row.label.padEnd(6))} `
     const value =
       row.label === ''
-        ? `${styler.bold(row.value)}`
+        ? `${theme.emphasis(row.value)}`
         : row.value
     writeLine(`${logo}${label}${value}`.trimEnd())
   }
-  writeLine(styler.dim(`boundary (file tools): ${boundaryLine}`))
+  writeLine(theme.chrome(`boundary (file tools): ${boundaryLine}`))
   if (resumedFrom) writeLine(`↩ resumed session ${resumedFrom} (${history.length} message(s))`)
   writeLine(
-    styler.dim(
+    theme.chrome(
       'Type a task, or /help for commands. Esc interrupts · Shift+Tab switches mode · Ctrl+D exits.',
     ),
   )
-  writeLine(styler.dim(BANNER_LINE))
+  writeLine(theme.chrome(BANNER_LINE))
 
   rl.on('SIGINT', () => {
     // Ctrl+C: abort the running turn, or leave if idle.
@@ -1053,7 +1057,7 @@ export async function runTui({
   })
 
   try {
-    const promptGlyph = runtime.unicode ? styler.cyan('❯') : styler.cyan('>')
+    const promptGlyph = runtime.unicode ? theme.accent('❯') : theme.accent('>')
     for (;;) {
       write(`\n${promptGlyph} `)
       let line = await takeLine()

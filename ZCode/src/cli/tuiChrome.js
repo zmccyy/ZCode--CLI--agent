@@ -117,7 +117,13 @@ export function formatContextBar({ usedTokens, contextLimit, width = 10, unicode
  * a best-effort model-family guess, so the bar shows "~12% (est.)" instead
  * of presenting a hard number.
  */
-export function renderStatusLine({ model, cwd, git, usedTokens, contextLimit, estimated = false, unicode = true }) {
+/**
+ * Status line in two parts so callers can color the context bar by load:
+ *   head    `[model] | dir | git:(main*) | `   (chrome — always dim)
+ *   context `Context ▓▓░░░░░░░░ ~12% (est.)`   (threshold-colored by caller)
+ * git info is optional (null → segment omitted).
+ */
+export function renderStatusSegments({ model, cwd, git, usedTokens, contextLimit, estimated = false, unicode = true }) {
   const directory = typeof cwd === 'string' ? (cwd.split(/[\\/]/).filter(Boolean).pop() ?? cwd) : cwd
   const segments = [`[${model ?? 'default-model'}]`, directory]
   if (git && git.branch) {
@@ -126,7 +132,17 @@ export function renderStatusLine({ model, cwd, git, usedTokens, contextLimit, es
   }
   const { bar, percent } = formatContextBar({ usedTokens, contextLimit, unicode })
   const context = estimated ? `Context ${bar} ~${percent}% (est.)` : `Context ${bar} ${percent}%`
-  return `${segments.join(' | ')} | ${context}`
+  return { head: `${segments.join(' | ')} | `, context, percent }
+}
+
+/**
+ * Renders the per-turn status line:
+ *   [model] | dir git:(main*) | Context ▓▓░░░░░░░░ 12%
+ * Convenience wrapper over renderStatusSegments for plain-text callers.
+ */
+export function renderStatusLine(options) {
+  const { head, context } = renderStatusSegments(options)
+  return `${head}${context}`
 }
 
 /**

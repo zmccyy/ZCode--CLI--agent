@@ -251,3 +251,10 @@ Gate：fake MCP 全链路稳定、工具名零冲突、主 loop 不被 server �
 - [x] **审批行重排**：`? **Allow Write** (preview) **[y/N]**`——工具名与 y/N 强调，参数转暗；语义不变。
 
 - **Gate ✅（2026-09-06）**：typecheck + lint 0 错；全量 **438 tests / 430 pass / 0 fail / 8 skip**；TUI 族 54/54。golden 断言更新 6 个测试文件（banner/提示符/spinner/围栏事件），渲染层零行为变化。
+
+### Loop D3/D4 · 内联对话框框线化 ✅（2026-09-06）
+- [x] **`renderFrame` 助手**（tuiChrome.js）：无侧边框的内联对话框——顶规则带标题 + 内容 + 底规则，长内容（diff/工具输出）永不换行截断；顶/底规则严格等宽，宽度自适应内容（上限 72 列），超长标题截断加 `…`；`visibleWidth` 做 ANSI 感知测量；Unicode 探测降级 ASCII（`+--…`）。
+- [x] **D3 应用**：审批 diff 预览框线化（`╭─ Write → file (write · +1 −1) ──`）；Ctrl+O 工具输出展开框线化（`╭─ ▸ Read (args) ──`）。
+- [x] **D4 应用**：三个列表菜单框线化——`/resume`（`╭─ resume`）、`/history`、`/sessions`；内容行原样保留，现有断言零破坏。
+- [x] 测试：renderFrame 单元（等宽/标题/ASCII/72 上限/超长标题截断/visibleWidth），TUI 族 75/75。
+- **Gate ✅（2026-09-06）**：lint + typecheck 0 错；全量 **439 tests / 431 pass / 0 fail / 8 skip**。

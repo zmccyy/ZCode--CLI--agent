@@ -6,7 +6,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { guessContextLimit, renderBanner, formatContextBar, renderStatusLine, supportsUnicodeChrome } from '../../src/cli/tuiChrome.js'
+import { guessContextLimit, renderBanner, formatContextBar, renderStatusLine, supportsUnicodeChrome, renderFrame, visibleWidth } from '../../src/cli/tuiChrome.js'
 import { runTui } from '../../src/cli/tui.js'
 
 // ── context limit lookup ──
@@ -44,6 +44,27 @@ test('chrome: banner pairs the pixel logo with info lines', () => {
   assert.equal(rows[3].value, 'E:\\proj')
   // The logo is five rows; the last carries no info row.
   assert.equal(rows[4].value, '')
+})
+
+// ── inline dialog frames ──
+
+test('chrome: renderFrame draws equal-width rules with a title and ASCII fallback', () => {
+  const { top, bottom } = renderFrame({ title: 'Allow Write', contentWidth: 40, unicode: true })
+  assert.match(top, /^╭─ Allow Write ─+$/)
+  assert.match(bottom, /^╰─+$/)
+  assert.equal(top.length, bottom.length, 'rules align exactly')
+
+  const ascii = renderFrame({ title: 'resume', contentWidth: 30, unicode: false })
+  assert.match(ascii.top, /^\+- resume -+$/)
+  assert.match(ascii.bottom, /^\+-+$/)
+  assert.equal(ascii.top.length, ascii.bottom.length)
+
+  // Width caps at 72 and floors at 12; titles count toward the width.
+  const wide = renderFrame({ title: 't'.repeat(90), contentWidth: 200, unicode: true })
+  assert.equal(wide.top.length, 72)
+  const narrow = renderFrame({ title: '', contentWidth: 2, unicode: true })
+  assert.equal(narrow.top.length, narrow.bottom.length)
+  assert.equal(visibleWidth('\u001b[2mhello\u001b[0m'), 5)
 })
 
 // ── context bar ──

@@ -39,7 +39,7 @@ import {
 import { collectEnvironmentInfo } from './envInfo.js'
 import { collectProjectMemory } from './projectMemory.js'
 import { createCompleter } from './completer.js'
-import { renderBanner, renderStatusLine, guessContextLimit } from './tuiChrome.js'
+import { renderBanner, renderStatusLine, guessContextLimit, renderFrame, visibleWidth } from './tuiChrome.js'
 import { ERASE_LINE } from './ansi.js'
 import { createCliRuntime } from './runtimeContext.js'
 import { extractCodeBlocks, writeCodeBlocks } from './codeBlocks.js'
@@ -190,21 +190,31 @@ export async function runTui({
     }
     if (blocked) preview.note = preview.note ? `${preview.note} (file outside the workspace boundary — existing content not shown)` : '(file outside the workspace boundary — existing content not shown)'
 
-    writeLine(
-      `  ${styler.bold(`${toolName} → ${preview.file}`)} ${styler.dim(`(${preview.kind} · +${preview.stats.added} −${preview.stats.removed})`)}`,
-    )
-    if (preview.note) writeLine(`  ${styler.dim(preview.note)}`)
+    // Inline dialog: framed header + diff body. Width adapts to the content;
+    // no side borders, so long diff lines are never wrapped or clipped.
+    const title = `${toolName} → ${preview.file} (${preview.kind} · +${preview.stats.added} −${preview.stats.removed})`
+    const bodyLines = []
+    if (preview.note) bodyLines.push(`  ${styler.dim(preview.note)}`)
     for (const part of preview.parts) {
       if (part.type === 'fold') {
-        writeLine(`  ${styler.dim(part.text)}`)
+        bodyLines.push(`  ${styler.dim(part.text)}`)
       } else if (part.type === 'add') {
-        writeLine(`  ${styler.green(`+ ${part.text}`)}`)
+        bodyLines.push(`  ${styler.green(`+ ${part.text}`)}`)
       } else if (part.type === 'del') {
-        writeLine(`  ${styler.red(`- ${part.text}`)}`)
+        bodyLines.push(`  ${styler.red(`- ${part.text}`)}`)
       } else {
-        writeLine(`  ${styler.dim(`  ${part.text}`)}`)
+        bodyLines.push(`  ${styler.dim(`  ${part.text}`)}`)
       }
     }
+    const contentWidth = Math.max(
+      visibleWidth(title),
+      ...preview.parts.map(part => visibleWidth(part.text) + 6),
+      preview.note ? visibleWidth(preview.note) + 4 : 0,
+    )
+    const { top, bottom } = renderFrame({ title, contentWidth, unicode: runtime.unicode })
+    writeLine(`  ${styler.dim(top)}`)
+    for (const line of bodyLines) writeLine(line)
+    writeLine(`  ${styler.dim(bottom)}`)
   }
 
   const askApproval = async ({ toolName, input }) => {
@@ -252,15 +262,21 @@ export async function runTui({
       writeLine('No tool output to expand yet — run a turn that uses tools first.')
       return
     }
-    writeLine(
-      `\n${styler.bold(`▸ ${call.name}`)} ${styler.dim(`(${formatToolInputPreview(call.input)})`)}`,
-    )
-    const text = typeof call.result === 'string' ? call.result : String(call.result ?? '')
+    const rawText = typeof call.result === 'string' ? call.result : String(call.result ?? '')
     const body =
-      text.length > TOOL_OUTPUT_DISPLAY_CAP
-        ? `${text.slice(0, TOOL_OUTPUT_DISPLAY_CAP)}\n… (+${text.length - TOOL_OUTPUT_DISPLAY_CAP} chars not shown)`
-        : text
-    for (const line of body.split('\n')) writeLine(`  ${line}`)
+      rawText.length > TOOL_OUTPUT_DISPLAY_CAP
+        ? `${rawText.slice(0, TOOL_OUTPUT_DISPLAY_CAP)}\n… (+${rawText.length - TOOL_OUTPUT_DISPLAY_CAP} chars not shown)`
+        : rawText
+    const rawLines = body.split('\n')
+    const title = `▸ ${call.name} (${formatToolInputPreview(call.input)})`
+    const contentWidth = Math.max(
+      visibleWidth(title),
+      ...rawLines.map(line => visibleWidth(line) + 2),
+    )
+    const { top, bottom } = renderFrame({ title, contentWidth, unicode: runtime.unicode })
+    writeLine(`\n  ${styler.dim(top)}`)
+    for (const line of rawLines) writeLine(`  ${line}`)
+    writeLine(`  ${styler.dim(bottom)}`)
     if (call.isError) writeLine(`  ${styler.red('(this tool call reported an error)')}`)
   }
 
@@ -776,12 +792,20 @@ export async function runTui({
           writeLine(`No sessions recorded in ${sessionsDir}.`)
           return true
         }
-        writeLine(`Recent sessions in ${sessionsDir} (newest first):`)
+        const lines = ['Recent sessions (newest first):']
         for (const session of sessions.slice(0, 5)) {
           const modified = new Date(session.mtimeMs).toISOString().replace('T', ' ').slice(0, 16)
-          writeLine(`  ${session.sessionId}  ${modified}  ${session.sizeBytes} B`)
+          lines.push(`  ${session.sessionId}  ${modified}  ${session.sizeBytes} B`)
         }
-        writeLine('Resume later with: zcode -p "<prompt>" --continue (or --resume <id>).')
+        lines.push('Resume later with: zcode -p "<prompt>" --continue (or --resume <id>).')
+        const { top, bottom } = renderFrame({
+          title: 'sessions',
+          contentWidth: Math.max(...lines.map(visibleWidth)) + 2,
+          unicode: runtime.unicode,
+        })
+        writeLine(`  ${styler.dim(top)}`)
+        for (const line of lines) writeLine(`  ${line}`)
+        writeLine(`  ${styler.dim(bottom)}`)
         return true
       }
       case '/resume': {
@@ -795,11 +819,19 @@ export async function runTui({
             return true
           }
           resumeMenu = sessions.slice(0, 5)
-          writeLine('Recent sessions (newest first) — pick one with /resume <n> or /resume <id>:')
+          const lines = ['Recent sessions (newest first) — pick one with /resume <n> or /resume <id>:']
           resumeMenu.forEach((session, index) => {
             const modified = new Date(session.mtimeMs).toISOString().replace('T', ' ').slice(0, 16)
-            writeLine(`  ${index + 1}  ${session.sessionId}  ${modified}  ${session.sizeBytes} B`)
+            lines.push(`  ${index + 1}  ${session.sessionId}  ${modified}  ${session.sizeBytes} B`)
           })
+          const { top, bottom } = renderFrame({
+            title: 'resume',
+            contentWidth: Math.max(...lines.map(visibleWidth)) + 2,
+            unicode: runtime.unicode,
+          })
+          writeLine(`  ${styler.dim(top)}`)
+          for (const line of lines) writeLine(`  ${line}`)
+          writeLine(`  ${styler.dim(bottom)}`)
           return true
         }
         const listed = /^\d+$/.test(arg) ? resumeMenu[Number(arg) - 1] : null
@@ -853,12 +885,18 @@ export async function runTui({
           return true
         }
         writeLine('Prompts this session (newest first) — re-run one with /history <n>:')
-        promptHistory
+        const historyLines = promptHistory
           .slice(-10)
           .reverse()
-          .forEach((prompt, index) => {
-            writeLine(`  ${index + 1}  ${prompt.length > 90 ? `${prompt.slice(0, 90)}…` : prompt}`)
-          })
+          .map((prompt, index) => `  ${index + 1}  ${prompt.length > 90 ? `${prompt.slice(0, 90)}…` : prompt}`)
+        const { top, bottom } = renderFrame({
+          title: 'history',
+          contentWidth: Math.max(...historyLines.map(visibleWidth)) + 2,
+          unicode: runtime.unicode,
+        })
+        writeLine(`  ${styler.dim(top)}`)
+        for (const line of historyLines) writeLine(line)
+        writeLine(`  ${styler.dim(bottom)}`)
         return true
       }
       case '/cost': {

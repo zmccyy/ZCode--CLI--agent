@@ -128,3 +128,44 @@ export function renderStatusLine({ model, cwd, git, usedTokens, contextLimit, es
   const context = estimated ? `Context ${bar} ~${percent}% (est.)` : `Context ${bar} ${percent}%`
   return `${segments.join(' | ')} | ${context}`
 }
+
+/**
+ * Visible width of a possibly ANSI-styled line (escape char built from a
+ * char code — the no-control-regex rule bans it in pattern literals).
+ */
+export function visibleWidth(line) {
+  const esc = String.fromCharCode(27)
+  const stripped = String(line).replace(new RegExp(`${esc}\\[[0-9;]*m`, 'g'), '')
+  return stripped.length
+}
+
+const FRAME_WIDTH_CAP = 72
+
+/**
+ * Inline dialog rules — a framed section without side borders, so long
+ * content (diffs, tool output) is never wrapped or clipped:
+ *
+ *   ╭─ Allow Write · file.txt (+1 −0) ──────
+ *     (content lines, printed by the caller)
+ *   ╰───────────────────────────────────────
+ *
+ * Top and bottom rules are exactly the same width, sized to the content
+ * (capped at 72 columns); `unicode: false` degrades to ASCII (+---) for
+ * legacy conhost.
+ */
+export function renderFrame({ title = '', contentWidth, unicode = true }) {
+  // Oversized titles are truncated to keep the rules within the cap.
+  const maxTitle = FRAME_WIDTH_CAP - 6
+  const safeTitle = title.length > maxTitle ? `${title.slice(0, maxTitle - 1)}…` : title
+  const capped = Math.min(
+    FRAME_WIDTH_CAP,
+    Math.max(visibleWidth(safeTitle) + (safeTitle === '' ? 0 : 4), contentWidth ?? 0, 12),
+  )
+  const open = unicode ? '╭' : '+'
+  const close = unicode ? '╰' : '+'
+  const stroke = unicode ? '─' : '-'
+  const titlePart = safeTitle === '' ? '' : ` ${safeTitle} `
+  const top = `${open}${stroke}${titlePart}${stroke.repeat(Math.max(1, capped - 2 - visibleWidth(titlePart)))}`
+  const bottom = `${close}${stroke.repeat(capped - 1)}`
+  return { top, bottom }
+}
